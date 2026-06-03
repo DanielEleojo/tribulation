@@ -5,12 +5,18 @@ extends Node3D
 
 signal died
 signal qi_changed(qi: float, qi_max: float)
+signal net_changed(net: float)
 
 @export var qi_max: float = 100.0      # Qi needed to trigger a Qi Burst
 @export var qi_per_kill: float = 20.0  # Qi gained per enemy slain (5 kills = burst)
 
+@export var net_close_rate: float = 0.045   # how fast the Heavenly Net closes (per sec)
+@export var net_push_per_kill: float = 0.12 # how much a kill pushes the net back
+@export var net_burst_relief: float = 0.30  # extra net relief from a Qi Burst
+
 var is_dead: bool = false
 var qi: float = 0.0
+var net: float = 0.0                  # 0 = open, 1 = closed (death)
 
 func _ready() -> void:
 	add_to_group("game")
@@ -26,8 +32,12 @@ func _ready() -> void:
 		qi_changed.connect(hud.on_qi_changed)
 	if swipe != null:
 		swipe.tapped.connect(_on_tap)
+	var net_overlay := get_tree().get_first_node_in_group("net_overlay")
+	if net_overlay != null:
+		net_changed.connect(net_overlay.on_net_changed)
 
 	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
+	net_changed.emit(net)
 
 func _setup_world() -> void:
 	# Environment: dark color background + soft ambient + distance fog (hides the
@@ -52,10 +62,17 @@ func _setup_world() -> void:
 	sun.shadow_enabled = true
 	add_child(sun)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# Restart (Enter) only acts on the death screen.
-	if is_dead and Input.is_action_just_pressed("restart"):
-		restart()
+	if is_dead:
+		if Input.is_action_just_pressed("restart"):
+			restart()
+		return
+	# The Heavenly Net steadily closes; full closure is death.
+	net = minf(1.0, net + net_close_rate * delta)
+	net_changed.emit(net)
+	if net >= 1.0:
+		die()
 
 ## Called by an obstacle when it touches the player.
 func die() -> void:
@@ -70,6 +87,9 @@ func on_enemy_killed(count: int = 1) -> void:
 		return
 	qi = minf(qi_max, qi + qi_per_kill * float(count))
 	qi_changed.emit(qi, qi_max)
+	# Each kill pushes the Heavenly Net back.
+	net = maxf(0.0, net - net_push_per_kill * float(count))
+	net_changed.emit(net)
 	if qi >= qi_max:
 		_qi_burst()
 
@@ -81,6 +101,9 @@ func _qi_burst() -> void:
 	_spawn_burst_fx()
 	qi = 0.0
 	qi_changed.emit(qi, qi_max)
+	# A burst also throws the Heavenly Net back.
+	net = maxf(0.0, net - net_burst_relief)
+	net_changed.emit(net)
 
 func _spawn_burst_fx() -> void:
 	var p := get_tree().get_first_node_in_group("player")

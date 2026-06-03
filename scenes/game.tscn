@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://btrib0game00"]
+[gd_scene load_steps=8 format=3 uid="uid://btrib0game00"]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="Script" path="res://scripts/swipe_detector.gd" id="2_swipe"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/camera_follow.gd" id="5_cam"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="6_hud"]
 [ext_resource type="Script" path="res://scripts/spawner.gd" id="7_spawn"]
+[ext_resource type="Script" path="res://scripts/net_overlay.gd" id="8_net"]
 
 [node name="Game" type="Node3D" groups=["game"]]
 script = ExtResource("1_game")
@@ -26,6 +27,9 @@ script = ExtResource("4_player")
 
 [node name="Camera" type="Camera3D" parent="."]
 script = ExtResource("5_cam")
+
+[node name="Net" type="CanvasLayer" parent="."]
+script = ExtResource("8_net")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("6_hud")
