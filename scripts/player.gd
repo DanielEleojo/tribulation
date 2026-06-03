@@ -43,6 +43,7 @@ var _dead: bool = false
 var _running: bool = false            # false until the run starts (title screen)
 var _slash_cd: float = 0.0
 var _game
+var _snd
 
 var _mesh: MeshInstance3D
 var _box: BoxMesh
@@ -179,6 +180,7 @@ func try_jump() -> void:
 		_end_slide()
 	_pending_slide = false
 	velocity.y = jump_velocity
+	_sfx("jump")
 
 ## Slide. On the ground: crouch. In the air: fast-fall and queue a slide on landing.
 func start_slide() -> void:
@@ -190,6 +192,7 @@ func start_slide() -> void:
 		is_sliding = true
 		slide_time_left = SLIDE_DURATION
 		_set_height(SLIDE_HEIGHT, SLIDE_COLOR)
+		_sfx("slide")
 	else:
 		velocity.y = min(velocity.y, -fast_fall_speed)
 		_pending_slide = true
@@ -211,6 +214,7 @@ func try_slash() -> void:
 	if _dead or not _running or _slash_cd > 0.0:
 		return
 	_slash_cd = slash_cooldown
+	_sfx("slash")
 	_show_slash_fx()
 	var killed: int = 0
 	for e in get_tree().get_nodes_in_group("enemy"):
@@ -275,6 +279,13 @@ func _spawn_burst(world_pos: Vector3, color: Color, count: int, speed: float, li
 	host.add_child(p)
 	p.global_position = world_pos
 	get_tree().create_timer(life + 0.3).timeout.connect(p.queue_free)
+
+## Play a named SFX via the sound manager (no-op if missing).
+func _sfx(n: String) -> void:
+	if _snd == null:
+		_snd = get_tree().get_first_node_in_group("sound")
+	if _snd != null:
+		_snd.play(n)
 
 ## Called by the game coordinator when the run starts (leaving the title screen).
 func begin_run() -> void:

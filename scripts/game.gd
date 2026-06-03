@@ -24,6 +24,7 @@ var _hud
 var _cam
 var _player
 var _env: Environment
+var _sound
 
 const FOG_BASE: float = 0.012
 const FOG_MAX: float = 0.020
@@ -49,6 +50,7 @@ func _ready() -> void:
 	if net_overlay != null:
 		net_changed.connect(net_overlay.on_net_changed)
 	_cam = get_tree().get_first_node_in_group("camera")
+	_sound = get_tree().get_first_node_in_group("sound")
 
 	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
 	net_changed.emit(net)
@@ -104,6 +106,7 @@ func die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	_sfx("death")
 	_shake(0.9)
 	_hitstop(0.12)
 	died.emit()
@@ -114,6 +117,7 @@ func on_enemy_killed(count: int = 1) -> void:
 		return
 	souls += count
 	souls_changed.emit(souls)
+	_sfx("kill")
 	_shake(0.12)
 	qi = minf(qi_max, qi + qi_per_kill * float(count))
 	qi_changed.emit(qi, qi_max)
@@ -129,6 +133,7 @@ func _qi_burst() -> void:
 		if is_instance_valid(e):
 			e.queue_free()
 	_spawn_burst_fx()
+	_sfx("burst")
 	_shake(0.5)
 	_hitstop(0.06)
 	qi = 0.0
@@ -167,12 +172,14 @@ func on_gate(safe: bool) -> void:
 	if safe:
 		qi = minf(qi_max, qi + 25.0)
 		net = maxf(0.0, net - 0.15)
+		_sfx("gate_good")
 		_shake(0.15)
 		if _hud != null:
 			_hud.flash(Color(0.2, 0.9, 0.4))
 	else:
 		qi = maxf(0.0, qi - 40.0)
 		net = minf(1.0, net + 0.30)
+		_sfx("gate_bad")
 		_shake(0.5)
 		if _hud != null:
 			_hud.flash(Color(0.9, 0.15, 0.2))
@@ -194,6 +201,7 @@ func start_game() -> void:
 	if started:
 		return
 	started = true
+	_sfx("start")
 	if _player != null:
 		_player.begin_run()
 	if _hud != null:
@@ -213,6 +221,11 @@ func restart() -> void:
 func _shake(amount: float) -> void:
 	if _cam != null:
 		_cam.add_trauma(amount)
+
+## Play a named SFX (no-op if no sound file present).
+func _sfx(n: String) -> void:
+	if _sound != null:
+		_sound.play(n)
 
 ## Brief time freeze for impact. Uses a real-time timer so it unfreezes itself.
 func _hitstop(duration: float) -> void:
