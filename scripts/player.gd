@@ -11,7 +11,7 @@ extends CharacterBody2D
 @export var jump_velocity: float = -760.0  # upward velocity applied on jump (px/sec)
 @export var fast_fall_speed: float = 1800.0  # downward velocity when sliding mid-air (px/sec)
 
-const SLIDE_DURATION: float = 0.5          # seconds the slide lasts
+const SLIDE_DURATION: float = 0.65         # seconds the slide lasts
 const STAND_HEIGHT: float = 60.0           # normal body height
 const SLIDE_HEIGHT: float = 30.0           # crouched body height
 const BODY_WIDTH: float = 40.0
@@ -26,6 +26,7 @@ var is_sliding: bool = false
 var slide_time_left: float = 0.0
 var _pending_slide: bool = false           # queued slide for when a fast-fall lands
 var _was_on_floor: bool = false
+var _dead: bool = false
 
 func _ready() -> void:
 	add_to_group("player")
@@ -38,6 +39,12 @@ func _ready() -> void:
 		swipe.swiped_down.connect(start_slide)
 
 func _physics_process(delta: float) -> void:
+	# On death the player freezes in place.
+	if _dead:
+		velocity = Vector2.ZERO
+		move_and_slide()
+		return
+
 	# Always run right at a constant speed.
 	velocity.x = run_speed
 	# Apply gravity every frame; landing on the floor cancels downward velocity.
@@ -101,6 +108,10 @@ func _set_height(h: float, col: Color) -> void:
 	visual.offset_top = -h
 	visual.offset_bottom = 0.0
 	visual.color = col
+
+## Called by the game coordinator when the player dies.
+func on_death() -> void:
+	_dead = true
 
 ## Distance readout: world X since spawn, mapped to an integer "meters" value.
 func get_distance() -> int:

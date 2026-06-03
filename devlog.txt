@@ -2,3 +2,4 @@
 2026-06-02 Phase 1.1: auto-run player (CharacterBody2D, gravity), recycling infinite ground (4 segments), Camera2D following X with Y locked, distance HUD label.
 2026-06-02 Phase 1.2: jump — "jump" action (Space) and swipe-up apply upward velocity only when on floor (jump_velocity -700, gravity 1400); added SwipeDetector (touch gestures -> swiped_up/down/tapped signals).
 2026-06-02 Phase 1.3: slide — "slide" action (Down/S) and swipe-down shrink collision+visual (60->30) for 0.5s then restore; grounded-only, blocks jump mid-slide; cyan tint while sliding.
+2026-06-02 Phase 1.4: obstacles + death + restart — Spawner alternates ground block (jump) / overhead bar (slide), frequency ramps (1.6s->0.8s over 60s), Area2D triggers, despawn behind; contact = death (player freezes, HUD "YOU DIED" + distance); Enter/tap reloads scene. Fixed spawner caching null player (lazy lookup).

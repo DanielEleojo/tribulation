@@ -5,11 +5,14 @@
 [ext_resource type="Script" uid="uid://b8q4l3ptmwj3a" path="res://scripts/camera_follow.gd" id="3_cam"]
 [ext_resource type="Script" uid="uid://b3nictls1v8kf" path="res://scripts/hud.gd" id="4_hud"]
 [ext_resource type="Script" path="res://scripts/swipe_detector.gd" id="5_swipe"]
+[ext_resource type="Script" path="res://scripts/game.gd" id="6_game"]
+[ext_resource type="Script" path="res://scripts/spawner.gd" id="7_spawn"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(40, 60)
 
-[node name="Game" type="Node2D" unique_id=1333523044]
+[node name="Game" type="Node2D" groups=["game"] unique_id=1333523044]
+script = ExtResource("6_game")
 
 [node name="BGLayer" type="CanvasLayer" parent="." unique_id=7824130]
 layer = -10
@@ -28,6 +31,9 @@ color = Color(0.1, 0.08, 0.12, 1)
 
 [node name="SwipeInput" type="Node" parent="."]
 script = ExtResource("5_swipe")
+
+[node name="Spawner" type="Node2D" parent="."]
+script = ExtResource("7_spawn")
 
 [node name="Ground" type="Node2D" parent="." unique_id=360692160]
 script = ExtResource("2_ground")
@@ -59,3 +65,20 @@ offset_right = 360.0
 offset_bottom = 60.0
 theme_override_font_sizes/font_size = 28
 text = "Distance: 0 m"
+
+[node name="DeathLabel" type="Label" parent="HUD"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -90.0
+offset_right = 300.0
+offset_bottom = 90.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 44
+text = "YOU DIED"
+horizontal_alignment = 1
+vertical_alignment = 1
