@@ -15,6 +15,7 @@ signal souls_changed(souls: int)
 @export var net_push_per_kill: float = 0.12 # how much a kill pushes the net back
 @export var net_burst_relief: float = 0.30  # extra net relief from a Qi Burst
 
+var started: bool = false             # false on the title screen, true once running
 var is_dead: bool = false
 var qi: float = 0.0
 var net: float = 0.0                  # 0 = open, 1 = closed (death)
@@ -78,6 +79,11 @@ func _setup_world() -> void:
 	add_child(sun)
 
 func _process(delta: float) -> void:
+	# Title screen: wait for any input to start the run.
+	if not started:
+		if _start_pressed():
+			start_game()
+		return
 	# Restart (Enter) only acts on the death screen.
 	if is_dead:
 		if Input.is_action_just_pressed("restart"):
@@ -175,8 +181,28 @@ func on_gate(safe: bool) -> void:
 	if net >= 1.0:
 		die()
 
+## Any gameplay key starts the run from the title screen.
+func _start_pressed() -> bool:
+	return Input.is_action_just_pressed("jump") \
+		or Input.is_action_just_pressed("slide") \
+		or Input.is_action_just_pressed("slash") \
+		or Input.is_action_just_pressed("move_left") \
+		or Input.is_action_just_pressed("move_right") \
+		or Input.is_action_just_pressed("restart")
+
+func start_game() -> void:
+	if started:
+		return
+	started = true
+	if _player != null:
+		_player.begin_run()
+	if _hud != null:
+		_hud.show_title(false)
+
 func _on_tap() -> void:
-	if is_dead:
+	if not started:
+		start_game()
+	elif is_dead:
 		restart()
 
 func restart() -> void:

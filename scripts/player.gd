@@ -40,6 +40,7 @@ var slide_time_left: float = 0.0
 var _pending_slide: bool = false         # queued slide for when a fast-fall lands
 var _was_on_floor: bool = false
 var _dead: bool = false
+var _running: bool = false            # false until the run starts (title screen)
 var _slash_cd: float = 0.0
 var _game
 
@@ -107,6 +108,14 @@ func _build_dust() -> void:
 func _physics_process(delta: float) -> void:
 	if _dead:
 		velocity = Vector3.ZERO
+		move_and_slide()
+		return
+
+	# Before the run starts (title screen), idle in place (just settle on the floor).
+	if not _running:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		velocity.y -= gravity * delta
 		move_and_slide()
 		return
 
@@ -199,7 +208,7 @@ func _set_height(h: float, col: Color) -> void:
 
 ## Slash: melee forward. Destroys enemies ahead within range in the current lane.
 func try_slash() -> void:
-	if _dead or _slash_cd > 0.0:
+	if _dead or not _running or _slash_cd > 0.0:
 		return
 	_slash_cd = slash_cooldown
 	_show_slash_fx()
@@ -266,6 +275,10 @@ func _spawn_burst(world_pos: Vector3, color: Color, count: int, speed: float, li
 	host.add_child(p)
 	p.global_position = world_pos
 	get_tree().create_timer(life + 0.3).timeout.connect(p.queue_free)
+
+## Called by the game coordinator when the run starts (leaving the title screen).
+func begin_run() -> void:
+	_running = true
 
 ## Called by the game coordinator when the player dies.
 func on_death() -> void:

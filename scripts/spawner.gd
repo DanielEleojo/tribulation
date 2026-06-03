@@ -56,7 +56,7 @@ func _process(delta: float) -> void:
 			return
 	if game == null:
 		game = get_tree().get_first_node_in_group("game")
-	if game != null and game.is_dead:
+	if game != null and (not game.started or game.is_dead):
 		return
 	_elapsed += delta
 	_timer -= delta

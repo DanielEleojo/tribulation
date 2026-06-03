@@ -6,6 +6,7 @@ extends CanvasLayer
 @onready var qi_bar: ProgressBar = $QiBar
 @onready var flash_rect: ColorRect = $Flash
 @onready var souls_label: Label = $SoulsLabel
+@onready var title_root: Control = $Title
 
 var player
 var _souls: int = 0
@@ -15,6 +16,11 @@ func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
 	death_label.visible = false
 	flash_rect.color = Color(1, 1, 1, 0)
+	title_root.visible = true   # start on the title screen
+
+## Show/hide the title screen.
+func show_title(v: bool) -> void:
+	title_root.visible = v
 
 ## Brief full-screen color flash (gate feedback).
 func flash(c: Color) -> void:
