@@ -1,1 +1,2 @@
 2026-06-02 Phase 1.0: scaffold — Godot 4 project "Tribulation", Mobile renderer, landscape 1280x720 (canvas_items/expand), main scene scenes/game.tscn (Node2D), input map (jump/slide/restart), folder structure, Godot .gitignore, git init.
+2026-06-02 Phase 1.1: auto-run player (CharacterBody2D, gravity), recycling infinite ground (4 segments), Camera2D following X with Y locked, distance HUD label.

@@ -1,24 +1,57 @@
 [gd_scene format=3 uid="uid://btrib0game00"]
 
-[node name="Game" type="Node2D"]
+[ext_resource type="Script" uid="uid://dpl2qktavsn2p" path="res://scripts/player.gd" id="1_player"]
+[ext_resource type="Script" uid="uid://bslpbnesrsbgj" path="res://scripts/ground.gd" id="2_ground"]
+[ext_resource type="Script" uid="uid://b8q4l3ptmwj3a" path="res://scripts/camera_follow.gd" id="3_cam"]
+[ext_resource type="Script" uid="uid://b3nictls1v8kf" path="res://scripts/hud.gd" id="4_hud"]
 
-[node name="Background" type="ColorRect" parent="."]
-offset_right = 1280.0
-offset_bottom = 720.0
-color = Color(0.1, 0.05, 0.05, 1)
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
+size = Vector2(40, 60)
 
-[node name="HUD" type="CanvasLayer" parent="."]
+[node name="Game" type="Node2D" unique_id=1333523044]
 
-[node name="Label" type="Label" parent="HUD"]
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -200.0
-offset_top = -20.0
-offset_right = 200.0
-offset_bottom = 20.0
-text = "Tribulation — Phase 1.0 scaffold runs"
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="BGLayer" type="CanvasLayer" parent="." unique_id=7824130]
+layer = -10
+
+[node name="BG" type="ColorRect" parent="BGLayer" unique_id=1190274114]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 1.0
+offset_top = -2.0
+offset_right = 1.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.1, 0.08, 0.12, 1)
+
+[node name="Ground" type="Node2D" parent="." unique_id=360692160]
+script = ExtResource("2_ground")
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=1462780701]
+position = Vector2(200, 500)
+script = ExtResource("1_player")
+
+[node name="Visual" type="ColorRect" parent="Player" unique_id=186051974]
+offset_left = -20.0
+offset_top = -60.0
+offset_right = 20.0
+color = Color(0.95, 0.82, 0.2, 1)
+
+[node name="Collision" type="CollisionShape2D" parent="Player" unique_id=1543769574]
+position = Vector2(0, -30)
+shape = SubResource("RectangleShape2D_player")
+
+[node name="Camera" type="Camera2D" parent="." unique_id=1781799302]
+script = ExtResource("3_cam")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1200367036]
+script = ExtResource("4_hud")
+
+[node name="Distance" type="Label" parent="HUD" unique_id=1762665454]
+offset_left = 24.0
+offset_top = 16.0
+offset_right = 360.0
+offset_bottom = 60.0
+theme_override_font_sizes/font_size = 28
+text = "Distance: 0 m"
