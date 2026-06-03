@@ -20,6 +20,7 @@ var qi: float = 0.0
 var net: float = 0.0                  # 0 = open, 1 = closed (death)
 var souls: int = 0                    # Demon Souls collected this run (+1 per kill)
 var _hud
+var _cam
 
 func _ready() -> void:
 	add_to_group("game")
@@ -40,6 +41,7 @@ func _ready() -> void:
 	var net_overlay := get_tree().get_first_node_in_group("net_overlay")
 	if net_overlay != null:
 		net_changed.connect(net_overlay.on_net_changed)
+	_cam = get_tree().get_first_node_in_group("camera")
 
 	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
 	net_changed.emit(net)
@@ -85,6 +87,8 @@ func die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	_shake(0.9)
+	_hitstop(0.12)
 	died.emit()
 
 ## Called by the player after a slash kills enemies. Charges Qi; bursts at max.
@@ -93,6 +97,7 @@ func on_enemy_killed(count: int = 1) -> void:
 		return
 	souls += count
 	souls_changed.emit(souls)
+	_shake(0.12)
 	qi = minf(qi_max, qi + qi_per_kill * float(count))
 	qi_changed.emit(qi, qi_max)
 	# Each kill pushes the Heavenly Net back.
@@ -107,6 +112,8 @@ func _qi_burst() -> void:
 		if is_instance_valid(e):
 			e.queue_free()
 	_spawn_burst_fx()
+	_shake(0.5)
+	_hitstop(0.06)
 	qi = 0.0
 	qi_changed.emit(qi, qi_max)
 	# A burst also throws the Heavenly Net back.
@@ -143,11 +150,13 @@ func on_gate(safe: bool) -> void:
 	if safe:
 		qi = minf(qi_max, qi + 25.0)
 		net = maxf(0.0, net - 0.15)
+		_shake(0.15)
 		if _hud != null:
 			_hud.flash(Color(0.2, 0.9, 0.4))
 	else:
 		qi = maxf(0.0, qi - 40.0)
 		net = minf(1.0, net + 0.30)
+		_shake(0.5)
 		if _hud != null:
 			_hud.flash(Color(0.9, 0.15, 0.2))
 	qi_changed.emit(qi, qi_max)
@@ -160,4 +169,16 @@ func _on_tap() -> void:
 		restart()
 
 func restart() -> void:
+	Engine.time_scale = 1.0   # safety: hitstop must never persist across a reload
 	get_tree().reload_current_scene()
+
+## Camera screen shake (no-op if camera not found).
+func _shake(amount: float) -> void:
+	if _cam != null:
+		_cam.add_trauma(amount)
+
+## Brief time freeze for impact. Uses a real-time timer so it unfreezes itself.
+func _hitstop(duration: float) -> void:
+	Engine.time_scale = 0.0
+	await get_tree().create_timer(duration, true, false, true).timeout
+	Engine.time_scale = 1.0
