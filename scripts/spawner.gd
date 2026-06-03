@@ -28,21 +28,26 @@ const BAR_COLOR := Color(0.45, 0.35, 0.9)
 const ENEMY_SIZE := Vector3(0.95, 2.6, 0.95)   # tall: can't be jumped or slid over
 const ENEMY_COLOR := Color(0.75, 0.12, 0.16)
 
+const GateScript = preload("res://scripts/gate.gd")
+
 # Frequency ramp.
 @export var start_interval: float = 1.4
 @export var min_interval: float = 0.7
 @export var ramp_time: float = 60.0
+@export var gate_interval: float = 11.0   # seconds between Life/Death Gates
 
 var player: Node3D
 var game
 var _elapsed: float = 0.0
 var _timer: float = 0.0
+var _gate_timer: float = 0.0
 var _spawn_index: int = 0
 
 func _ready() -> void:
 	randomize()
 	game = get_tree().get_first_node_in_group("game")
 	_timer = start_interval
+	_gate_timer = gate_interval
 
 func _process(delta: float) -> void:
 	if player == null:
@@ -58,6 +63,10 @@ func _process(delta: float) -> void:
 	if _timer <= 0.0:
 		_spawn()
 		_timer = _current_interval()
+	_gate_timer -= delta
+	if _gate_timer <= 0.0:
+		_spawn_gate()
+		_gate_timer = gate_interval
 	_cleanup()
 
 func _current_interval() -> float:
@@ -90,6 +99,13 @@ func _spawn_barrier(is_block: bool, z: float) -> void:
 		var obs := _make_barrier(is_block, w)
 		obs.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
 		add_child(obs)
+
+func _spawn_gate() -> void:
+	var safe_lane: int = randi() % 3
+	var gate := GateScript.new()
+	gate.position = Vector3(0.0, 0.0, player.global_position.z - SPAWN_AHEAD)
+	add_child(gate)
+	gate.setup(safe_lane, game)
 
 func _spawn_enemy_row(z: float) -> void:
 	# gap in {0,1,2} leaves that lane open; gap == 3 means a full wall (must slash).

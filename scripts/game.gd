@@ -17,6 +17,7 @@ signal net_changed(net: float)
 var is_dead: bool = false
 var qi: float = 0.0
 var net: float = 0.0                  # 0 = open, 1 = closed (death)
+var _hud
 
 func _ready() -> void:
 	add_to_group("game")
@@ -24,6 +25,7 @@ func _ready() -> void:
 
 	var player := get_tree().get_first_node_in_group("player")
 	var hud := get_tree().get_first_node_in_group("hud")
+	_hud = hud
 	var swipe := get_tree().get_first_node_in_group("swipe_input")
 	if player != null:
 		died.connect(player.on_death)
@@ -127,6 +129,25 @@ func _spawn_burst_fx() -> void:
 	tw.tween_property(fx, "scale", Vector3(14.0, 14.0, 14.0), 0.45)
 	tw.tween_property(m, "albedo_color:a", 0.0, 0.45)
 	tw.chain().tween_callback(fx.queue_free)
+
+## Resolve a Life/Death Gate pass. Non-lethal early: a wrong gate is a penalty.
+func on_gate(safe: bool) -> void:
+	if is_dead:
+		return
+	if safe:
+		qi = minf(qi_max, qi + 25.0)
+		net = maxf(0.0, net - 0.15)
+		if _hud != null:
+			_hud.flash(Color(0.2, 0.9, 0.4))
+	else:
+		qi = maxf(0.0, qi - 40.0)
+		net = minf(1.0, net + 0.30)
+		if _hud != null:
+			_hud.flash(Color(0.9, 0.15, 0.2))
+	qi_changed.emit(qi, qi_max)
+	net_changed.emit(net)
+	if net >= 1.0:
+		die()
 
 func _on_tap() -> void:
 	if is_dead:
