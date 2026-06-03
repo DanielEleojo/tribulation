@@ -41,6 +41,7 @@ var _pending_slide: bool = false         # queued slide for when a fast-fall lan
 var _was_on_floor: bool = false
 var _dead: bool = false
 var _slash_cd: float = 0.0
+var _game
 
 var _mesh: MeshInstance3D
 var _box: BoxMesh
@@ -176,6 +177,7 @@ func try_slash() -> void:
 		return
 	_slash_cd = slash_cooldown
 	_show_slash_fx()
+	var killed: int = 0
 	for e in get_tree().get_nodes_in_group("enemy"):
 		if not is_instance_valid(e):
 			continue
@@ -183,6 +185,12 @@ func try_slash() -> void:
 		var lateral: float = absf(e.global_position.x - global_position.x)
 		if ahead >= -1.0 and ahead <= slash_range and lateral <= SLASH_LANE_TOL:
 			e.queue_free()
+			killed += 1
+	if killed > 0:
+		if _game == null:
+			_game = get_tree().get_first_node_in_group("game")
+		if _game != null:
+			_game.on_enemy_killed(killed)
 
 ## Brief glowing slash arc in front of the player.
 func _show_slash_fx() -> void:

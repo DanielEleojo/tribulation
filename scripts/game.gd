@@ -4,8 +4,13 @@ extends Node3D
 ## Wiring happens here because the root readies LAST (every child already exists).
 
 signal died
+signal qi_changed(qi: float, qi_max: float)
+
+@export var qi_max: float = 100.0      # Qi needed to trigger a Qi Burst
+@export var qi_per_kill: float = 20.0  # Qi gained per enemy slain (5 kills = burst)
 
 var is_dead: bool = false
+var qi: float = 0.0
 
 func _ready() -> void:
 	add_to_group("game")
@@ -18,8 +23,11 @@ func _ready() -> void:
 		died.connect(player.on_death)
 	if hud != null:
 		died.connect(hud.on_death)
+		qi_changed.connect(hud.on_qi_changed)
 	if swipe != null:
 		swipe.tapped.connect(_on_tap)
+
+	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
 
 func _setup_world() -> void:
 	# Environment: dark color background + soft ambient + distance fog (hides the
@@ -55,6 +63,47 @@ func die() -> void:
 		return
 	is_dead = true
 	died.emit()
+
+## Called by the player after a slash kills enemies. Charges Qi; bursts at max.
+func on_enemy_killed(count: int = 1) -> void:
+	if is_dead:
+		return
+	qi = minf(qi_max, qi + qi_per_kill * float(count))
+	qi_changed.emit(qi, qi_max)
+	if qi >= qi_max:
+		_qi_burst()
+
+## Qi Burst: clear every enemy on the field, flash a shockwave, reset Qi.
+func _qi_burst() -> void:
+	for e in get_tree().get_nodes_in_group("enemy"):
+		if is_instance_valid(e):
+			e.queue_free()
+	_spawn_burst_fx()
+	qi = 0.0
+	qi_changed.emit(qi, qi_max)
+
+func _spawn_burst_fx() -> void:
+	var p := get_tree().get_first_node_in_group("player")
+	if p == null:
+		return
+	var fx := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.0
+	sphere.height = 2.0
+	fx.mesh = sphere
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.6, 0.85, 1.0, 0.5)
+	m.emission_enabled = true
+	m.emission = Color(0.5, 0.8, 1.0)
+	fx.material_override = m
+	fx.position = Vector3(0.0, 1.0, 0.0)
+	p.add_child(fx)
+	var tw := fx.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(fx, "scale", Vector3(14.0, 14.0, 14.0), 0.45)
+	tw.tween_property(m, "albedo_color:a", 0.0, 0.45)
+	tw.chain().tween_callback(fx.queue_free)
 
 func _on_tap() -> void:
 	if is_dead:

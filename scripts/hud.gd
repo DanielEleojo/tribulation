@@ -3,6 +3,7 @@ extends CanvasLayer
 
 @onready var distance_label: Label = $Distance
 @onready var death_label: Label = $DeathLabel
+@onready var qi_bar: ProgressBar = $QiBar
 
 var player
 
@@ -10,6 +11,11 @@ func _ready() -> void:
 	add_to_group("hud")
 	player = get_tree().get_first_node_in_group("player")
 	death_label.visible = false
+
+## Called by the game coordinator whenever Qi changes (and once at start).
+func on_qi_changed(qi: float, qi_max: float) -> void:
+	qi_bar.max_value = qi_max
+	qi_bar.value = qi
 
 func _process(_delta: float) -> void:
 	if player == null:

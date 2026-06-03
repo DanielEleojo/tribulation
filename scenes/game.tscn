@@ -38,6 +38,23 @@ offset_bottom = 60.0
 theme_override_font_sizes/font_size = 28
 text = "Distance: 0 m"
 
+[node name="QiLabel" type="Label" parent="HUD"]
+offset_left = 24.0
+offset_top = 58.0
+offset_right = 120.0
+offset_bottom = 84.0
+theme_override_font_sizes/font_size = 20
+text = "Qi"
+
+[node name="QiBar" type="ProgressBar" parent="HUD"]
+offset_left = 64.0
+offset_top = 60.0
+offset_right = 324.0
+offset_bottom = 84.0
+max_value = 100.0
+value = 0.0
+show_percentage = false
+
 [node name="DeathLabel" type="Label" parent="HUD"]
 anchors_preset = 8
 anchor_left = 0.5
