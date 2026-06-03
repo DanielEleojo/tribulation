@@ -1,56 +1,73 @@
 extends CharacterBody3D
 ## Player (3D lane runner): auto-runs FORWARD (-Z) at a constant speed, with gravity.
-## Lane switching, jump, and slide are added in later steps.
+## Lanes: move_left/right (A/D, arrows, swipe) ease between 3 lanes.
+## Jump:  "jump" (Space) or swipe-up; only while on the floor. Cancels a slide.
+## Slide: "slide" (Down/S) or swipe-down.
+##        - On the ground: crouch (shorter box) for ~0.65s, then restore.
+##        - In the air: fast-fall (dive) straight down, then slide on landing.
 ## Placeholder visual is a colored box built in code (no art yet).
 
-@export var run_speed: float = 12.0    # constant forward speed (units/sec, -Z)
-@export var gravity: float = 30.0      # downward acceleration (units/sec^2)
+@export var run_speed: float = 12.0      # constant forward speed (units/sec, -Z)
+@export var gravity: float = 30.0        # downward acceleration (units/sec^2)
+@export var jump_velocity: float = 12.0  # upward velocity on jump (units/sec)
+@export var fast_fall_speed: float = 30.0  # downward dive speed when sliding mid-air
 
 const STAND_HEIGHT: float = 2.0
+const SLIDE_HEIGHT: float = 1.0
 const BODY_WIDTH: float = 1.0
-const STAND_COLOR := Color(0.95, 0.82, 0.2)
+const STAND_COLOR := Color(0.95, 0.82, 0.2)   # gold standing/running
+const SLIDE_COLOR := Color(0.3, 0.8, 0.9)     # cyan while sliding
 
-const LANE_WIDTH: float = 2.5          # spacing between lanes (centers at -2.5, 0, +2.5)
+const LANE_WIDTH: float = 2.5            # spacing between lanes (centers at -2.5, 0, +2.5)
 const LANE_COUNT: int = 3
-const LANE_SHARPNESS: float = 12.0     # how aggressively we ease toward the target lane
-const MAX_LANE_SPEED: float = 18.0     # cap on sideways speed (units/sec)
+const LANE_SHARPNESS: float = 12.0       # how aggressively we ease toward the target lane
+const MAX_LANE_SPEED: float = 18.0       # cap on sideways speed (units/sec)
 
-var current_lane: int = 1              # 0 = left, 1 = center, 2 = right
+const SLIDE_DURATION: float = 0.65       # seconds a ground slide lasts
+
+var current_lane: int = 1                # 0 = left, 1 = center, 2 = right
 var start_z: float = 0.0
+var is_sliding: bool = false
+var slide_time_left: float = 0.0
+var _pending_slide: bool = false         # queued slide for when a fast-fall lands
+var _was_on_floor: bool = false
 var _dead: bool = false
+
 var _mesh: MeshInstance3D
 var _box: BoxMesh
 var _col: CollisionShape3D
 var _shape: BoxShape3D
+var _mat: StandardMaterial3D
 
 func _ready() -> void:
 	add_to_group("player")
 	start_z = global_position.z
 	_build_body()
-	# Wire touch swipes to lane movement.
+	# Wire touch swipes to the matching actions.
 	var swipe := get_tree().get_first_node_in_group("swipe_input")
 	if swipe != null:
 		swipe.swiped_left.connect(move_left)
 		swipe.swiped_right.connect(move_right)
+		swipe.swiped_up.connect(try_jump)
+		swipe.swiped_down.connect(start_slide)
 
 func _build_body() -> void:
-	# Visual box. Offset up by half-height so the body's origin is at its FEET.
+	# Visual + collision boxes, offset up by half-height so the origin is at the FEET.
+	_mat = StandardMaterial3D.new()
+	_mat.albedo_color = STAND_COLOR
+
 	_mesh = MeshInstance3D.new()
 	_box = BoxMesh.new()
-	_box.size = Vector3(BODY_WIDTH, STAND_HEIGHT, BODY_WIDTH)
 	_mesh.mesh = _box
-	_mesh.position = Vector3(0.0, STAND_HEIGHT * 0.5, 0.0)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = STAND_COLOR
-	_mesh.material_override = mat
+	_mesh.material_override = _mat
 	add_child(_mesh)
 
 	_col = CollisionShape3D.new()
 	_shape = BoxShape3D.new()
-	_shape.size = Vector3(BODY_WIDTH, STAND_HEIGHT, BODY_WIDTH)
 	_col.shape = _shape
-	_col.position = Vector3(0.0, STAND_HEIGHT * 0.5, 0.0)
 	add_child(_col)
+
+	_set_height(STAND_HEIGHT, STAND_COLOR)
 
 func _physics_process(delta: float) -> void:
 	if _dead:
@@ -58,11 +75,27 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	# Keyboard lane input.
+	# Lane / jump / slide keyboard input.
 	if Input.is_action_just_pressed("move_left"):
 		move_left()
 	if Input.is_action_just_pressed("move_right"):
 		move_right()
+	if Input.is_action_just_pressed("jump"):
+		try_jump()
+	if Input.is_action_just_pressed("slide"):
+		start_slide()
+
+	var grounded := is_on_floor()
+	# A queued fast-fall slide fires the moment we touch down.
+	if grounded and not _was_on_floor and _pending_slide:
+		_pending_slide = false
+		start_slide()
+	# Slide countdown.
+	if is_sliding:
+		slide_time_left -= delta
+		if slide_time_left <= 0.0:
+			_end_slide()
+	_was_on_floor = grounded
 
 	# Constant forward run.
 	velocity.z = -run_speed
@@ -84,6 +117,41 @@ func move_right() -> void:
 	if _dead:
 		return
 	current_lane = min(LANE_COUNT - 1, current_lane + 1)
+
+## Jump when grounded. Jumping mid-slide cancels the slide.
+func try_jump() -> void:
+	if _dead or not is_on_floor():
+		return
+	if is_sliding:
+		_end_slide()
+	_pending_slide = false
+	velocity.y = jump_velocity
+
+## Slide. On the ground: crouch. In the air: fast-fall and queue a slide on landing.
+func start_slide() -> void:
+	if _dead:
+		return
+	if is_on_floor():
+		if is_sliding:
+			return
+		is_sliding = true
+		slide_time_left = SLIDE_DURATION
+		_set_height(SLIDE_HEIGHT, SLIDE_COLOR)
+	else:
+		velocity.y = min(velocity.y, -fast_fall_speed)
+		_pending_slide = true
+
+func _end_slide() -> void:
+	is_sliding = false
+	_set_height(STAND_HEIGHT, STAND_COLOR)
+
+## Resize visual + collision, keeping the feet at the body origin (y=0).
+func _set_height(h: float, col: Color) -> void:
+	_box.size = Vector3(BODY_WIDTH, h, BODY_WIDTH)
+	_mesh.position = Vector3(0.0, h * 0.5, 0.0)
+	_shape.size = Vector3(BODY_WIDTH, h, BODY_WIDTH)
+	_col.position = Vector3(0.0, h * 0.5, 0.0)
+	_mat.albedo_color = col
 
 ## Called by the game coordinator when the player dies.
 func on_death() -> void:
