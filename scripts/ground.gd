@@ -1,81 +1,73 @@
-extends Node2D
-## Infinite ground via RECYCLING segments.
-## A handful of wide ground segments are laid end-to-end. When a segment passes
-## behind the camera's left edge, it is repositioned to the right of the
-## rightmost segment so the ground never shows a gap.
+extends Node3D
+## Infinite ground via RECYCLING tiles along the Z axis (forward = -Z).
+## Tiles are laid end-to-end ahead of the player; when a tile falls behind the
+## player it is moved to the front of the line so the ground never shows a gap.
+## Lane divider lines + alternating tile shades make the forward motion readable.
 
-const SEGMENT_WIDTH: float = 1280.0
-const SEGMENT_HEIGHT: float = 200.0
-const GROUND_TOP_Y: float = 560.0          # world Y of the ground's top surface
-const SEGMENT_COUNT: int = 4
-const RECYCLE_MARGIN: float = 100.0        # extra slack before recycling, avoids popping
-const GROUND_COLOR := Color(0.20, 0.14, 0.11, 1.0)
-const STRIPE_COLOR := Color(0.30, 0.22, 0.17, 1.0)  # lighter marks so motion is visible
-const STRIPE_SPACING: float = 128.0
-const STRIPE_WIDTH: float = 14.0
-const SURFACE_COLOR := Color(0.42, 0.55, 0.30, 1.0)  # green-ish top edge (the "grass" line)
-const SURFACE_HEIGHT: float = 10.0
+const TILE_WIDTH: float = 12.0
+const TILE_LENGTH: float = 20.0
+const TILE_COUNT: int = 10
+const RECYCLE_BEHIND: float = 25.0     # how far behind the player before a tile recycles
+const LANE_WIDTH: float = 2.5          # lane spacing (lanes at -2.5, 0, +2.5)
 
-var segments: Array[StaticBody2D] = []
+var player: Node3D
+var tiles: Array[StaticBody3D] = []
 
 func _ready() -> void:
-	for i in range(SEGMENT_COUNT):
-		var seg := _make_segment()
-		seg.position.x = float(i) * SEGMENT_WIDTH
-		add_child(seg)
-		segments.append(seg)
+	for i in range(TILE_COUNT):
+		var t := _make_tile(i)
+		t.position.z = -float(i) * TILE_LENGTH
+		add_child(t)
+		tiles.append(t)
 
-func _make_segment() -> StaticBody2D:
-	var body := StaticBody2D.new()
+func _make_tile(idx: int) -> StaticBody3D:
+	var body := StaticBody3D.new()
 
-	# Placeholder visual: a wide ColorRect sitting at the ground's top surface.
-	var rect := ColorRect.new()
-	rect.size = Vector2(SEGMENT_WIDTH, SEGMENT_HEIGHT)
-	rect.position = Vector2(0.0, GROUND_TOP_Y)
-	rect.color = GROUND_COLOR
-	body.add_child(rect)
+	# Tile slab: top surface sits at y=0.
+	var mesh := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(TILE_WIDTH, 1.0, TILE_LENGTH)
+	mesh.mesh = box
+	mesh.position = Vector3(0.0, -0.5, 0.0)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.20, 0.16, 0.14) if idx % 2 == 0 else Color(0.16, 0.13, 0.12)
+	mesh.material_override = mat
+	body.add_child(mesh)
 
-	# Vertical stripe markers so the ground's leftward scroll is clearly visible.
-	var x := 0.0
-	while x < SEGMENT_WIDTH:
-		var stripe := ColorRect.new()
-		stripe.size = Vector2(STRIPE_WIDTH, SEGMENT_HEIGHT)
-		stripe.position = Vector2(x, GROUND_TOP_Y)
-		stripe.color = STRIPE_COLOR
-		body.add_child(stripe)
-		x += STRIPE_SPACING
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(TILE_WIDTH, 1.0, TILE_LENGTH)
+	col.shape = shape
+	col.position = Vector3(0.0, -0.5, 0.0)
+	body.add_child(col)
 
-	# A bright top "surface" line along the walkable edge.
-	var surface := ColorRect.new()
-	surface.size = Vector2(SEGMENT_WIDTH, SURFACE_HEIGHT)
-	surface.position = Vector2(0.0, GROUND_TOP_Y)
-	surface.color = SURFACE_COLOR
-	body.add_child(surface)
-
-	# Matching collision rectangle (centered on the visual).
-	var shape := CollisionShape2D.new()
-	var rect_shape := RectangleShape2D.new()
-	rect_shape.size = Vector2(SEGMENT_WIDTH, SEGMENT_HEIGHT)
-	shape.shape = rect_shape
-	shape.position = Vector2(SEGMENT_WIDTH * 0.5, GROUND_TOP_Y + SEGMENT_HEIGHT * 0.5)
-	body.add_child(shape)
+	# Lane divider lines between the three lanes (boundaries at +/- LANE_WIDTH/2).
+	for sx in [-LANE_WIDTH * 0.5, LANE_WIDTH * 0.5]:
+		var line := MeshInstance3D.new()
+		var lbox := BoxMesh.new()
+		lbox.size = Vector3(0.12, 0.06, TILE_LENGTH)
+		line.mesh = lbox
+		line.position = Vector3(sx, 0.03, 0.0)
+		var lmat := StandardMaterial3D.new()
+		lmat.albedo_color = Color(0.5, 0.55, 0.42)
+		line.material_override = lmat
+		body.add_child(line)
 
 	return body
 
 func _physics_process(_delta: float) -> void:
-	var cam := get_viewport().get_camera_2d()
-	if cam == null:
-		return
-	var half_view := get_viewport_rect().size.x * 0.5
-	var visible_left := cam.global_position.x - half_view - RECYCLE_MARGIN
+	if player == null:
+		player = get_tree().get_first_node_in_group("player")
+		if player == null:
+			return
+	var behind_z: float = player.global_position.z + RECYCLE_BEHIND
+	for t in tiles:
+		# A tile whose center is well behind the player gets moved to the front.
+		if t.position.z > behind_z:
+			t.position.z = _frontmost_z() - TILE_LENGTH
 
-	for seg in segments:
-		# If a segment's right edge has scrolled past the left of the view, recycle it.
-		if seg.position.x + SEGMENT_WIDTH < visible_left:
-			seg.position.x = _rightmost_x() + SEGMENT_WIDTH
-
-func _rightmost_x() -> float:
-	var m := -INF
-	for seg in segments:
-		m = max(m, seg.position.x)
+func _frontmost_z() -> float:
+	var m := INF
+	for t in tiles:
+		m = min(m, t.position.z)
 	return m
