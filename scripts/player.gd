@@ -7,8 +7,10 @@ extends CharacterBody3D
 ##        - In the air: fast-fall (dive) straight down, then slide on landing.
 ## Placeholder visual is a colored box built in code (no art yet).
 
-@export var run_speed: float = 12.0      # constant forward speed (units/sec, -Z)
-@export var gravity: float = 30.0        # downward acceleration (units/sec^2)
+@export var base_speed: float = 12.0       # starting forward speed (units/sec, -Z)
+@export var max_speed: float = 22.0        # speed cap so it stays playable
+@export var speed_ramp_time: float = 90.0  # seconds of running to reach max_speed
+@export var gravity: float = 30.0          # downward acceleration (units/sec^2)
 @export var jump_velocity: float = 12.0  # upward velocity on jump (units/sec)
 @export var fast_fall_speed: float = 30.0  # downward dive speed when sliding mid-air
 
@@ -27,6 +29,8 @@ const SLIDE_DURATION: float = 0.65       # seconds a ground slide lasts
 
 var current_lane: int = 1                # 0 = left, 1 = center, 2 = right
 var start_z: float = 0.0
+var run_speed: float = base_speed        # current forward speed (ramps up over time)
+var _run_time: float = 0.0               # elapsed alive run time, drives the ramp
 var is_sliding: bool = false
 var slide_time_left: float = 0.0
 var _pending_slide: bool = false         # queued slide for when a fast-fall lands
@@ -97,7 +101,10 @@ func _physics_process(delta: float) -> void:
 			_end_slide()
 	_was_on_floor = grounded
 
-	# Constant forward run.
+	# Forward run, ramping speed up to a cap over elapsed run time.
+	_run_time += delta
+	var ramp: float = clampf(_run_time / speed_ramp_time, 0.0, 1.0)
+	run_speed = lerpf(base_speed, max_speed, ramp)
 	velocity.z = -run_speed
 	# Ease sideways toward the target lane's X.
 	var target_x: float = float(current_lane - 1) * LANE_WIDTH
