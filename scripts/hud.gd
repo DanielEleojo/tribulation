@@ -5,8 +5,10 @@ extends CanvasLayer
 @onready var death_label: Label = $DeathLabel
 @onready var qi_bar: ProgressBar = $QiBar
 @onready var flash_rect: ColorRect = $Flash
+@onready var souls_label: Label = $SoulsLabel
 
 var player
+var _souls: int = 0
 
 func _ready() -> void:
 	add_to_group("hud")
@@ -25,6 +27,11 @@ func on_qi_changed(qi: float, qi_max: float) -> void:
 	qi_bar.max_value = qi_max
 	qi_bar.value = qi
 
+## Called by the game coordinator whenever Demon Souls change (and once at start).
+func on_souls_changed(souls: int) -> void:
+	_souls = souls
+	souls_label.text = "Souls: %d" % souls
+
 func _process(_delta: float) -> void:
 	if player == null:
 		return
@@ -35,5 +42,5 @@ func on_death() -> void:
 	var dist := 0
 	if player != null:
 		dist = player.get_distance()
-	death_label.text = "YOU DIED\nDistance: %d m\nEnter / tap to retry" % dist
+	death_label.text = "YOU DIED\n\nDistance: %d m\nDemon Souls: %d\n\nEnter / tap to retry\n[ Watch ad to continue — coming soon ]" % [dist, _souls]
 	death_label.visible = true

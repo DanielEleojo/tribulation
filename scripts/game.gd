@@ -6,6 +6,7 @@ extends Node3D
 signal died
 signal qi_changed(qi: float, qi_max: float)
 signal net_changed(net: float)
+signal souls_changed(souls: int)
 
 @export var qi_max: float = 100.0      # Qi needed to trigger a Qi Burst
 @export var qi_per_kill: float = 20.0  # Qi gained per enemy slain (5 kills = burst)
@@ -17,6 +18,7 @@ signal net_changed(net: float)
 var is_dead: bool = false
 var qi: float = 0.0
 var net: float = 0.0                  # 0 = open, 1 = closed (death)
+var souls: int = 0                    # Demon Souls collected this run (+1 per kill)
 var _hud
 
 func _ready() -> void:
@@ -32,6 +34,7 @@ func _ready() -> void:
 	if hud != null:
 		died.connect(hud.on_death)
 		qi_changed.connect(hud.on_qi_changed)
+		souls_changed.connect(hud.on_souls_changed)
 	if swipe != null:
 		swipe.tapped.connect(_on_tap)
 	var net_overlay := get_tree().get_first_node_in_group("net_overlay")
@@ -40,6 +43,7 @@ func _ready() -> void:
 
 	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
 	net_changed.emit(net)
+	souls_changed.emit(souls)
 
 func _setup_world() -> void:
 	# Environment: dark color background + soft ambient + distance fog (hides the
@@ -87,6 +91,8 @@ func die() -> void:
 func on_enemy_killed(count: int = 1) -> void:
 	if is_dead:
 		return
+	souls += count
+	souls_changed.emit(souls)
 	qi = minf(qi_max, qi + qi_per_kill * float(count))
 	qi_changed.emit(qi, qi_max)
 	# Each kill pushes the Heavenly Net back.
