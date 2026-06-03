@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://bslpbnesrsbgj" path="res://scripts/ground.gd" id="2_ground"]
 [ext_resource type="Script" uid="uid://b8q4l3ptmwj3a" path="res://scripts/camera_follow.gd" id="3_cam"]
 [ext_resource type="Script" uid="uid://b3nictls1v8kf" path="res://scripts/hud.gd" id="4_hud"]
+[ext_resource type="Script" path="res://scripts/swipe_detector.gd" id="5_swipe"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(40, 60)
@@ -24,6 +25,9 @@ offset_bottom = -2.0
 grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.1, 0.08, 0.12, 1)
+
+[node name="SwipeInput" type="Node" parent="."]
+script = ExtResource("5_swipe")
 
 [node name="Ground" type="Node2D" parent="." unique_id=360692160]
 script = ExtResource("2_ground")
