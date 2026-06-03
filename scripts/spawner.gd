@@ -1,39 +1,38 @@
-extends Node2D
-## Obstacle spawner. Places obstacles AHEAD of the player at world positions,
-## alternating two placeholder types:
-##   - ground block (red)   -> jump over
-##   - overhead bar (purple) -> slide under
+extends Node3D
+## Obstacle spawner (3D lane runner). Places obstacles AHEAD of the player in a
+## random lane, alternating two placeholder types:
+##   - ground block (red)    -> jump over (or change lane)
+##   - overhead bar (purple) -> slide under (or change lane)
 ## Spawn frequency increases over time (interval shrinks to a floor).
-## Obstacles queue_free() once well behind the player. Obstacles are Area2D
-## triggers (no physics push); contact with the player causes death.
+## Obstacles are Area3D triggers (no physics push); contact = death.
+## They queue_free() once well behind the player.
 
-const GROUND_TOP_Y: float = 560.0
-const SPAWN_AHEAD: float = 1050.0       # px ahead of player (just off the right edge)
-const DESPAWN_BEHIND: float = 700.0     # px behind player before removal
+const SPAWN_AHEAD: float = 70.0        # units ahead of the player (beyond view/fog)
+const DESPAWN_BEHIND: float = 25.0     # units behind the player before removal
+const LANE_WIDTH: float = 2.5          # must match the player's lane spacing
 
-# Block (jump over): rests on the ground.
-const BLOCK_WIDTH: float = 50.0
-const BLOCK_HEIGHT: float = 60.0
-const BLOCK_COLOR := Color(0.85, 0.22, 0.22, 1.0)
+# Block (jump over): rests on the ground in one lane.
+const BLOCK_SIZE := Vector3(2.0, 1.5, 1.5)
+const BLOCK_COLOR := Color(0.85, 0.22, 0.22)
 
-# Bar (slide under): floats at head height, leaving a gap to slide through.
-const BAR_WIDTH: float = 80.0
-const BAR_HEIGHT: float = 40.0
-const BAR_BOTTOM_Y: float = 515.0       # bottom edge; standing player (top 500) hits it, slider (top 530) clears
-const BAR_COLOR := Color(0.45, 0.35, 0.9, 1.0)
+# Bar (slide under): floats at head height; standing player hits it, slider clears.
+const BAR_SIZE := Vector3(2.2, 0.8, 0.8)
+const BAR_BOTTOM_Y: float = 1.2
+const BAR_COLOR := Color(0.45, 0.35, 0.9)
 
 # Frequency ramp.
-@export var start_interval: float = 1.6   # seconds between spawns at the start
-@export var min_interval: float = 0.8     # fastest spawn rate
-@export var ramp_time: float = 60.0       # seconds to reach min_interval
+@export var start_interval: float = 1.4   # seconds between spawns at the start
+@export var min_interval: float = 0.7      # fastest spawn rate
+@export var ramp_time: float = 60.0        # seconds to reach min_interval
 
-var player: Node2D
+var player: Node3D
 var game
 var _elapsed: float = 0.0
 var _timer: float = 0.0
 var _spawn_index: int = 0
 
 func _ready() -> void:
+	randomize()
 	game = get_tree().get_first_node_in_group("game")
 	_timer = start_interval
 
@@ -59,38 +58,44 @@ func _current_interval() -> float:
 	return lerpf(start_interval, min_interval, t)
 
 func _spawn() -> void:
-	# Alternate: even -> block (jump), odd -> bar (slide).
+	# Alternate type so both jump and slide get exercised; random lane.
 	var is_block: bool = (_spawn_index % 2 == 0)
 	_spawn_index += 1
+	var lane: int = randi() % 3
 	var obs := _make_obstacle(is_block)
-	obs.position = Vector2(player.global_position.x + SPAWN_AHEAD, 0.0)
+	var x: float = float(lane - 1) * LANE_WIDTH
+	obs.position = Vector3(x, 0.0, player.global_position.z - SPAWN_AHEAD)
 	add_child(obs)
 
-func _make_obstacle(is_block: bool) -> Area2D:
-	var area := Area2D.new()
+func _make_obstacle(is_block: bool) -> Area3D:
+	var area := Area3D.new()
+	var mesh := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	var col := CollisionShape3D.new()
+	var bshape := BoxShape3D.new()
+	var mat := StandardMaterial3D.new()
 
-	var rect := ColorRect.new()
-	var shape := CollisionShape2D.new()
-	var rect_shape := RectangleShape2D.new()
-
+	var size: Vector3
+	var center_y: float
 	if is_block:
-		var top_y := GROUND_TOP_Y - BLOCK_HEIGHT
-		rect.size = Vector2(BLOCK_WIDTH, BLOCK_HEIGHT)
-		rect.position = Vector2(-BLOCK_WIDTH * 0.5, top_y)
-		rect.color = BLOCK_COLOR
-		rect_shape.size = Vector2(BLOCK_WIDTH, BLOCK_HEIGHT)
-		shape.position = Vector2(0.0, top_y + BLOCK_HEIGHT * 0.5)
+		size = BLOCK_SIZE
+		center_y = BLOCK_SIZE.y * 0.5            # bottom sits at y=0
+		mat.albedo_color = BLOCK_COLOR
 	else:
-		var top_y := BAR_BOTTOM_Y - BAR_HEIGHT
-		rect.size = Vector2(BAR_WIDTH, BAR_HEIGHT)
-		rect.position = Vector2(-BAR_WIDTH * 0.5, top_y)
-		rect.color = BAR_COLOR
-		rect_shape.size = Vector2(BAR_WIDTH, BAR_HEIGHT)
-		shape.position = Vector2(0.0, top_y + BAR_HEIGHT * 0.5)
+		size = BAR_SIZE
+		center_y = BAR_BOTTOM_Y + BAR_SIZE.y * 0.5
+		mat.albedo_color = BAR_COLOR
 
-	shape.shape = rect_shape
-	area.add_child(rect)
-	area.add_child(shape)
+	box.size = size
+	mesh.mesh = box
+	mesh.material_override = mat
+	mesh.position = Vector3(0.0, center_y, 0.0)
+	bshape.size = size
+	col.shape = bshape
+	col.position = Vector3(0.0, center_y, 0.0)
+
+	area.add_child(mesh)
+	area.add_child(col)
 	area.body_entered.connect(_on_obstacle_body_entered)
 	return area
 
@@ -99,7 +104,7 @@ func _on_obstacle_body_entered(body: Node) -> void:
 		game.die()
 
 func _cleanup() -> void:
-	var kill_x: float = player.global_position.x - DESPAWN_BEHIND
+	var kill_z: float = player.global_position.z + DESPAWN_BEHIND
 	for child in get_children():
-		if child.position.x < kill_x:
+		if child.position.z > kill_z:
 			child.queue_free()
