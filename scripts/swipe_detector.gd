@@ -1,16 +1,20 @@
 extends Node
-## Translates touch gestures into high-level signals the game can react to.
-## Records the touch start position; on release decides:
-##   swipe up   (moved up past threshold)   -> swiped_up   (jump)
-##   swipe down (moved down past threshold) -> swiped_down (slide)
-##   negligible movement                    -> tapped      (restart)
-## Keyboard remains the primary path for desktop testing; this is for touch.
+## Translates touch gestures into high-level signals.
+## Records the touch start; on release, the dominant axis decides the gesture:
+##   swipe up    -> swiped_up    (jump)
+##   swipe down  -> swiped_down  (slide)
+##   swipe left  -> swiped_left  (lane left)
+##   swipe right -> swiped_right (lane right)
+##   negligible  -> tapped       (restart)
+## Keyboard remains the primary path for desktop testing.
 
 signal swiped_up
 signal swiped_down
+signal swiped_left
+signal swiped_right
 signal tapped
 
-@export var swipe_threshold: float = 80.0   # min vertical travel (px) to count as a swipe
+@export var swipe_threshold: float = 60.0   # min travel (px) to count as a swipe
 
 var _touch_start: Vector2 = Vector2.ZERO
 var _touching: bool = false
@@ -25,10 +29,21 @@ func _unhandled_input(event: InputEvent) -> void:
 			_touching = true
 		elif _touching:
 			_touching = false
-			var dy: float = event.position.y - _touch_start.y
-			if dy < -swipe_threshold:
-				swiped_up.emit()
-			elif dy > swipe_threshold:
-				swiped_down.emit()
-			else:
-				tapped.emit()
+			_resolve(event.position - _touch_start)
+
+func _resolve(delta: Vector2) -> void:
+	if abs(delta.x) < swipe_threshold and abs(delta.y) < swipe_threshold:
+		tapped.emit()
+		return
+	if abs(delta.x) > abs(delta.y):
+		# Horizontal swipe.
+		if delta.x > 0.0:
+			swiped_right.emit()
+		else:
+			swiped_left.emit()
+	else:
+		# Vertical swipe.
+		if delta.y < 0.0:
+			swiped_up.emit()
+		else:
+			swiped_down.emit()
