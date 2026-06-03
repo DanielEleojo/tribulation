@@ -48,6 +48,7 @@ var _box: BoxMesh
 var _col: CollisionShape3D
 var _shape: BoxShape3D
 var _mat: StandardMaterial3D
+var _dust: CPUParticles3D
 
 func _ready() -> void:
 	add_to_group("player")
@@ -79,6 +80,29 @@ func _build_body() -> void:
 	add_child(_col)
 
 	_set_height(STAND_HEIGHT, STAND_COLOR)
+	_build_dust()
+
+## Continuous footstep dust kicked up behind the runner (world-space trail).
+func _build_dust() -> void:
+	_dust = CPUParticles3D.new()
+	_dust.amount = 20
+	_dust.lifetime = 0.6
+	_dust.local_coords = false          # leave dust behind in the world as we move
+	_dust.direction = Vector3(0.0, 1.0, 1.0)   # up and slightly backward (+Z)
+	_dust.spread = 40.0
+	_dust.initial_velocity_min = 1.0
+	_dust.initial_velocity_max = 2.5
+	_dust.gravity = Vector3(0.0, -3.0, 0.0)
+	_dust.scale_amount_min = 0.1
+	_dust.scale_amount_max = 0.25
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.5, 0.45, 0.4)
+	bm.material = mat
+	_dust.mesh = bm
+	_dust.position = Vector3(0.0, 0.1, 0.3)
+	add_child(_dust)
 
 func _physics_process(delta: float) -> void:
 	if _dead:
@@ -101,6 +125,8 @@ func _physics_process(delta: float) -> void:
 		_slash_cd -= delta
 
 	var grounded := is_on_floor()
+	if _dust != null:
+		_dust.emitting = grounded   # only kick up dust while running on the ground
 	# A queued fast-fall slide fires the moment we touch down.
 	if grounded and not _was_on_floor and _pending_slide:
 		_pending_slide = false
@@ -184,6 +210,7 @@ func try_slash() -> void:
 		var ahead: float = global_position.z - e.global_position.z  # >0 means enemy is in front
 		var lateral: float = absf(e.global_position.x - global_position.x)
 		if ahead >= -1.0 and ahead <= slash_range and lateral <= SLASH_LANE_TOL:
+			_spawn_burst(e.global_position + Vector3(0.0, 1.0, 0.0), Color(0.85, 0.15, 0.18), 14, 5.0, 0.5, 0.18)
 			e.queue_free()
 			killed += 1
 	if killed > 0:
@@ -207,6 +234,38 @@ func _show_slash_fx() -> void:
 	fx.position = Vector3(0.0, 1.0, -2.2)
 	add_child(fx)
 	get_tree().create_timer(0.12).timeout.connect(fx.queue_free)
+	# A quick spark burst in front to punch up the slash.
+	_spawn_burst(global_position + Vector3(0.0, 1.0, -2.2), Color(0.85, 0.95, 1.0), 10, 6.0, 0.3, 0.12)
+
+## One-shot particle burst in world space (auto-frees).
+func _spawn_burst(world_pos: Vector3, color: Color, count: int, speed: float, life: float, psize: float) -> void:
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.emitting = true
+	p.amount = count
+	p.lifetime = life
+	p.explosiveness = 1.0
+	p.spread = 55.0
+	p.direction = Vector3(0.0, 1.0, 0.0)
+	p.initial_velocity_min = speed * 0.4
+	p.initial_velocity_max = speed
+	p.gravity = Vector3(0.0, -12.0, 0.0)
+	p.scale_amount_min = psize * 0.6
+	p.scale_amount_max = psize
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.emission_enabled = true
+	mat.emission = color
+	bm.material = mat
+	p.mesh = bm
+	var host := get_parent()
+	if host == null:
+		host = self
+	host.add_child(p)
+	p.global_position = world_pos
+	get_tree().create_timer(life + 0.3).timeout.connect(p.queue_free)
 
 ## Called by the game coordinator when the player dies.
 func on_death() -> void:
