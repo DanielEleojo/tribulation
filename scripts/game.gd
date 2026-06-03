@@ -21,12 +21,18 @@ var net: float = 0.0                  # 0 = open, 1 = closed (death)
 var souls: int = 0                    # Demon Souls collected this run (+1 per kill)
 var _hud
 var _cam
+var _player
+var _env: Environment
+
+const FOG_BASE: float = 0.012
+const FOG_MAX: float = 0.020
 
 func _ready() -> void:
 	add_to_group("game")
 	_setup_world()
 
 	var player := get_tree().get_first_node_in_group("player")
+	_player = player
 	var hud := get_tree().get_first_node_in_group("hud")
 	_hud = hud
 	var swipe := get_tree().get_first_node_in_group("swipe_input")
@@ -58,7 +64,8 @@ func _setup_world() -> void:
 	env.ambient_light_energy = 0.6
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.10, 0.10, 0.14)
-	env.fog_density = 0.012
+	env.fog_density = FOG_BASE
+	_env = env
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -76,6 +83,10 @@ func _process(delta: float) -> void:
 		if Input.is_action_just_pressed("restart"):
 			restart()
 		return
+	# Thicken the fog as the run speeds up (sense of speed/pressure).
+	if _env != null and _player != null and _player.has_method("get_speed_fraction"):
+		_env.fog_density = lerpf(FOG_BASE, FOG_MAX, _player.get_speed_fraction())
+
 	# The Heavenly Net steadily closes; full closure is death.
 	net = minf(1.0, net + net_close_rate * delta)
 	net_changed.emit(net)

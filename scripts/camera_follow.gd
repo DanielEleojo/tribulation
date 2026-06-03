@@ -11,6 +11,8 @@ extends Camera3D
 @export var shake_translate: float = 0.6   # max positional shake (units) at full trauma
 @export var shake_roll: float = 0.09       # max roll shake (radians) at full trauma
 @export var trauma_decay: float = 2.4      # how fast trauma fades (per sec)
+@export var base_fov: float = 70.0         # FOV at base speed
+@export var max_fov: float = 88.0          # FOV at max speed (sense of speed)
 
 var player: Node3D
 var _trauma: float = 0.0
@@ -34,6 +36,11 @@ func _process(delta: float) -> void:
 	global_position.y = height
 	global_position.z = player.global_position.z + back
 	look_at(Vector3(player.global_position.x * 0.5, 1.0, player.global_position.z - look_ahead), Vector3.UP)
+
+	# Widen FOV as the run speeds up, for a sense of acceleration.
+	if player.has_method("get_speed_fraction"):
+		var target_fov: float = lerpf(base_fov, max_fov, player.get_speed_fraction())
+		fov = lerpf(fov, target_fov, clampf(2.5 * delta, 0.0, 1.0))
 
 	# Trauma-based screen shake, applied after aiming so it jitters the framing.
 	if _trauma > 0.0:

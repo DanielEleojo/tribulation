@@ -16,3 +16,4 @@
 2026-06-03 Phase 2.E: Demon Souls + death screen — +1 soul per enemy kill, shown top-right (souls_changed signal); death screen now shows distance, Demon Souls, "Enter / tap to retry", and an ad-hook placeholder line. Phase 2 (core loop) complete.
 2026-06-03 Phase 3.1: game-feel — trauma-based camera screen shake (death 0.9, wrong-gate/burst 0.5, kill 0.12, safe-gate 0.15; squared falloff, decays) + hitstop time-freeze on death (0.12s) and Qi Burst (0.06s) via ignore-time-scale timer; restart resets time_scale.
 2026-06-03 Phase 3.2: particles/VFX — CPUParticles3D one-shot bursts (auto-free): crimson enemy-death puff on slash kill, blue-white slash spark in front; continuous world-space footstep dust trailing the runner (emits only while grounded).
+2026-06-03 Phase 3.3: speed juice — camera FOV eases 70->88 with the speed ramp (player.get_speed_fraction), and distance fog thickens 0.012->0.020 over the same ramp, so acceleration reads as faster/tenser.

@@ -272,5 +272,9 @@ func on_death() -> void:
 	_dead = true
 
 ## Distance readout: forward progress in whole units ("meters").
+## 0..1 ramp fraction of current speed (base -> max). Drives FOV / fog juice.
+func get_speed_fraction() -> float:
+	return clampf(_run_time / speed_ramp_time, 0.0, 1.0)
+
 func get_distance() -> int:
 	return int(max(0.0, start_z - global_position.z))
