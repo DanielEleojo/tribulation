@@ -66,6 +66,7 @@ func _ready() -> void:
 		net_changed.connect(net_overlay.on_net_changed)
 	_cam = get_tree().get_first_node_in_group("camera")
 	_sound = get_tree().get_first_node_in_group("sound")
+	_setup_atmosphere()
 
 	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
 	net_changed.emit(net)
@@ -76,28 +77,32 @@ func _ready() -> void:
 		_player.apply_realm_stats(_realms[0])   # weak Mortal Husk baseline
 
 func _setup_world() -> void:
-	# Environment: dark color background + soft ambient + distance fog (hides the
-	# far edge of the ground and the spawn point of obstacles).
+	# Environment: real CC0 night-sky HDRI (Poly Haven) + image-based lighting + fog.
 	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.10, 0.10, 0.14)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.55, 0.55, 0.65)
-	env.ambient_light_energy = 0.6
+	var sky_mat := PanoramaSkyMaterial.new()
+	var sky_tex = load("res://assets/backgrounds/sky_night.hdr")
+	if sky_tex != null:
+		sky_mat.panorama = sky_tex
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.55
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.10, 0.10, 0.14)
+	env.fog_light_color = Color(0.10, 0.07, 0.10)
 	env.fog_density = FOG_BASE
 	_env = env
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
-
-	# Key light from above/ahead so the boxes get readable shading.
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50.0, -35.0, 0.0)
-	sun.light_energy = 1.1
-	sun.shadow_enabled = true
-	add_child(sun)
+	# Dim, cool moonlight.
+	var moonlight := DirectionalLight3D.new()
+	moonlight.rotation_degrees = Vector3(-45, -35, 0)
+	moonlight.light_color = Color(0.62, 0.70, 0.95)
+	moonlight.light_energy = 0.55
+	moonlight.shadow_enabled = true
+	add_child(moonlight)
 
 func _process(delta: float) -> void:
 	# Title screen: wait for any input to start the run.
@@ -184,15 +189,64 @@ func _breakthrough(idx: int) -> void:
 	if rname == "Dread Form":
 		_enter_dread_form()
 
+## Blood moon + drifting embers, parented to the camera so they sit in the sky.
+func _setup_atmosphere() -> void:
+	if _cam == null:
+		return
+	# Blood moon (unshaded emissive disc/sphere hanging ahead in the sky).
+	var moon := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 9.0
+	sm.height = 18.0
+	moon.mesh = sm
+	var mm := StandardMaterial3D.new()
+	mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mm.albedo_color = Color(0.72, 0.12, 0.10)
+	mm.emission_enabled = true
+	mm.emission = Color(0.85, 0.16, 0.12)
+	mm.emission_energy_multiplier = 2.2
+	moon.material_override = mm
+	moon.position = Vector3(16.0, 24.0, -95.0)
+	_cam.add_child(moon)
+	# Drifting spirit embers around the player.
+	var emb := CPUParticles3D.new()
+	emb.amount = 40
+	emb.lifetime = 4.0
+	emb.local_coords = false
+	emb.direction = Vector3(0.0, 1.0, 0.0)
+	emb.spread = 80.0
+	emb.gravity = Vector3(0.0, 0.6, 0.0)
+	emb.initial_velocity_min = 0.3
+	emb.initial_velocity_max = 1.2
+	emb.scale_amount_min = 0.04
+	emb.scale_amount_max = 0.12
+	var ebox := BoxMesh.new()
+	ebox.size = Vector3.ONE
+	var emat := StandardMaterial3D.new()
+	emat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	emat.albedo_color = Color(0.9, 0.5, 0.2)
+	emat.emission_enabled = true
+	emat.emission = Color(1.0, 0.55, 0.2)
+	ebox.material = emat
+	emb.mesh = ebox
+	# Emit in a volume around/ahead of the camera.
+	emb.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	emb.emission_box_extents = Vector3(14.0, 6.0, 20.0)
+	emb.position = Vector3(0.0, 2.0, -14.0)
+	_cam.add_child(emb)
+
 ## The marquee mid-run transformation: the world ruptures, the demon flares.
 func _enter_dread_form() -> void:
 	_shake(0.9)
 	_hitstop(0.15)
-	# Permanent cold/blood color grade for the rest of the run.
+	# Permanent blood color grade for the rest of the run: dim the sky into a
+	# hellscape and flood the scene with crimson ambient + fog.
 	if _env != null:
-		_env.background_color = Color(0.04, 0.02, 0.05)
-		_env.ambient_light_color = Color(0.50, 0.35, 0.45)
-		_env.fog_light_color = Color(0.25, 0.03, 0.05)
+		_env.background_energy_multiplier = 0.4
+		_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		_env.ambient_light_color = Color(0.45, 0.16, 0.20)
+		_env.ambient_light_energy = 0.9
+		_env.fog_light_color = Color(0.30, 0.04, 0.06)
 	if _player != null:
 		_player.enter_dread_form()
 
