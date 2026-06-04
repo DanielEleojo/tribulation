@@ -59,11 +59,10 @@ const SHIELD_REGEN_TIME: float = 9.0
 const SPRINT_DECAY: float = 4.0
 const SPRINT_CAP: float = 8.0
 
-var _mesh: MeshInstance3D
-var _box: BoxMesh
+var _figure: Node3D            # holds the visual demon parts (swap for a real GLB later)
 var _col: CollisionShape3D
 var _shape: BoxShape3D
-var _mat: StandardMaterial3D
+var _mat: StandardMaterial3D   # torso material — tinted per realm
 var _dust: CPUParticles3D
 
 func _ready() -> void:
@@ -80,23 +79,72 @@ func _ready() -> void:
 		swipe.tapped.connect(try_slash)
 
 func _build_body() -> void:
-	# Visual + collision boxes, offset up by half-height so the origin is at the FEET.
-	_mat = StandardMaterial3D.new()
-	_mat.albedo_color = STAND_COLOR
-
-	_mesh = MeshInstance3D.new()
-	_box = BoxMesh.new()
-	_mesh.mesh = _box
-	_mesh.material_override = _mat
-	add_child(_mesh)
-
+	# Collision box (gameplay) — origin at the FEET; resized on slide.
 	_col = CollisionShape3D.new()
 	_shape = BoxShape3D.new()
 	_col.shape = _shape
 	add_child(_col)
 
+	# Visual: a dark caped swordsman built from primitives (placeholder demon).
+	# A real GLB can replace this _figure later with no other code changes.
+	_figure = Node3D.new()
+	add_child(_figure)
+	_mat = StandardMaterial3D.new()
+	_mat.albedo_color = _base_color
+
+	var torso := MeshInstance3D.new()
+	var tcap := CapsuleMesh.new()
+	tcap.radius = 0.34
+	tcap.height = 1.25
+	torso.mesh = tcap
+	torso.material_override = _mat
+	torso.position = Vector3(0.0, 0.95, 0.0)
+	_figure.add_child(torso)
+
+	var head := MeshInstance3D.new()
+	var hs := SphereMesh.new()
+	hs.radius = 0.26
+	hs.height = 0.52
+	head.mesh = hs
+	head.material_override = _solid(Color(0.22, 0.20, 0.24))
+	head.position = Vector3(0.0, 1.72, 0.0)
+	_figure.add_child(head)
+
+	var hair := MeshInstance3D.new()       # long black hair / topknot down the back
+	var hb := BoxMesh.new()
+	hb.size = Vector3(0.40, 0.95, 0.18)
+	hair.mesh = hb
+	hair.material_override = _solid(Color(0.05, 0.04, 0.06))
+	hair.position = Vector3(0.0, 1.45, 0.20)
+	_figure.add_child(hair)
+
+	var cape := MeshInstance3D.new()
+	var cb := BoxMesh.new()
+	cb.size = Vector3(0.85, 1.5, 0.06)
+	cape.mesh = cb
+	cape.material_override = _solid(Color(0.07, 0.05, 0.09))
+	cape.position = Vector3(0.0, 1.0, 0.30)
+	cape.rotation_degrees = Vector3(8.0, 0.0, 0.0)
+	_figure.add_child(cape)
+
+	var sword := MeshInstance3D.new()
+	var sb := BoxMesh.new()
+	sb.size = Vector3(0.07, 1.4, 0.07)
+	sword.mesh = sb
+	var smat := _solid(Color(0.72, 0.74, 0.82))
+	smat.emission_enabled = true
+	smat.emission = Color(0.3, 0.4, 0.6)
+	sword.material_override = smat
+	sword.position = Vector3(0.42, 0.95, -0.12)
+	_figure.add_child(sword)
+
 	_set_height(STAND_HEIGHT, _base_color)
 	_build_dust()
+
+func _solid(c: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	return m
 
 ## Continuous footstep dust kicked up behind the runner (world-space trail).
 func _build_dust() -> void:
@@ -227,12 +275,12 @@ func _end_slide() -> void:
 	is_sliding = false
 	_set_height(STAND_HEIGHT, _base_color)
 
-## Resize visual + collision, keeping the feet at the body origin (y=0).
+## Resize collision + crouch the figure, keeping the feet at the body origin (y=0).
 func _set_height(h: float, col: Color) -> void:
-	_box.size = Vector3(BODY_WIDTH, h, BODY_WIDTH)
-	_mesh.position = Vector3(0.0, h * 0.5, 0.0)
 	_shape.size = Vector3(BODY_WIDTH, h, BODY_WIDTH)
 	_col.position = Vector3(0.0, h * 0.5, 0.0)
+	if _figure != null:
+		_figure.scale.y = h / STAND_HEIGHT   # squash down into a slide
 	_mat.albedo_color = col
 
 ## Slash: melee forward. Destroys enemies ahead within range in the current lane.

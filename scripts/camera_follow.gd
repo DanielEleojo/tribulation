@@ -20,6 +20,7 @@ var _trauma: float = 0.0
 func _ready() -> void:
 	make_current()
 	add_to_group("camera")
+	keep_aspect = KEEP_WIDTH   # portrait: preserve horizontal FOV so all 3 lanes stay visible
 	player = get_tree().get_first_node_in_group("player")
 
 ## Add screen-shake energy (0..1). Squared on apply for a punchy falloff.
