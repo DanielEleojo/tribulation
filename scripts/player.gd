@@ -11,7 +11,7 @@ extends CharacterBody3D
 @export var max_speed: float = 22.0        # speed cap so it stays playable
 @export var speed_ramp_time: float = 90.0  # seconds of running to reach max_speed
 @export var gravity: float = 30.0          # downward acceleration (units/sec^2)
-@export var jump_velocity: float = 12.0  # upward velocity on jump (units/sec)
+@export var jump_velocity: float = 14.0  # upward velocity on jump (units/sec)
 @export var fast_fall_speed: float = 30.0  # downward dive speed when sliding mid-air
 @export var slash_range: float = 4.0     # how far ahead a slash reaches (units; grows per realm)
 @export var slash_cooldown: float = 0.25 # min seconds between slashes
