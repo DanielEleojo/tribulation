@@ -60,6 +60,9 @@ const SPRINT_DECAY: float = 4.0
 const SPRINT_CAP: float = 8.0
 
 var _figure: Node3D            # holds the visual demon parts (swap for a real GLB later)
+var _cape: MeshInstance3D
+var _sword: MeshInstance3D
+var _anim_t: float = 0.0
 var _col: CollisionShape3D
 var _shape: BoxShape3D
 var _mat: StandardMaterial3D   # torso material — tinted per realm
@@ -118,25 +121,25 @@ func _build_body() -> void:
 	hair.position = Vector3(0.0, 1.45, 0.20)
 	_figure.add_child(hair)
 
-	var cape := MeshInstance3D.new()
+	_cape = MeshInstance3D.new()
 	var cb := BoxMesh.new()
 	cb.size = Vector3(0.85, 1.5, 0.06)
-	cape.mesh = cb
-	cape.material_override = _solid(Color(0.07, 0.05, 0.09))
-	cape.position = Vector3(0.0, 1.0, 0.30)
-	cape.rotation_degrees = Vector3(8.0, 0.0, 0.0)
-	_figure.add_child(cape)
+	_cape.mesh = cb
+	_cape.material_override = _solid(Color(0.07, 0.05, 0.09))
+	_cape.position = Vector3(0.0, 1.0, 0.30)
+	_cape.rotation_degrees = Vector3(8.0, 0.0, 0.0)
+	_figure.add_child(_cape)
 
-	var sword := MeshInstance3D.new()
+	_sword = MeshInstance3D.new()
 	var sb := BoxMesh.new()
 	sb.size = Vector3(0.07, 1.4, 0.07)
-	sword.mesh = sb
+	_sword.mesh = sb
 	var smat := _solid(Color(0.72, 0.74, 0.82))
 	smat.emission_enabled = true
 	smat.emission = Color(0.3, 0.4, 0.6)
-	sword.material_override = smat
-	sword.position = Vector3(0.42, 0.95, -0.12)
-	_figure.add_child(sword)
+	_sword.material_override = smat
+	_sword.position = Vector3(0.42, 0.95, -0.12)
+	_figure.add_child(_sword)
 
 	_set_height(STAND_HEIGHT, _base_color)
 	_build_dust()
@@ -234,6 +237,28 @@ func _physics_process(delta: float) -> void:
 	# Gravity; landing cancels downward velocity.
 	velocity.y -= gravity * delta
 	move_and_slide()
+
+	_animate_figure(delta, grounded)
+
+## Procedural run animation so the demon reads as running, not sliding: a footfall
+## bounce + forward lean, cape flap and blade sway; tucks/flares in the air.
+func _animate_figure(delta: float, grounded: bool) -> void:
+	if _figure == null:
+		return
+	if is_sliding:
+		_figure.position.y = 0.0
+		_figure.rotation = Vector3.ZERO
+		return
+	_anim_t += delta * (run_speed * 0.55)
+	if grounded:
+		_figure.position.y = absf(sin(_anim_t)) * 0.12          # footfall bounce
+		_figure.rotation.x = -0.10                               # lean into the run
+		_cape.rotation_degrees.x = 8.0 + sin(_anim_t * 2.0) * 7.0
+		_sword.rotation_degrees.z = sin(_anim_t) * 12.0
+	else:
+		_figure.position.y = 0.0
+		_figure.rotation.x = -0.26                               # tuck forward mid-air
+		_cape.rotation_degrees.x = 24.0                          # cape flares back
 
 ## Lane changes (clamped to the three lanes).
 func move_left() -> void:

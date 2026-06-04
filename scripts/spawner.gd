@@ -29,6 +29,7 @@ const ENEMY_SIZE := Vector3(0.95, 2.6, 0.95)   # tall: can't be jumped or slid o
 const ENEMY_COLOR := Color(0.75, 0.12, 0.16)
 
 const GateScript = preload("res://scripts/gate.gd")
+const FoeScript = preload("res://scripts/foe.gd")
 
 # Frequency ramp.
 @export var start_interval: float = 1.4
@@ -156,6 +157,7 @@ func _make_enemy() -> Area3D:
 	var cy := ENEMY_SIZE.y * 0.5
 	var area := _make_area(ENEMY_SIZE, cy, true)
 	var holder := Node3D.new()
+	holder.set_script(FoeScript)         # gives the disciple a running bob/sway
 	holder.scale = Vector3(sc, sc, sc)   # higher-rank foes loom larger (visual only)
 	area.add_child(holder)
 	var body := MeshInstance3D.new()
