@@ -29,6 +29,18 @@ var _sound
 const FOG_BASE: float = 0.012
 const FOG_MAX: float = 0.020
 
+# Cultivation realms (v1: 1-6, climaxing at Dread Form). Advanced by Demon Souls
+# collected this run (placeholder for the persistent realm system in Phase 4).
+var _realms: Array = [
+	{"name": "Mortal Husk", "souls": 0, "color": Color(0.85, 0.78, 0.55)},
+	{"name": "Blood Awakening", "souls": 4, "color": Color(0.90, 0.45, 0.30)},
+	{"name": "Sinister Core", "souls": 10, "color": Color(0.80, 0.28, 0.34)},
+	{"name": "Demon Flesh", "souls": 18, "color": Color(0.70, 0.24, 0.40)},
+	{"name": "Shadow Soul", "souls": 28, "color": Color(0.50, 0.20, 0.52)},
+	{"name": "Dread Form", "souls": 40, "color": Color(0.20, 0.04, 0.10)},
+]
+var realm: int = 0
+
 func _ready() -> void:
 	add_to_group("game")
 	_setup_world()
@@ -55,6 +67,8 @@ func _ready() -> void:
 	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
 	net_changed.emit(net)
 	souls_changed.emit(souls)
+	if _hud != null:
+		_hud.set_realm(String(_realms[0]["name"]))
 
 func _setup_world() -> void:
 	# Environment: dark color background + soft ambient + distance fog (hides the
@@ -117,6 +131,7 @@ func on_enemy_killed(count: int = 1) -> void:
 		return
 	souls += count
 	souls_changed.emit(souls)
+	_check_breakthrough()
 	_sfx("kill")
 	_shake(0.12)
 	qi = minf(qi_max, qi + qi_per_kill * float(count))
@@ -126,6 +141,39 @@ func on_enemy_killed(count: int = 1) -> void:
 	net_changed.emit(net)
 	if qi >= qi_max:
 		_qi_burst()
+
+## Advance cultivation realm(s) when souls cross the next threshold(s).
+func _check_breakthrough() -> void:
+	while realm < _realms.size() - 1 and souls >= int(_realms[realm + 1]["souls"]):
+		realm += 1
+		_breakthrough(realm)
+
+func _breakthrough(idx: int) -> void:
+	var data: Dictionary = _realms[idx]
+	var rname: String = data["name"]
+	var rcolor: Color = data["color"]
+	if _hud != null:
+		_hud.set_realm(rname)
+		_hud.show_banner(rname)
+		_hud.flash(Color(1.0, 0.85, 0.4))
+	_sfx("breakthrough")
+	_shake(0.4)
+	if _player != null:
+		_player.on_breakthrough(rcolor)
+	if rname == "Dread Form":
+		_enter_dread_form()
+
+## The marquee mid-run transformation: the world ruptures, the demon flares.
+func _enter_dread_form() -> void:
+	_shake(0.9)
+	_hitstop(0.15)
+	# Permanent cold/blood color grade for the rest of the run.
+	if _env != null:
+		_env.background_color = Color(0.04, 0.02, 0.05)
+		_env.ambient_light_color = Color(0.50, 0.35, 0.45)
+		_env.fog_light_color = Color(0.25, 0.03, 0.05)
+	if _player != null:
+		_player.enter_dread_form()
 
 ## Qi Burst: clear every enemy on the field, flash a shockwave, reset Qi.
 func _qi_burst() -> void:

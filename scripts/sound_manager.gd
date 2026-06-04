@@ -6,7 +6,7 @@ extends Node
 
 const SOUND_DIR := "res://assets/sfx/"
 const EXTS: Array[String] = [".ogg", ".wav", ".mp3"]
-const SOUNDS: Array[String] = ["start", "slash", "kill", "jump", "slide", "gate_good", "gate_bad", "burst", "death"]
+const SOUNDS: Array[String] = ["start", "slash", "kill", "jump", "slide", "gate_good", "gate_bad", "burst", "death", "breakthrough"]
 
 var _players: Dictionary = {}
 

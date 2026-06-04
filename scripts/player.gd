@@ -44,6 +44,10 @@ var _running: bool = false            # false until the run starts (title screen
 var _slash_cd: float = 0.0
 var _game
 var _snd
+var _base_color: Color = STAND_COLOR  # current standing color (shifts per realm)
+var _speed_mult: float = 1.0          # Dread Form speed spike
+var _dread: bool = false
+var _tendrils: CPUParticles3D
 
 var _mesh: MeshInstance3D
 var _box: BoxMesh
@@ -81,7 +85,7 @@ func _build_body() -> void:
 	_col.shape = _shape
 	add_child(_col)
 
-	_set_height(STAND_HEIGHT, STAND_COLOR)
+	_set_height(STAND_HEIGHT, _base_color)
 	_build_dust()
 
 ## Continuous footstep dust kicked up behind the runner (world-space trail).
@@ -151,7 +155,7 @@ func _physics_process(delta: float) -> void:
 	# Forward run, ramping speed up to a cap over elapsed run time.
 	_run_time += delta
 	var ramp: float = clampf(_run_time / speed_ramp_time, 0.0, 1.0)
-	run_speed = lerpf(base_speed, max_speed, ramp)
+	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult
 	velocity.z = -run_speed
 	# Ease sideways toward the target lane's X.
 	var target_x: float = float(current_lane - 1) * LANE_WIDTH
@@ -199,7 +203,7 @@ func start_slide() -> void:
 
 func _end_slide() -> void:
 	is_sliding = false
-	_set_height(STAND_HEIGHT, STAND_COLOR)
+	_set_height(STAND_HEIGHT, _base_color)
 
 ## Resize visual + collision, keeping the feet at the body origin (y=0).
 func _set_height(h: float, col: Color) -> void:
@@ -286,6 +290,47 @@ func _sfx(n: String) -> void:
 		_snd = get_tree().get_first_node_in_group("sound")
 	if _snd != null:
 		_snd.play(n)
+
+## Cultivation breakthrough: shift the demon's color and grant a little power.
+func on_breakthrough(realm_color: Color) -> void:
+	_base_color = realm_color
+	if not is_sliding:
+		_set_height(STAND_HEIGHT, _base_color)
+	slash_range = minf(slash_range + 0.4, 9.0)
+
+## Dread Form: black-red flare, writhing shadow tendrils, a speed spike.
+func enter_dread_form() -> void:
+	_dread = true
+	_speed_mult = 1.25
+	_base_color = Color(0.16, 0.02, 0.06)
+	_mat.emission_enabled = true
+	_mat.emission = Color(0.7, 0.05, 0.10)
+	if not is_sliding:
+		_set_height(STAND_HEIGHT, _base_color)
+	_build_tendrils()
+
+func _build_tendrils() -> void:
+	_tendrils = CPUParticles3D.new()
+	_tendrils.amount = 36
+	_tendrils.lifetime = 0.7
+	_tendrils.local_coords = false
+	_tendrils.direction = Vector3(0.0, 0.6, 1.0)
+	_tendrils.spread = 50.0
+	_tendrils.initial_velocity_min = 2.0
+	_tendrils.initial_velocity_max = 5.0
+	_tendrils.gravity = Vector3(0.0, 1.5, 0.0)   # rise like dark smoke
+	_tendrils.scale_amount_min = 0.2
+	_tendrils.scale_amount_max = 0.5
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.08, 0.0, 0.04)
+	mat.emission_enabled = true
+	mat.emission = Color(0.5, 0.02, 0.08)
+	bm.material = mat
+	_tendrils.mesh = bm
+	_tendrils.position = Vector3(0.0, 1.2, 0.3)
+	add_child(_tendrils)
 
 ## Called by the game coordinator when the run starts (leaving the title screen).
 func begin_run() -> void:

@@ -7,6 +7,8 @@ extends CanvasLayer
 @onready var flash_rect: ColorRect = $Flash
 @onready var souls_label: Label = $SoulsLabel
 @onready var title_root: Control = $Title
+@onready var realm_label: Label = $RealmLabel
+@onready var banner_label: Label = $Banner
 
 var player
 var _souls: int = 0
@@ -17,6 +19,19 @@ func _ready() -> void:
 	death_label.visible = false
 	flash_rect.color = Color(1, 1, 1, 0)
 	title_root.visible = true   # start on the title screen
+	banner_label.modulate.a = 0.0
+
+## Update the current cultivation realm name (top-center).
+func set_realm(name: String) -> void:
+	realm_label.text = name
+
+## Flash a big breakthrough banner that fades out.
+func show_banner(name: String) -> void:
+	banner_label.text = "⟡  %s  ⟡" % name
+	banner_label.modulate.a = 1.0
+	var tw := banner_label.create_tween()
+	tw.tween_interval(0.8)
+	tw.tween_property(banner_label, "modulate:a", 0.0, 1.0)
 
 ## Show/hide the title screen.
 func show_title(v: bool) -> void:
