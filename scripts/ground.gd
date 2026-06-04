@@ -12,13 +12,29 @@ const LANE_WIDTH: float = 2.5          # lane spacing (lanes at -2.5, 0, +2.5)
 
 var player: Node3D
 var tiles: Array[StaticBody3D] = []
+# Shared materials so a theme change instantly recolors all tiles (existing + future).
+var _mat_even: StandardMaterial3D
+var _mat_odd: StandardMaterial3D
+var _mat_div: StandardMaterial3D
 
 func _ready() -> void:
+	_mat_even = StandardMaterial3D.new()
+	_mat_even.albedo_color = Color(0.20, 0.16, 0.14)
+	_mat_odd = StandardMaterial3D.new()
+	_mat_odd.albedo_color = Color(0.16, 0.13, 0.12)
+	_mat_div = StandardMaterial3D.new()
+	_mat_div.albedo_color = Color(0.5, 0.55, 0.42)
 	for i in range(TILE_COUNT):
 		var t := _make_tile(i)
 		t.position.z = -float(i) * TILE_LENGTH
 		add_child(t)
 		tiles.append(t)
+
+## Recolor the ground for an environment theme (forest / sect / hellscape).
+func set_theme(even: Color, odd: Color, divider: Color) -> void:
+	_mat_even.albedo_color = even
+	_mat_odd.albedo_color = odd
+	_mat_div.albedo_color = divider
 
 func _make_tile(idx: int) -> StaticBody3D:
 	var body := StaticBody3D.new()
@@ -29,9 +45,7 @@ func _make_tile(idx: int) -> StaticBody3D:
 	box.size = Vector3(TILE_WIDTH, 1.0, TILE_LENGTH)
 	mesh.mesh = box
 	mesh.position = Vector3(0.0, -0.5, 0.0)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.20, 0.16, 0.14) if idx % 2 == 0 else Color(0.16, 0.13, 0.12)
-	mesh.material_override = mat
+	mesh.material_override = _mat_even if idx % 2 == 0 else _mat_odd
 	body.add_child(mesh)
 
 	var col := CollisionShape3D.new()
@@ -48,9 +62,7 @@ func _make_tile(idx: int) -> StaticBody3D:
 		lbox.size = Vector3(0.12, 0.06, TILE_LENGTH)
 		line.mesh = lbox
 		line.position = Vector3(sx, 0.03, 0.0)
-		var lmat := StandardMaterial3D.new()
-		lmat.albedo_color = Color(0.5, 0.55, 0.42)
-		line.material_override = lmat
+		line.material_override = _mat_div
 		body.add_child(line)
 
 	return body

@@ -25,6 +25,9 @@ var _cam
 var _player
 var _env: Environment
 var _sound
+var _sky_mat: PanoramaSkyMaterial
+var _tex_forest
+var _tex_night
 
 const FOG_BASE: float = 0.012
 const FOG_MAX: float = 0.020
@@ -67,6 +70,7 @@ func _ready() -> void:
 	_cam = get_tree().get_first_node_in_group("camera")
 	_sound = get_tree().get_first_node_in_group("sound")
 	_setup_atmosphere()
+	_apply_theme(0)   # start in the forest
 
 	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
 	net_changed.emit(net)
@@ -79,16 +83,16 @@ func _ready() -> void:
 func _setup_world() -> void:
 	# Environment: real CC0 night-sky HDRI (Poly Haven) + image-based lighting + fog.
 	var env := Environment.new()
-	var sky_mat := PanoramaSkyMaterial.new()
-	var sky_tex = load("res://assets/backgrounds/sky_night.hdr")
-	if sky_tex != null:
-		sky_mat.panorama = sky_tex
+	_tex_forest = load("res://assets/backgrounds/sky_forest.hdr")
+	_tex_night = load("res://assets/backgrounds/sky_night.hdr")
+	_sky_mat = PanoramaSkyMaterial.new()
+	_sky_mat.panorama = _tex_forest   # start the run fleeing through the forest
 	var sky := Sky.new()
-	sky.sky_material = sky_mat
+	sky.sky_material = _sky_mat
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.8
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.10, 0.07, 0.10)
 	env.fog_density = FOG_BASE
@@ -183,11 +187,41 @@ func _breakthrough(idx: int) -> void:
 		_hud.flash(Color(1.0, 0.85, 0.4))
 	_sfx("breakthrough")
 	_shake(0.4)
+	_apply_theme(idx)
 	if _player != null:
 		_player.apply_realm_stats(data)
 		_player.on_breakthrough(rcolor)
 	if rname == "Dread Form":
 		_enter_dread_form()
+
+## Environment theme by realm: forest flight (early) -> sect grounds at night (mid).
+## Dread Form's hellscape is applied separately in _enter_dread_form.
+func _apply_theme(r: int) -> void:
+	var ground = get_node_or_null("Ground")
+	if r <= 1:
+		# Forest — fleeing through the woods.
+		if _sky_mat != null:
+			_sky_mat.panorama = _tex_forest
+		if _env != null:
+			_env.background_energy_multiplier = 1.0
+			_env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+			_env.ambient_light_energy = 0.8
+			_env.fog_light_color = Color(0.34, 0.40, 0.32)
+			_env.fog_density = FOG_BASE
+		if ground != null:
+			ground.set_theme(Color(0.22, 0.20, 0.14), Color(0.18, 0.17, 0.11), Color(0.45, 0.50, 0.36))
+	else:
+		# Sect grounds at night — now you are the hunter on their turf.
+		if _sky_mat != null:
+			_sky_mat.panorama = _tex_night
+		if _env != null:
+			_env.background_energy_multiplier = 1.0
+			_env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+			_env.ambient_light_energy = 0.55
+			_env.fog_light_color = Color(0.10, 0.08, 0.12)
+			_env.fog_density = FOG_BASE
+		if ground != null:
+			ground.set_theme(Color(0.18, 0.18, 0.23), Color(0.13, 0.13, 0.18), Color(0.60, 0.50, 0.30))
 
 ## Blood moon + drifting embers, parented to the camera so they sit in the sky.
 func _setup_atmosphere() -> void:
@@ -247,6 +281,9 @@ func _enter_dread_form() -> void:
 		_env.ambient_light_color = Color(0.45, 0.16, 0.20)
 		_env.ambient_light_energy = 0.9
 		_env.fog_light_color = Color(0.30, 0.04, 0.06)
+	var ground = get_node_or_null("Ground")
+	if ground != null:
+		ground.set_theme(Color(0.20, 0.06, 0.06), Color(0.13, 0.04, 0.04), Color(0.60, 0.12, 0.10))
 	if _player != null:
 		_player.enter_dread_form()
 
