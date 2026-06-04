@@ -47,6 +47,23 @@ var _realms: Array = [
 ]
 var realm: int = 0
 
+## The pursuing martial artists also cultivate: their rank rises over the run, and
+## their techniques (the hazards you dodge) grow visually from a dull flicker to a
+## blazing heaven-cleaving wave. accent = qi color, energy = glow, scale = size.
+var _tiers: Array = [
+	{"name": "Third-rate",   "accent": Color(0.75, 0.75, 0.80), "energy": 0.7, "scale": 0.90},
+	{"name": "Second-rate",  "accent": Color(0.50, 0.70, 1.00), "energy": 1.1, "scale": 1.00},
+	{"name": "First-rate",   "accent": Color(0.40, 1.00, 0.60), "energy": 1.5, "scale": 1.12},
+	{"name": "Peak",         "accent": Color(0.85, 0.50, 1.00), "energy": 2.0, "scale": 1.25},
+	{"name": "Transcendent", "accent": Color(1.00, 0.90, 0.55), "energy": 2.7, "scale": 1.45},
+]
+const TIER_DIST: Array = [0, 140, 320, 560, 860]   # "li fled" thresholds for each rank
+var enemy_tier: int = 0
+
+## Current foe-rank style, read by the spawner when building a technique/hazard.
+func tier_style() -> Dictionary:
+	return _tiers[enemy_tier]
+
 func _ready() -> void:
 	add_to_group("game")
 	_setup_world()
@@ -126,6 +143,17 @@ func _process(delta: float) -> void:
 	if _hud != null and _player != null:
 		_hud.set_shields(_player.get_shields())
 
+	# The hunters cultivate: raise their rank as we flee deeper.
+	if _player != null:
+		var d: int = _player.get_distance()
+		var t: int = 0
+		for i in range(TIER_DIST.size()):
+			if d >= int(TIER_DIST[i]):
+				t = i
+		if t != enemy_tier:
+			enemy_tier = t
+			_on_tier_up()
+
 	# The Heavenly Net steadily closes; full closure is death.
 	net = minf(1.0, net + net_close_rate * delta)
 	net_changed.emit(net)
@@ -193,6 +221,15 @@ func _breakthrough(idx: int) -> void:
 		_player.on_breakthrough(rcolor)
 	if rname == "Dread Form":
 		_enter_dread_form()
+
+## Announce a stronger rank of pursuer closing in.
+func _on_tier_up() -> void:
+	var tname: String = String(_tiers[enemy_tier]["name"])
+	if _hud != null:
+		_hud.show_banner(tname + " Martial Artists")
+		_hud.flash(Color(0.55, 0.65, 1.0))
+	_sfx("breakthrough")
+	_shake(0.3)
 
 ## Environment theme by realm: forest flight (early) -> sect grounds at night (mid).
 ## Dread Form's hellscape is applied separately in _enter_dread_form.

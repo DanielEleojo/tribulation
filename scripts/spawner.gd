@@ -117,41 +117,75 @@ func _spawn_enemy_row(z: float) -> void:
 		e.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
 		add_child(e)
 
+# Plane-coded base hues so the player reads the required dodge at a glance.
+const HUE_LOW := Color(1.0, 0.5, 0.12)    # amber — ground sword-qi (JUMP)
+const HUE_HIGH := Color(0.30, 0.80, 1.0)  # cyan — high blade-qi (SLIDE)
+
+func _tier() -> Dictionary:
+	if game != null and game.has_method("tier_style"):
+		return game.tier_style()
+	return {"accent": Color(0.8, 0.8, 0.85), "energy": 1.0, "scale": 1.0}
+
 func _make_barrier(is_block: bool, width: float) -> Area3D:
+	var ts := _tier()
+	var accent: Color = ts["accent"]
+	var energy: float = ts["energy"]
+	var sc: float = ts["scale"]
 	if is_block:
-		# Heavenly Seal: a stone stele with a glowing rune facing the player.
+		# Earth-Splitting Sweep — a low crescent of sword-qi skimming the ground (JUMP).
 		var size := Vector3(width, BLOCK_HEIGHT, BLOCK_DEPTH)
 		var cy := BLOCK_HEIGHT * 0.5
 		var area := _make_area(size, cy, false)
-		_add_box(area, size, Vector3(0.0, cy, 0.0), Color(0.36, 0.35, 0.40), Color.BLACK, false)
-		var rune_w := minf(width, 1.6)
-		_add_box(area, Vector3(rune_w, 0.9, 0.08), Vector3(0.0, cy, -BLOCK_DEPTH * 0.5 - 0.06), Color(0.95, 0.8, 0.35), Color(1.0, 0.65, 0.2), true)
+		_add_glow(area, Vector3(width * sc, BLOCK_HEIGHT * 0.85, 0.35), Vector3(0.0, cy, 0.0), HUE_LOW, accent, energy)
+		_add_glow(area, Vector3(width * sc, 0.14, 0.7), Vector3(0.0, 0.07, 0.0), HUE_LOW, accent, energy * 1.4)  # bright ground line
 		return area
 	else:
-		# Formation array: a humming energy beam to slide under.
+		# Heaven-Cleaving Slash — high blade-qi at head height (SLIDE).
 		var size := Vector3(width, BAR_HEIGHT, BAR_DEPTH)
 		var cy := BAR_BOTTOM_Y + BAR_HEIGHT * 0.5
 		var area := _make_area(size, cy, false)
-		_add_box(area, size, Vector3(0.0, cy, 0.0), Color(0.45, 0.8, 1.0), Color(0.3, 0.7, 1.0), true)
+		_add_glow(area, Vector3(width * sc, BAR_HEIGHT, 0.3), Vector3(0.0, cy, 0.0), HUE_HIGH, accent, energy)
 		return area
 
 func _make_enemy() -> Area3D:
-	# Sect disciple: a robed body with a glinting blade.
+	# Blocking Disciple — a robed martial artist; blade glows by their rank.
+	var ts := _tier()
+	var accent: Color = ts["accent"]
+	var energy: float = ts["energy"]
+	var sc: float = ts["scale"]
 	var cy := ENEMY_SIZE.y * 0.5
 	var area := _make_area(ENEMY_SIZE, cy, true)
+	var holder := Node3D.new()
+	holder.scale = Vector3(sc, sc, sc)   # higher-rank foes loom larger (visual only)
+	area.add_child(holder)
 	var body := MeshInstance3D.new()
 	var cap := CapsuleMesh.new()
 	cap.radius = 0.42
 	cap.height = ENEMY_SIZE.y
 	body.mesh = cap
 	var rmat := StandardMaterial3D.new()
-	rmat.albedo_color = Color(0.82, 0.83, 0.90)   # righteous-sect robe
+	rmat.albedo_color = Color(0.82, 0.83, 0.90).lerp(accent, 0.25)   # robe tinted by rank-qi
 	body.material_override = rmat
 	body.position = Vector3(0.0, cy, 0.0)
-	area.add_child(body)
-	_add_box(area, Vector3(0.9, 0.18, 0.9), Vector3(0.0, cy - 0.1, 0.0), Color(0.55, 0.10, 0.12), Color.BLACK, false)  # sash
-	_add_box(area, Vector3(0.08, 1.3, 0.08), Vector3(0.5, cy + 0.2, -0.1), Color(0.80, 0.85, 0.90), Color(0.4, 0.6, 0.9), true)  # blade
+	holder.add_child(body)
+	_add_box(holder, Vector3(0.9, 0.18, 0.9), Vector3(0.0, cy - 0.1, 0.0), Color(0.55, 0.10, 0.12), Color.BLACK, false)  # sash
+	_add_glow(holder, Vector3(0.09, 1.35, 0.09), Vector3(0.5, cy + 0.2, -0.1), Color(0.85, 0.88, 0.95), accent, energy * 1.2)  # qi blade
 	return area
+
+## A glowing energy mesh: dark base hue, emission pushed toward the rank's qi color.
+func _add_glow(parent: Node3D, size: Vector3, pos: Vector3, hue: Color, accent: Color, energy: float) -> void:
+	var m := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	m.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = hue.darkened(0.3)
+	mat.emission_enabled = true
+	mat.emission = hue.lerp(accent, 0.45)
+	mat.emission_energy_multiplier = energy
+	m.material_override = mat
+	m.position = pos
+	parent.add_child(m)
 
 func _make_area(size: Vector3, center_y: float, is_enemy: bool) -> Area3D:
 	# Collision-only trigger; callers add the visual meshes.
