@@ -13,10 +13,10 @@ extends CharacterBody3D
 @export var gravity: float = 30.0          # downward acceleration (units/sec^2)
 @export var jump_velocity: float = 12.0  # upward velocity on jump (units/sec)
 @export var fast_fall_speed: float = 30.0  # downward dive speed when sliding mid-air
-@export var slash_range: float = 6.0     # how far ahead a slash reaches (units)
+@export var slash_range: float = 4.0     # how far ahead a slash reaches (units; grows per realm)
 @export var slash_cooldown: float = 0.25 # min seconds between slashes
 
-const SLASH_LANE_TOL: float = 1.6        # x tolerance to count an enemy as "in lane"
+var slash_tol: float = 1.4               # x half-width a slash covers (grows per realm)
 
 const STAND_HEIGHT: float = 2.0
 const SLIDE_HEIGHT: float = 1.0
@@ -45,9 +45,19 @@ var _slash_cd: float = 0.0
 var _game
 var _snd
 var _base_color: Color = STAND_COLOR  # current standing color (shifts per realm)
-var _speed_mult: float = 1.0          # Dread Form speed spike
+var _speed_mult: float = 1.0          # realm forward-speed multiplier
 var _dread: bool = false
 var _tendrils: CPUParticles3D
+# Iron Demon Body (shield) + Blood Sprint
+var _shields: int = 0
+var _max_shields: int = 0
+var _invuln_t: float = 0.0            # brief immunity after absorbing a hit
+var _shield_regen_t: float = 0.0
+var _sprint_per_kill: float = 0.0     # Blood Sprint kick added per kill
+var _sprint_boost: float = 0.0        # current decaying speed bonus
+const SHIELD_REGEN_TIME: float = 9.0
+const SPRINT_DECAY: float = 4.0
+const SPRINT_CAP: float = 8.0
 
 var _mesh: MeshInstance3D
 var _box: BoxMesh
@@ -153,9 +163,21 @@ func _physics_process(delta: float) -> void:
 	_was_on_floor = grounded
 
 	# Forward run, ramping speed up to a cap over elapsed run time.
+	# Iron Demon Body: tick invulnerability and slowly regenerate a shield.
+	if _invuln_t > 0.0:
+		_invuln_t -= delta
+	if _shields < _max_shields:
+		_shield_regen_t -= delta
+		if _shield_regen_t <= 0.0:
+			_shields += 1
+			_shield_regen_t = SHIELD_REGEN_TIME
+	# Blood Sprint decays back to baseline.
+	if _sprint_boost > 0.0:
+		_sprint_boost = maxf(0.0, _sprint_boost - SPRINT_DECAY * delta)
+
 	_run_time += delta
 	var ramp: float = clampf(_run_time / speed_ramp_time, 0.0, 1.0)
-	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult
+	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _sprint_boost
 	velocity.z = -run_speed
 	# Ease sideways toward the target lane's X.
 	var target_x: float = float(current_lane - 1) * LANE_WIDTH
@@ -226,11 +248,13 @@ func try_slash() -> void:
 			continue
 		var ahead: float = global_position.z - e.global_position.z  # >0 means enemy is in front
 		var lateral: float = absf(e.global_position.x - global_position.x)
-		if ahead >= -1.0 and ahead <= slash_range and lateral <= SLASH_LANE_TOL:
+		if ahead >= -1.0 and ahead <= slash_range and lateral <= slash_tol:
 			_spawn_burst(e.global_position + Vector3(0.0, 1.0, 0.0), Color(0.85, 0.15, 0.18), 14, 5.0, 0.5, 0.18)
 			e.queue_free()
 			killed += 1
 	if killed > 0:
+		# Blood Sprint: each kill adds a decaying speed surge.
+		_sprint_boost = minf(SPRINT_CAP, _sprint_boost + _sprint_per_kill * float(killed))
 		if _game == null:
 			_game = get_tree().get_first_node_in_group("game")
 		if _game != null:
@@ -291,17 +315,42 @@ func _sfx(n: String) -> void:
 	if _snd != null:
 		_snd.play(n)
 
-## Cultivation breakthrough: shift the demon's color and grant a little power.
+## Apply a realm's power tier (called at start for realm 0, and on each breakthrough).
+func apply_realm_stats(d: Dictionary) -> void:
+	slash_range = float(d.get("range", slash_range))
+	slash_tol = float(d.get("tol", slash_tol))
+	_speed_mult = float(d.get("speed", _speed_mult))
+	_sprint_per_kill = float(d.get("sprint", _sprint_per_kill))
+	var new_max: int = int(d.get("shield", _max_shields))
+	if new_max > _max_shields:
+		_shields += (new_max - _max_shields)   # grant the new shield slot(s) filled
+	_max_shields = new_max
+	_shields = mini(_shields, _max_shields)
+
+## Iron Demon Body: absorb one hit if shielded or briefly invulnerable.
+func try_absorb_hit() -> bool:
+	if _invuln_t > 0.0:
+		return true
+	if _shields > 0:
+		_shields -= 1
+		_invuln_t = 1.0
+		_shield_regen_t = SHIELD_REGEN_TIME
+		return true
+	return false
+
+func get_shields() -> int:
+	return _shields
+
+## Cultivation breakthrough: shift the demon's color (power tier set separately).
 func on_breakthrough(realm_color: Color) -> void:
 	_base_color = realm_color
 	if not is_sliding:
 		_set_height(STAND_HEIGHT, _base_color)
-	slash_range = minf(slash_range + 0.4, 9.0)
 
 ## Dread Form: black-red flare, writhing shadow tendrils, a speed spike.
 func enter_dread_form() -> void:
 	_dread = true
-	_speed_mult = 1.25
+	# (speed/range/shield come from the Dread Form realm stats)
 	_base_color = Color(0.16, 0.02, 0.06)
 	_mat.emission_enabled = true
 	_mat.emission = Color(0.7, 0.05, 0.10)

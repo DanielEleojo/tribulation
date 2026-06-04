@@ -9,6 +9,7 @@ extends CanvasLayer
 @onready var title_root: Control = $Title
 @onready var realm_label: Label = $RealmLabel
 @onready var banner_label: Label = $Banner
+@onready var shield_label: Label = $ShieldLabel
 
 var player
 var _souls: int = 0
@@ -24,6 +25,14 @@ func _ready() -> void:
 ## Update the current cultivation realm name (top-center).
 func set_realm(name: String) -> void:
 	realm_label.text = name
+
+## Show Iron Demon Body charges (hidden at zero).
+func set_shields(n: int) -> void:
+	if n > 0:
+		shield_label.text = "Iron Body  " + "◆".repeat(n)
+		shield_label.visible = true
+	else:
+		shield_label.visible = false
 
 ## Flash a big breakthrough banner that fades out.
 func show_banner(name: String) -> void:

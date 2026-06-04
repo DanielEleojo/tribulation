@@ -31,13 +31,16 @@ const FOG_MAX: float = 0.020
 
 # Cultivation realms (v1: 1-6, climaxing at Dread Form). Advanced by Demon Souls
 # collected this run (placeholder for the persistent realm system in Phase 4).
+## Each realm escalates power: range/tol = slash reach & lane width, shield =
+## Iron Demon Body hits absorbed, speed = forward-speed multiplier, sprint =
+## Blood Sprint speed kick per kill. Mortal Husk is deliberately weak/fragile.
 var _realms: Array = [
-	{"name": "Mortal Husk", "souls": 0, "color": Color(0.85, 0.78, 0.55)},
-	{"name": "Blood Awakening", "souls": 4, "color": Color(0.90, 0.45, 0.30)},
-	{"name": "Sinister Core", "souls": 10, "color": Color(0.80, 0.28, 0.34)},
-	{"name": "Demon Flesh", "souls": 18, "color": Color(0.70, 0.24, 0.40)},
-	{"name": "Shadow Soul", "souls": 28, "color": Color(0.50, 0.20, 0.52)},
-	{"name": "Dread Form", "souls": 40, "color": Color(0.20, 0.04, 0.10)},
+	{"name": "Mortal Husk",     "souls": 0,  "color": Color(0.85, 0.78, 0.55), "range": 4.0, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 0.0},
+	{"name": "Blood Awakening", "souls": 4,  "color": Color(0.90, 0.45, 0.30), "range": 4.6, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 1.5},
+	{"name": "Sinister Core",   "souls": 10, "color": Color(0.80, 0.28, 0.34), "range": 5.4, "tol": 2.6, "shield": 0, "speed": 1.00, "sprint": 1.5},
+	{"name": "Demon Flesh",     "souls": 18, "color": Color(0.70, 0.24, 0.40), "range": 6.0, "tol": 2.6, "shield": 1, "speed": 1.00, "sprint": 2.0},
+	{"name": "Shadow Soul",     "souls": 28, "color": Color(0.50, 0.20, 0.52), "range": 6.6, "tol": 2.8, "shield": 1, "speed": 1.05, "sprint": 2.0},
+	{"name": "Dread Form",      "souls": 40, "color": Color(0.20, 0.04, 0.10), "range": 8.5, "tol": 4.0, "shield": 2, "speed": 1.25, "sprint": 3.0},
 ]
 var realm: int = 0
 
@@ -69,6 +72,8 @@ func _ready() -> void:
 	souls_changed.emit(souls)
 	if _hud != null:
 		_hud.set_realm(String(_realms[0]["name"]))
+	if _player != null:
+		_player.apply_realm_stats(_realms[0])   # weak Mortal Husk baseline
 
 func _setup_world() -> void:
 	# Environment: dark color background + soft ambient + distance fog (hides the
@@ -108,12 +113,27 @@ func _process(delta: float) -> void:
 	# Thicken the fog as the run speeds up (sense of speed/pressure).
 	if _env != null and _player != null and _player.has_method("get_speed_fraction"):
 		_env.fog_density = lerpf(FOG_BASE, FOG_MAX, _player.get_speed_fraction())
+	# Mirror Iron Demon Body charges to the HUD.
+	if _hud != null and _player != null:
+		_hud.set_shields(_player.get_shields())
 
 	# The Heavenly Net steadily closes; full closure is death.
 	net = minf(1.0, net + net_close_rate * delta)
 	net_changed.emit(net)
 	if net >= 1.0:
 		die()
+
+## Hazard/enemy contact. Iron Demon Body absorbs the hit if available; else death.
+func player_hit() -> void:
+	if is_dead or not started:
+		return
+	if _player != null and _player.try_absorb_hit():
+		_sfx("breakthrough")
+		_shake(0.45)
+		if _hud != null:
+			_hud.flash(Color(0.55, 0.6, 0.95))   # iron-body absorb flash
+		return
+	die()
 
 ## Called by an obstacle when it touches the player.
 func die() -> void:
@@ -159,6 +179,7 @@ func _breakthrough(idx: int) -> void:
 	_sfx("breakthrough")
 	_shake(0.4)
 	if _player != null:
+		_player.apply_realm_stats(data)
 		_player.on_breakthrough(rcolor)
 	if rname == "Dread Form":
 		_enter_dread_form()

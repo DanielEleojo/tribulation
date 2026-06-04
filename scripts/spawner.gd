@@ -162,7 +162,7 @@ func _make_area(size: Vector3, center_y: float, mat: StandardMaterial3D, is_enem
 
 func _on_hazard_body_entered(body: Node) -> void:
 	if body.is_in_group("player") and game != null:
-		game.die()
+		game.player_hit()
 
 func _cleanup() -> void:
 	var kill_z: float = player.global_position.z + DESPAWN_BEHIND
