@@ -57,12 +57,23 @@ var _tiers: Array = [
 	{"name": "Peak",         "accent": Color(0.85, 0.50, 1.00), "energy": 2.0, "scale": 1.25},
 	{"name": "Transcendent", "accent": Color(1.00, 0.90, 0.55), "energy": 2.7, "scale": 1.45},
 ]
-const TIER_DIST: Array = [0, 140, 320, 560, 860]   # "li fled" thresholds for each rank
+# "li fled" thresholds per stage. Intervals grow at HALF a doubling per stage
+# (sqrt(2)^n) from a mildly-raised base of 180 li third->second:
+# 180, ~254, ~360, ~509 -> cumulative below.
+const TIER_DIST: Array = [0, 180, 434, 794, 1303]
 var enemy_tier: int = 0
+
+# Jump power scales with martial stage: base at third-rate, capped max by first-rate.
+const JUMP_BASE: float = 12.0
+const JUMP_MAX: float = 14.0
 
 ## Current foe-rank style, read by the spawner when building a technique/hazard.
 func tier_style() -> Dictionary:
 	return _tiers[enemy_tier]
+
+## Jump velocity for the current martial stage (12 at third-rate -> 14 by first-rate+).
+func _jump_for_tier(t: int) -> float:
+	return lerpf(JUMP_BASE, JUMP_MAX, clampf(float(t) / 2.0, 0.0, 1.0))
 
 func _ready() -> void:
 	add_to_group("game")
@@ -96,6 +107,7 @@ func _ready() -> void:
 		_hud.set_realm(String(_realms[0]["name"]))
 	if _player != null:
 		_player.apply_realm_stats(_realms[0])   # weak Mortal Husk baseline
+		_player.set_jump_power(_jump_for_tier(enemy_tier))   # third-rate base jump
 
 func _setup_world() -> void:
 	# Environment: real CC0 night-sky HDRI (Poly Haven) + image-based lighting + fog.
@@ -152,6 +164,8 @@ func _process(delta: float) -> void:
 				t = i
 		if t != enemy_tier:
 			enemy_tier = t
+			if _player != null:
+				_player.set_jump_power(_jump_for_tier(enemy_tier))
 			_on_tier_up()
 
 	# The Heavenly Net steadily closes; full closure is death.
