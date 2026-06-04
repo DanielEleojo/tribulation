@@ -43,8 +43,31 @@ func _make_panel(safe: bool) -> Area3D:
 	col.position = Vector3(0.0, PANEL_H * 0.5, 0.0)
 	area.add_child(mesh)
 	area.add_child(col)
+
+	# Torii frame: two posts + a lintel beam, plus a bright life/death talisman.
+	var post_color := Color(0.24, 0.10, 0.07)
+	_gate_box(area, Vector3(0.25, PANEL_H, 0.25), Vector3(-PANEL_W * 0.5, PANEL_H * 0.5, 0.0), post_color, Color.BLACK, false)
+	_gate_box(area, Vector3(0.25, PANEL_H, 0.25), Vector3(PANEL_W * 0.5, PANEL_H * 0.5, 0.0), post_color, Color.BLACK, false)
+	_gate_box(area, Vector3(PANEL_W + 0.7, 0.35, 0.4), Vector3(0.0, PANEL_H + 0.1, 0.0), Color(0.45, 0.12, 0.09), Color.BLACK, false)
+	var tcol := Color(0.3, 1.0, 0.4) if safe else Color(1.0, 0.2, 0.2)
+	_gate_box(area, Vector3(0.5, 0.9, 0.12), Vector3(0.0, PANEL_H * 0.55, -PANEL_D * 0.5 - 0.05), tcol, tcol, true)
+
 	area.body_entered.connect(_on_panel_entered.bind(area))
 	return area
+
+func _gate_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color, emis: Color, emis_on: bool) -> void:
+	var m := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	m.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	if emis_on:
+		mat.emission_enabled = true
+		mat.emission = emis
+	m.material_override = mat
+	m.position = pos
+	parent.add_child(m)
 
 func _on_panel_entered(body: Node, area: Area3D) -> void:
 	if _resolved or not body.is_in_group("player"):

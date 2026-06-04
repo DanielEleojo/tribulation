@@ -118,47 +118,68 @@ func _spawn_enemy_row(z: float) -> void:
 		add_child(e)
 
 func _make_barrier(is_block: bool, width: float) -> Area3D:
-	var size: Vector3
-	var center_y: float
-	var color: Color
 	if is_block:
-		size = Vector3(width, BLOCK_HEIGHT, BLOCK_DEPTH)
-		center_y = BLOCK_HEIGHT * 0.5
-		color = BLOCK_COLOR
+		# Heavenly Seal: a stone stele with a glowing rune facing the player.
+		var size := Vector3(width, BLOCK_HEIGHT, BLOCK_DEPTH)
+		var cy := BLOCK_HEIGHT * 0.5
+		var area := _make_area(size, cy, false)
+		_add_box(area, size, Vector3(0.0, cy, 0.0), Color(0.36, 0.35, 0.40), Color.BLACK, false)
+		var rune_w := minf(width, 1.6)
+		_add_box(area, Vector3(rune_w, 0.9, 0.08), Vector3(0.0, cy, -BLOCK_DEPTH * 0.5 - 0.06), Color(0.95, 0.8, 0.35), Color(1.0, 0.65, 0.2), true)
+		return area
 	else:
-		size = Vector3(width, BAR_HEIGHT, BAR_DEPTH)
-		center_y = BAR_BOTTOM_Y + BAR_HEIGHT * 0.5
-		color = BAR_COLOR
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	return _make_area(size, center_y, mat, false)
+		# Formation array: a humming energy beam to slide under.
+		var size := Vector3(width, BAR_HEIGHT, BAR_DEPTH)
+		var cy := BAR_BOTTOM_Y + BAR_HEIGHT * 0.5
+		var area := _make_area(size, cy, false)
+		_add_box(area, size, Vector3(0.0, cy, 0.0), Color(0.45, 0.8, 1.0), Color(0.3, 0.7, 1.0), true)
+		return area
 
 func _make_enemy() -> Area3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = ENEMY_COLOR
-	mat.emission_enabled = true
-	mat.emission = Color(0.4, 0.04, 0.06)
-	return _make_area(ENEMY_SIZE, ENEMY_SIZE.y * 0.5, mat, true)
+	# Sect disciple: a robed body with a glinting blade.
+	var cy := ENEMY_SIZE.y * 0.5
+	var area := _make_area(ENEMY_SIZE, cy, true)
+	var body := MeshInstance3D.new()
+	var cap := CapsuleMesh.new()
+	cap.radius = 0.42
+	cap.height = ENEMY_SIZE.y
+	body.mesh = cap
+	var rmat := StandardMaterial3D.new()
+	rmat.albedo_color = Color(0.82, 0.83, 0.90)   # righteous-sect robe
+	body.material_override = rmat
+	body.position = Vector3(0.0, cy, 0.0)
+	area.add_child(body)
+	_add_box(area, Vector3(0.9, 0.18, 0.9), Vector3(0.0, cy - 0.1, 0.0), Color(0.55, 0.10, 0.12), Color.BLACK, false)  # sash
+	_add_box(area, Vector3(0.08, 1.3, 0.08), Vector3(0.5, cy + 0.2, -0.1), Color(0.80, 0.85, 0.90), Color(0.4, 0.6, 0.9), true)  # blade
+	return area
 
-func _make_area(size: Vector3, center_y: float, mat: StandardMaterial3D, is_enemy: bool) -> Area3D:
+func _make_area(size: Vector3, center_y: float, is_enemy: bool) -> Area3D:
+	# Collision-only trigger; callers add the visual meshes.
 	var area := Area3D.new()
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = size
-	mesh.mesh = box
-	mesh.material_override = mat
-	mesh.position = Vector3(0.0, center_y, 0.0)
 	var col := CollisionShape3D.new()
 	var bshape := BoxShape3D.new()
 	bshape.size = size
 	col.shape = bshape
 	col.position = Vector3(0.0, center_y, 0.0)
-	area.add_child(mesh)
 	area.add_child(col)
 	if is_enemy:
 		area.add_to_group("enemy")
 	area.body_entered.connect(_on_hazard_body_entered)
 	return area
+
+func _add_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color, emis: Color, emis_on: bool) -> void:
+	var m := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	m.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	if emis_on:
+		mat.emission_enabled = true
+		mat.emission = emis
+	m.material_override = mat
+	m.position = pos
+	parent.add_child(m)
 
 func _on_hazard_body_entered(body: Node) -> void:
 	if body.is_in_group("player") and game != null:

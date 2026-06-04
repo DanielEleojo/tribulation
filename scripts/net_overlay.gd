@@ -5,7 +5,7 @@ extends CanvasLayer
 
 const HALF_W: float = 640.0     # design-space half width (1280 base, canvas_items stretch)
 const HALF_H: float = 360.0     # design-space half height (720 base)
-const NET_COLOR := Color(0.55, 0.03, 0.06, 0.82)
+const NET_COLOR := Color(0.92, 0.78, 0.32, 0.78)   # divine gold — the Heavenly Net is a righteous formation
 
 var _top: ColorRect
 var _bottom: ColorRect
