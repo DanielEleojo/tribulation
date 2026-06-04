@@ -30,3 +30,4 @@
 2026-06-04 Phase 4.B: visual life — procedural run animation on the player (footfall bounce + forward lean, cape flap, blade sway; tucks/flares mid-air), and a bob/sway script (foe.gd) on disciples so foes read as moving martial artists, not static capsules. No assets; addresses "everything looks like static blocks".
 2026-06-04 Tuning: jump_velocity 12 -> 14 (apex ~2.4 -> ~3.3 units, airtime ~0.8 -> ~0.93s) for more jump power.
 2026-06-04 Tuning: jump scales with martial stage (12 third-rate -> 14 first-rate+, capped); reverted flat 14. Stage thresholds re-curved exponentially at half-exponent (sqrt2^n) from a mildly-raised base 180 li: TIER_DIST [0,180,434,794,1303] (was [0,140,320,560,860]).
+2026-06-04 Death screen text: "YOU DIED" -> "GAME OVER".

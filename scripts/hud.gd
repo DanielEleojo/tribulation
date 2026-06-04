@@ -72,5 +72,5 @@ func on_death() -> void:
 	var dist := 0
 	if player != null:
 		dist = player.get_distance()
-	death_label.text = "YOU DIED\n\nDistance: %d m\nDemon Souls: %d\n\nEnter / tap to retry\n[ Watch ad to continue — coming soon ]" % [dist, _souls]
+	death_label.text = "GAME OVER\n\nDistance: %d m\nDemon Souls: %d\n\nEnter / tap to retry\n[ Watch ad to continue — coming soon ]" % [dist, _souls]
 	death_label.visible = true
