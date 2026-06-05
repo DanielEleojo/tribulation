@@ -140,11 +140,41 @@ func _build_model() -> bool:
 	add_child(_figure)
 	_figure.add_child(_model)
 	_model.rotation_degrees.y = 180.0   # face -Z so we see the demon's back as he flees
+	# Strip baked-in forward root motion so loops don't snap backward (run in place).
+	for nm in _anim_player.get_animation_list():
+		_strip_root_motion(_anim_player.get_animation(nm))
 	_has_model = true
 	call_deferred("_normalize_model")
 	if _anim_player.has_animation("run"):
 		_anim_player.play("run")
 	return true
+
+## Lock the horizontal drift of any root/hip position track (keep vertical bounce),
+## so looping locomotion stays in place instead of snapping back each cycle.
+func _strip_root_motion(anim: Animation) -> void:
+	if anim == null:
+		return
+	for i in range(anim.get_track_count()):
+		if anim.track_get_type(i) != Animation.TYPE_POSITION_3D:
+			continue
+		var n := anim.track_get_key_count(i)
+		if n == 0:
+			continue
+		var minx := INF
+		var maxx := -INF
+		var minz := INF
+		var maxz := -INF
+		for k in range(n):
+			var v: Vector3 = anim.track_get_key_value(i, k)
+			minx = minf(minx, v.x); maxx = maxf(maxx, v.x)
+			minz = minf(minz, v.z); maxz = maxf(maxz, v.z)
+		# Only flatten the track that actually drifts (the root/hips) — leave limbs alone.
+		if (maxx - minx) < 0.15 and (maxz - minz) < 0.15:
+			continue
+		var base_v: Vector3 = anim.track_get_key_value(i, 0)
+		for k in range(n):
+			var v: Vector3 = anim.track_get_key_value(i, k)
+			anim.track_set_key_value(i, k, Vector3(base_v.x, v.y, base_v.z))
 
 func _find_node(root: Node, cls: String) -> Node:
 	var found := root.find_children("*", cls, true, false)
