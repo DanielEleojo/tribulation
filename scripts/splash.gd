@@ -2,7 +2,7 @@ extends Control
 ## Studio splash: hold the Vellicade Games logo for a fixed time, fade, then
 ## continue to the game (title screen). Set as the project's main scene.
 
-@export var duration: float = 3.0     # seconds to hold the splash
+@export var duration: float = 2.0     # seconds to hold the splash
 @export var fade_time: float = 0.4
 
 func _ready() -> void:

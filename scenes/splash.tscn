@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://btribsplash01"]
+[gd_scene format=3 uid="uid://btribsplash01"]
 
 [ext_resource type="Script" path="res://scripts/splash.gd" id="1_splash"]
 [ext_resource type="Texture2D" path="res://assets/splash.png" id="2_img"]
