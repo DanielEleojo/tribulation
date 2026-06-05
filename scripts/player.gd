@@ -59,14 +59,19 @@ const SHIELD_REGEN_TIME: float = 9.0
 const SPRINT_DECAY: float = 4.0
 const SPRINT_CAP: float = 8.0
 
-var _figure: Node3D            # holds the visual demon parts (swap for a real GLB later)
+@export var model_scale_mult: float = 1.0   # fine-tune the imported model's size
+
+var _figure: Node3D            # holds the visual (real model, or primitive fallback)
 var _cape: MeshInstance3D
 var _sword: MeshInstance3D
 var _anim_t: float = 0.0
 var _col: CollisionShape3D
 var _shape: BoxShape3D
-var _mat: StandardMaterial3D   # torso material — tinted per realm
+var _mat: StandardMaterial3D   # torso material — tinted per realm (primitive only)
 var _dust: CPUParticles3D
+var _has_model: bool = false
+var _model: Node3D
+var _anim_player: AnimationPlayer
 
 func _ready() -> void:
 	add_to_group("player")
@@ -88,8 +93,106 @@ func _build_body() -> void:
 	_col.shape = _shape
 	add_child(_col)
 
-	# Visual: a dark caped swordsman built from primitives (placeholder demon).
-	# A real GLB can replace this _figure later with no other code changes.
+	# Prefer the real rigged model; fall back to the primitive figure if missing.
+	if not _build_model():
+		_build_primitive_figure()
+	_build_dust()
+
+## Load the Mixamo FBX warrior, merge the other clips' animations into its
+## AnimationPlayer, normalize scale + orientation. Returns false if anything's missing.
+func _build_model() -> bool:
+	var base: PackedScene = load("res://Models/Running.fbx")
+	if base == null:
+		return false
+	_model = base.instantiate() as Node3D
+	_anim_player = _find_node(_model, "AnimationPlayer") as AnimationPlayer
+	if _anim_player == null:
+		_model.free()
+		_model = null
+		return false
+	var lib := _get_first_lib(_anim_player)
+	if lib == null:
+		_model.free()
+		_model = null
+		return false
+	# Base "Running" clip -> "run" (looping).
+	if lib.has_animation("mixamo_com"):
+		var run := lib.get_animation("mixamo_com")
+		run.loop_mode = Animation.LOOP_LINEAR
+		lib.add_animation("run", run)
+	# Merge the other FBX clips under friendly names.
+	var extra := {"fast_run": "Fast Run", "slide": "Running Slide", "jump": "Running Forward Flip", "turn": "Running Right Turn", "pickup": "Pick Up Item"}
+	for nm in extra:
+		var sc: PackedScene = load("res://Models/%s.fbx" % extra[nm])
+		if sc == null:
+			continue
+		var tmp: Node = sc.instantiate()
+		var ap2 := _find_node(tmp, "AnimationPlayer") as AnimationPlayer
+		if ap2 != null:
+			var l2 := _get_first_lib(ap2)
+			if l2 != null and l2.has_animation("mixamo_com"):
+				var a := l2.get_animation("mixamo_com")
+				if nm == "fast_run":
+					a.loop_mode = Animation.LOOP_LINEAR
+				lib.add_animation(nm, a)
+		tmp.free()
+	_figure = Node3D.new()
+	add_child(_figure)
+	_figure.add_child(_model)
+	_model.rotation_degrees.y = 180.0   # face -Z so we see the demon's back as he flees
+	_has_model = true
+	call_deferred("_normalize_model")
+	if _anim_player.has_animation("run"):
+		_anim_player.play("run")
+	return true
+
+func _find_node(root: Node, cls: String) -> Node:
+	var found := root.find_children("*", cls, true, false)
+	return found[0] if found.size() > 0 else null
+
+func _get_first_lib(ap: AnimationPlayer) -> AnimationLibrary:
+	if ap.has_animation_library(""):
+		return ap.get_animation_library("")
+	var names := ap.get_animation_library_list()
+	return ap.get_animation_library(names[0]) if names.size() > 0 else null
+
+## Scale the model to STAND_HEIGHT and sit its feet at the body origin.
+func _normalize_model() -> void:
+	var skel := _find_node(_model, "Skeleton3D") as Skeleton3D
+	if skel == null:
+		return
+	var gt := skel.global_transform
+	var miny := INF
+	var maxy := -INF
+	for i in range(skel.get_bone_count()):
+		var w: Vector3 = gt * skel.get_bone_global_rest(i).origin
+		miny = minf(miny, w.y)
+		maxy = maxf(maxy, w.y)
+	var h := maxy - miny
+	if h <= 0.0001:
+		return
+	_figure.scale *= (STAND_HEIGHT / h) * model_scale_mult
+	await get_tree().process_frame
+	var gt2 := skel.global_transform
+	var fy := INF
+	for i in range(skel.get_bone_count()):
+		fy = minf(fy, (gt2 * skel.get_bone_global_rest(i).origin).y)
+	_figure.position.y -= (fy - global_position.y)
+
+## Switch the model's clip to match the player's state.
+func _update_anim(grounded: bool) -> void:
+	if _anim_player == null:
+		return
+	var want := "run"
+	if is_sliding:
+		want = "slide"
+	elif not grounded:
+		want = "jump"
+	if _anim_player.current_animation != want and _anim_player.has_animation(want):
+		_anim_player.play(want)
+
+## Primitive fallback: a dark caped swordsman built from boxes/capsules.
+func _build_primitive_figure() -> void:
 	_figure = Node3D.new()
 	add_child(_figure)
 	_mat = StandardMaterial3D.new()
@@ -142,7 +245,6 @@ func _build_body() -> void:
 	_figure.add_child(_sword)
 
 	_set_height(STAND_HEIGHT, _base_color)
-	_build_dust()
 
 func _solid(c: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -238,7 +340,10 @@ func _physics_process(delta: float) -> void:
 	velocity.y -= gravity * delta
 	move_and_slide()
 
-	_animate_figure(delta, grounded)
+	if _has_model:
+		_update_anim(grounded)
+	else:
+		_animate_figure(delta, grounded)
 
 ## Procedural run animation so the demon reads as running, not sliding: a footfall
 ## bounce + forward lean, cape flap and blade sway; tucks/flares in the air.
@@ -304,9 +409,12 @@ func _end_slide() -> void:
 func _set_height(h: float, col: Color) -> void:
 	_shape.size = Vector3(BODY_WIDTH, h, BODY_WIDTH)
 	_col.position = Vector3(0.0, h * 0.5, 0.0)
+	if _has_model:
+		return   # the model crouches via its slide animation, not a Y-scale
 	if _figure != null:
 		_figure.scale.y = h / STAND_HEIGHT   # squash down into a slide
-	_mat.albedo_color = col
+	if _mat != null:
+		_mat.albedo_color = col
 
 ## Slash: melee forward. Destroys enemies ahead within range in the current lane.
 func try_slash() -> void:
@@ -417,6 +525,8 @@ func get_shields() -> int:
 ## Cultivation breakthrough: shift the demon's color (power tier set separately).
 func on_breakthrough(realm_color: Color) -> void:
 	_base_color = realm_color
+	if _has_model:
+		return   # realm tint of the textured model handled later (modulate/shader)
 	if not is_sliding:
 		_set_height(STAND_HEIGHT, _base_color)
 
@@ -425,9 +535,10 @@ func enter_dread_form() -> void:
 	_dread = true
 	# (speed/range/shield come from the Dread Form realm stats)
 	_base_color = Color(0.16, 0.02, 0.06)
-	_mat.emission_enabled = true
-	_mat.emission = Color(0.7, 0.05, 0.10)
-	if not is_sliding:
+	if _mat != null:
+		_mat.emission_enabled = true
+		_mat.emission = Color(0.7, 0.05, 0.10)
+	if not is_sliding and not _has_model:
 		_set_height(STAND_HEIGHT, _base_color)
 	_build_tendrils()
 
