@@ -14,6 +14,10 @@ config/name="Tribulation"
 run/main_scene="res://scenes/game.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
+boot_splash/bg_color=Color(0.09, 0.18, 0.28, 1)
+boot_splash/image="res://assets/splash.png"
+boot_splash/fullsize=true
+boot_splash/use_filter=true
 
 [display]
 
