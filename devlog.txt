@@ -32,3 +32,4 @@
 2026-06-04 Tuning: jump scales with martial stage (12 third-rate -> 14 first-rate+, capped); reverted flat 14. Stage thresholds re-curved exponentially at half-exponent (sqrt2^n) from a mildly-raised base 180 li: TIER_DIST [0,180,434,794,1303] (was [0,140,320,560,860]).
 2026-06-04 Death screen text: "YOU DIED" -> "GAME OVER".
 2026-06-05 Boot splash: added Vellicade Games splash (assets/splash.png, 768x1376, from Documents) as the engine boot splash with navy bg (0.09,0.18,0.28); applies to desktop/Android/iOS. (iOS native LaunchScreen storyboard still set in the iOS export preset on Mac at export time.)
+2026-06-05 Splash scene: added scenes/splash.tscn (Vellicade logo, navy bg, keep-aspect-covered) as main scene; holds 3s then fades 0.4s and change_scene to game.tscn (scripts/splash.gd). Engine boot splash still shows first for a seamless handoff.

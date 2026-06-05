@@ -1,3 +1,4 @@
+
 extends Node3D
 ## Root coordinator: owns dead/alive state, wires death + restart, and sets up
 ## the 3D world (lighting + environment) in code so we don't hand-author resources.
