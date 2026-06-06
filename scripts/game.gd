@@ -22,7 +22,11 @@ var is_dead: bool = false
 var qi: float = 0.0
 var net: float = 0.0                  # 0 = open, 1 = closed (death)
 var souls: int = 0                    # Spirit Stones gathered THIS run (HUD/death/combo)
-var total: int = 0                    # LIFETIME Spirit Stones — drives cultivation, persisted
+var total: int = 0                    # LIFETIME Spirit Stones EARNED — spendable currency, persisted
+var run_progress: int = 0             # stones toward the NEXT realm THIS attempt (resets on death)
+# Stones to climb a whole realm (1st Layer -> breakthrough) IN ONE attempt. Major realms
+# are saved; minor-layer progress is not — die and you restart your realm at the 1st Layer.
+const REALM_SPAN := [60, 140, 300, 600, 1200, 999999]
 var combo: int = 0                    # streak of kills/orbs (resets when hit); scales soul gain
 var _best: int = 0                    # best distance ("li") ever, persisted
 var _last_layer: int = 1
@@ -267,35 +271,26 @@ func foe_name() -> String:
 
 ## Wuxia minor layer (1..10) WITHIN the current major realm, derived from how far
 ## souls have progressed toward the next realm's threshold.
+func _span() -> int:
+	return int(REALM_SPAN[clampi(realm, 0, REALM_SPAN.size() - 1)])
+
 func minor_level() -> int:
-	var lo: int = int(_realms[realm]["souls"])
-	var hi: int = int(_realms[realm + 1]["souls"]) if realm + 1 < _realms.size() else lo + 50000
-	var span: int = maxi(1, hi - lo)
-	var f: float = clampf(float(total - lo) / float(span), 0.0, 0.999)
+	if realm >= _realms.size() - 1:
+		return 10   # Ascension — Great Perfection
+	var f: float = clampf(float(run_progress) / float(maxi(1, _span())), 0.0, 0.999)
 	return int(f * 10.0) + 1
 
-## Highest realm whose lifetime threshold the total has reached.
-func _realm_from_total(t: int) -> int:
-	var r := 0
-	for i in range(_realms.size()):
-		if t >= int(_realms[i]["souls"]):
-			r = i
-	return r
-
-## Re-evaluate cultivation after banking stones; fire breakthroughs on crossings.
+## Fill the current realm's span this attempt to break through (realm++ is PERSISTENT).
 func _update_cultivation() -> void:
-	var nr := _realm_from_total(total)
 	var changed := false
-	while realm < nr and realm < _realms.size() - 1:
+	while realm < _realms.size() - 1 and run_progress >= _span():
+		run_progress -= _span()
 		realm += 1
 		_breakthrough(realm)
 		changed = true
-	_refresh_realm()
-	var ml := minor_level()
-	if ml != _last_layer:
-		_last_layer = ml
 	if changed:
-		_save()
+		_save()                       # major realms always save
+	_refresh_realm()
 
 ## Apply the player's CURRENT (already-established) realm at run start — no fanfare.
 func _apply_realm_now(r: int) -> void:
@@ -377,9 +372,9 @@ func _ready() -> void:
 	_setup_atmosphere()
 	_apply_theme(0)   # start in the forest
 
-	_load_save()
-	realm = _realm_from_total(total)   # start at your established cultivation realm
-	_last_layer = minor_level()
+	_load_save()                       # restores your saved MAJOR realm
+	run_progress = 0                   # minor-layer progress is per-attempt (1st Layer)
+	_last_layer = 1
 	qi_changed.emit(qi, qi_max)
 	net_changed.emit(net)
 	souls_changed.emit(souls)
@@ -487,7 +482,8 @@ func die() -> void:
 	var dist: int = _player.get_distance() if _player != null else 0
 	if dist > _best:
 		_best = dist
-	_save()                       # persist lifetime cultivation + best
+	run_progress = 0              # qi deviation — lose the layer climb, keep the major realm
+	_save()                       # persist realm + lifetime stones + best
 	if _hud != null:
 		_hud.set_best(_best)
 	_sfx("death")
@@ -505,7 +501,8 @@ func on_orb_collected() -> void:
 	if is_powerup_active("double"):
 		g *= 2
 	souls += g
-	total += g                     # bank toward lifetime cultivation
+	total += g                     # lifetime spendable currency
+	run_progress += g              # progress toward the next realm (this attempt)
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, m)
 	_trial_add("qi", 1.0)
@@ -526,6 +523,7 @@ func _reset_combo() -> void:
 func _load_save() -> void:
 	var c := ConfigFile.new()
 	if c.load("user://tribulation.cfg") == OK:
+		realm = clampi(int(c.get_value("cult", "realm", 0)), 0, _realms.size() - 1)
 		total = int(c.get_value("cult", "total_stones", 0))
 		_spent = int(c.get_value("cult", "spent", 0))
 		_best = int(c.get_value("run", "best_li", 0))
@@ -535,6 +533,7 @@ func _load_save() -> void:
 func _save() -> void:
 	var c := ConfigFile.new()
 	c.load("user://tribulation.cfg")
+	c.set_value("cult", "realm", realm)
 	c.set_value("cult", "total_stones", total)
 	c.set_value("cult", "spent", _spent)
 	c.set_value("run", "best_li", _best)
@@ -552,7 +551,8 @@ func on_enemy_killed(count: int = 1) -> void:
 	if is_powerup_active("double"):
 		g *= 2
 	souls += g
-	total += g                     # bank toward lifetime cultivation
+	total += g                     # lifetime spendable currency
+	run_progress += g              # progress toward the next realm (this attempt)
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, m)
 	_trial_add("slay", float(count))
