@@ -95,6 +95,10 @@ func _spawn() -> void:
 	if player.has_method("is_flying") and player.is_flying():
 		_spawn_aerial(base_z)
 		return
+	# At Ascension the Heavenly Tribulation rains lightning — dodge to the safe lane.
+	if game != null and game.has_method("has_ability") and game.has_ability("tribulation") and randf() < 0.55:
+		_spawn_lightning(base_z)
+		return
 	# Cycle the three kinds so jump / slide / slash all get exercised.
 	var kind: int = _spawn_index % 3
 	_spawn_index += 1
@@ -246,6 +250,21 @@ func _solid(c: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = c
 	return m
+
+## Heavenly Tribulation: lightning strikes two of the three lanes; one lane is safe.
+func _spawn_lightning(z: float) -> void:
+	var ts := _tier()
+	var accent: Color = ts["accent"]
+	var energy: float = ts["energy"]
+	var safe: int = randi() % 3
+	for lane in range(3):
+		if lane == safe:
+			continue
+		var size := Vector3(0.7, 7.0, 0.7)
+		var bolt := _make_area(size, size.y * 0.5, false)   # full-height column, lethal on contact
+		bolt.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
+		_add_glow(bolt, Vector3(0.45, 7.0, 0.45), Vector3(0.0, size.y * 0.5, 0.0), Color(0.75, 0.88, 1.0), Color(1.0, 0.95, 0.7), energy * 1.6)
+		add_child(bolt)
 
 ## A floating sword-formation hazard at flight altitude — dodge by lane + climb/dive.
 func _spawn_aerial(z: float) -> void:

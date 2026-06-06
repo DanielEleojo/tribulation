@@ -198,8 +198,11 @@ func _process(delta: float) -> void:
 				_player.set_jump_power(_jump_for_tier(enemy_tier))
 			_on_tier_up()
 
-	# The Heavenly Net steadily closes; full closure is death.
-	net = minf(1.0, net + net_close_rate * delta)
+	# The Tribulation steadily gathers; full closure is death. But a cultivator who has
+	# reached Ascension defies heaven — the net can no longer fully close on them
+	# (Heaven Defiance); only the Heavenly Tribulation lightning can fell them now.
+	var cap: float = 0.85 if has_ability("tribulation") else 1.0
+	net = minf(cap, net + net_close_rate * delta)
 	net_changed.emit(net)
 	if net >= 1.0:
 		die()
