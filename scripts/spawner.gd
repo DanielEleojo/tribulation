@@ -241,19 +241,39 @@ func _make_barrier(is_block: bool, width: float) -> Area3D:
 	var sc: float = ts["scale"]
 	var hz := _hz()
 	if is_block:
-		# Low ground hazard to JUMP (boulder/sweep — hue shifts per cultivation stage).
+		# STONE WARD to JUMP — a rough rune-carved stone with a jagged crest.
 		var size := Vector3(width, BLOCK_HEIGHT, BLOCK_DEPTH)
 		var cy := BLOCK_HEIGHT * 0.5
 		var area := _make_area(size, cy, false)
-		_add_glow(area, Vector3(width * sc, BLOCK_HEIGHT * 0.85, 0.35), Vector3(0.0, cy, 0.0), hz["low"], accent, energy)
-		_add_glow(area, Vector3(width * sc, 0.14, 0.7), Vector3(0.0, 0.07, 0.0), hz["low"], accent, energy * 1.4)  # bright ground line
+		var stone := Color(0.30, 0.29, 0.33)
+		_add_box(area, Vector3(width, BLOCK_HEIGHT, BLOCK_DEPTH), Vector3(0.0, cy, 0.0), stone, Color.BLACK, false)
+		# jagged crest along the top so it isn't a flat slab
+		var n := maxi(2, int(width / 1.6))
+		for i in range(n):
+			var fx := (float(i) / float(maxi(1, n - 1)) - 0.5) * (width - 0.5)
+			var hh := 0.30 + 0.22 * float((i % 2))
+			_add_box(area, Vector3((width / float(n)) * 0.7, hh, BLOCK_DEPTH * 0.7), Vector3(fx, BLOCK_HEIGHT + hh * 0.5, 0.0), stone.darkened(0.12), Color.BLACK, false)
+		# glowing rune carved on the face + a qi-line at the base
+		_add_glow(area, Vector3(minf(width, 1.4) * sc, 0.55, 0.08), Vector3(0.0, cy + 0.05, -BLOCK_DEPTH * 0.5 - 0.05), hz["low"], accent, energy * 1.6)
+		_add_glow(area, Vector3(width * sc, 0.12, BLOCK_DEPTH * 0.7), Vector3(0.0, 0.06, 0.0), hz["low"], accent, energy * 1.3)
 		return area
 	else:
-		# High hazard to SLIDE under (branch/blade — hue shifts per stage).
+		# SPIRIT BARRIER to SLIDE under — posts + lintel + a humming qi beam hung with talismans.
 		var size := Vector3(width, BAR_HEIGHT, BAR_DEPTH)
 		var cy := BAR_BOTTOM_Y + BAR_HEIGHT * 0.5
 		var area := _make_area(size, cy, false)
-		_add_glow(area, Vector3(width * sc, BAR_HEIGHT, 0.3), Vector3(0.0, cy, 0.0), hz["high"], accent, energy)
+		var wood := Color(0.26, 0.18, 0.12)
+		var post_top := cy + BAR_HEIGHT * 0.5 + 0.5
+		for sx in [-width * 0.5 + 0.12, width * 0.5 - 0.12]:
+			_add_box(area, Vector3(0.18, post_top, 0.18), Vector3(sx, post_top * 0.5, 0.0), wood, Color.BLACK, false)
+		_add_box(area, Vector3(width + 0.25, 0.18, 0.28), Vector3(0.0, post_top, 0.0), wood.lightened(0.1), Color.BLACK, false)
+		# the lethal glowing beam
+		_add_glow(area, Vector3(width * sc, BAR_HEIGHT, BAR_DEPTH), Vector3(0.0, cy, 0.0), hz["high"], accent, energy * 1.4)
+		# hanging talisman strips dangling into view
+		var t := maxi(2, int(width / 1.6))
+		for i in range(t):
+			var tx := (float(i) / float(maxi(1, t - 1)) - 0.5) * (width - 0.6)
+			_add_glow(area, Vector3(0.13, 0.45, 0.04), Vector3(tx, cy - BAR_HEIGHT * 0.5 - 0.22, -BAR_DEPTH * 0.5), hz["high"].lerp(Color(1.0, 0.3, 0.2), 0.4), accent, energy)
 		return area
 
 func _make_enemy() -> Area3D:
