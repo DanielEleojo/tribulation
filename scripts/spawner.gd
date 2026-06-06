@@ -59,7 +59,7 @@ func _ready() -> void:
 	_timer = start_interval
 	_gate_timer = gate_interval
 	_orb_timer = orb_interval
-	_enemy_scene = load(ENEMY_GLB)
+	# Enemy now uses a procedural sect-swordsman (our style) — GLB no longer loaded.
 
 func _process(delta: float) -> void:
 	if player == null:
@@ -198,55 +198,50 @@ func _make_barrier(is_block: bool, width: float) -> Area3D:
 		return area
 
 func _make_enemy() -> Area3D:
-	# Blocking Disciple — the real sect-foe model, running in place toward the player.
+	# Sect disciple — a procedural robed swordsman in our primitive/glowing-qi style,
+	# matching the player figure. Robe whitens (righteous) vs the demon's dark; rank-qi
+	# tints the robe and lights the jian; loftier ranks loom larger and glow brighter.
 	var ts := _tier()
-	var sc: float = ts["scale"]
-	var cy := ENEMY_SIZE.y * 0.5
-	var area := _make_area(ENEMY_SIZE, cy, true)
-
-	if _enemy_scene != null:
-		var model := _enemy_scene.instantiate() as Node3D
-		var box := _local_aabb(model)
-		var h: float = box.size.y
-		var k: float = (ENEMY_SIZE.y / h) if h > 0.001 else 1.0
-		var holder := Node3D.new()
-		holder.scale = Vector3(k, k, k) * sc          # match the hitbox; loom larger by rank
-		holder.position.y = -box.position.y * k        # feet to the ground
-		holder.add_child(model)
-		area.add_child(holder)
-		var ap := _find_anim(model)
-		if ap != null:
-			for nm in ap.get_animation_list():
-				var a := ap.get_animation(nm)
-				if nm == "Run" or nm == "Idle":
-					a.loop_mode = Animation.LOOP_LINEAR
-				_strip_root_motion(a)
-			if ap.has_animation("Run"):
-				ap.play("Run")
-			elif ap.has_animation("Idle"):
-				ap.play("Idle")
-		return area
-
-	# Fallback: procedural robed disciple (capsule + sash + qi blade).
 	var accent: Color = ts["accent"]
 	var energy: float = ts["energy"]
-	var holder2 := Node3D.new()
-	holder2.set_script(FoeScript)
-	holder2.scale = Vector3(sc, sc, sc)
-	area.add_child(holder2)
+	var sc: float = ts["scale"]
+	var area := _make_area(ENEMY_SIZE, ENEMY_SIZE.y * 0.5, true)
+	var f := Node3D.new()
+	f.set_script(FoeScript)                  # running bob/sway
+	f.scale = Vector3(sc, sc, sc)
+	area.add_child(f)
+
+	var robe := Color(0.82, 0.84, 0.92).lerp(accent, 0.22)   # righteous-sect robe
+	# Torso (robe capsule) + flared lower robe.
 	var body := MeshInstance3D.new()
 	var cap := CapsuleMesh.new()
 	cap.radius = 0.42
-	cap.height = ENEMY_SIZE.y
+	cap.height = 1.7
 	body.mesh = cap
-	var rmat := StandardMaterial3D.new()
-	rmat.albedo_color = Color(0.82, 0.83, 0.90).lerp(accent, 0.25)
-	body.material_override = rmat
-	body.position = Vector3(0.0, cy, 0.0)
-	holder2.add_child(body)
-	_add_box(holder2, Vector3(0.9, 0.18, 0.9), Vector3(0.0, cy - 0.1, 0.0), Color(0.55, 0.10, 0.12), Color.BLACK, false)
-	_add_glow(holder2, Vector3(0.09, 1.35, 0.09), Vector3(0.5, cy + 0.2, -0.1), Color(0.85, 0.88, 0.95), accent, energy * 1.2)
+	body.material_override = _solid(robe)
+	body.position = Vector3(0.0, 1.15, 0.0)
+	f.add_child(body)
+	_add_box(f, Vector3(1.0, 0.8, 0.8), Vector3(0.0, 0.45, 0.0), robe.darkened(0.12), Color.BLACK, false)   # skirt
+	# Head + topknot.
+	var head := MeshInstance3D.new()
+	var hs := SphereMesh.new()
+	hs.radius = 0.27
+	hs.height = 0.54
+	head.mesh = hs
+	head.material_override = _solid(Color(0.86, 0.72, 0.62))   # skin
+	head.position = Vector3(0.0, 2.12, 0.0)
+	f.add_child(head)
+	_add_box(f, Vector3(0.2, 0.24, 0.2), Vector3(0.0, 2.42, 0.0), Color(0.10, 0.08, 0.07), Color.BLACK, false)   # topknot
+	# Waist sash.
+	_add_box(f, Vector3(0.95, 0.18, 0.95), Vector3(0.0, 1.02, 0.0), Color(0.55, 0.12, 0.14), Color.BLACK, false)
+	# Glowing jian held at the side (rank-qi blade).
+	_add_glow(f, Vector3(0.08, 1.5, 0.08), Vector3(0.52, 1.45, -0.1), Color(0.85, 0.88, 0.95), accent, energy * 1.2)
 	return area
+
+func _solid(c: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	return m
 
 func _find_anim(root: Node) -> AnimationPlayer:
 	var f := root.find_children("*", "AnimationPlayer", true, false)
