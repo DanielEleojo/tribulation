@@ -94,7 +94,7 @@ func on_combo_changed(c: int, mult: float) -> void:
 	if _combo_label == null:
 		return
 	if c > 1:
-		_combo_label.text = "COMBO  x%d   %.1f×" % [c, mult]
+		_combo_label.text = "DAO HEART  x%d   %.1f×" % [c, mult]
 		_combo_label.visible = true
 	else:
 		_combo_label.visible = false
@@ -191,17 +191,17 @@ func on_qi_changed(qi: float, qi_max: float) -> void:
 ## Called by the game coordinator whenever Demon Souls change (and once at start).
 func on_souls_changed(souls: int) -> void:
 	_souls = souls
-	souls_label.text = "Souls: %d" % souls
+	souls_label.text = "Stones: %d" % souls
 
 func _process(_delta: float) -> void:
 	if player == null:
 		return
-	distance_label.text = "Distance: %d m" % player.get_distance()
+	distance_label.text = "%d li" % player.get_distance()
 
 ## Called by the game coordinator when the player dies.
 func on_death() -> void:
 	var dist := 0
 	if player != null:
 		dist = player.get_distance()
-	death_label.text = "GAME OVER\n\nDistance: %d li     Best: %d li\nDemon Souls: %d\n\nEnter / tap to retry\n[ Watch ad to continue — coming soon ]" % [dist, _best_li, _souls]
+	death_label.text = "QI DEVIATION\n\n%d li traveled     Best: %d li\nSpirit Stones: %d\n\nEnter / tap to walk again\n[ Watch ad to continue — coming soon ]" % [dist, _best_li, _souls]
 	death_label.visible = true

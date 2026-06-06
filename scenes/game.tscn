@@ -188,6 +188,6 @@ offset_right = 300.0
 offset_bottom = 70.0
 grow_horizontal = 2
 theme_override_font_sizes/font_size = 30
-text = "Tap / Space to run"
+text = "Tap to walk the road"
 horizontal_alignment = 1
 vertical_alignment = 1

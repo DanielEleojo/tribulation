@@ -582,11 +582,11 @@ func on_breakthrough(realm_color: Color) -> void:
 ## Dread Form: black-red flare, writhing shadow tendrils, a speed spike.
 func enter_dread_form() -> void:
 	_dread = true
-	# (speed/range/shield come from the Dread Form realm stats)
-	_base_color = Color(0.16, 0.02, 0.06)
+	# Ascension: a radiant gold aura (speed/range/shield come from the realm stats).
+	_base_color = Color(0.95, 0.90, 0.70)
 	if _mat != null:
 		_mat.emission_enabled = true
-		_mat.emission = Color(0.7, 0.05, 0.10)
+		_mat.emission = Color(1.0, 0.9, 0.5)
 	if not is_sliding and not _has_model:
 		_set_height(STAND_HEIGHT, _base_color)
 	_build_tendrils()
@@ -600,15 +600,15 @@ func _build_tendrils() -> void:
 	_tendrils.spread = 50.0
 	_tendrils.initial_velocity_min = 2.0
 	_tendrils.initial_velocity_max = 5.0
-	_tendrils.gravity = Vector3(0.0, 1.5, 0.0)   # rise like dark smoke
+	_tendrils.gravity = Vector3(0.0, 1.5, 0.0)   # rise like ascending qi
 	_tendrils.scale_amount_min = 0.2
 	_tendrils.scale_amount_max = 0.5
 	var bm := BoxMesh.new()
 	bm.size = Vector3.ONE
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.08, 0.0, 0.04)
+	mat.albedo_color = Color(0.9, 0.8, 0.4)
 	mat.emission_enabled = true
-	mat.emission = Color(0.5, 0.02, 0.08)
+	mat.emission = Color(1.0, 0.9, 0.5)
 	bm.material = mat
 	_tendrils.mesh = bm
 	_tendrils.position = Vector3(0.0, 1.2, 0.3)

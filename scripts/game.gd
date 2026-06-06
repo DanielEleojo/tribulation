@@ -42,12 +42,12 @@ const FOG_MAX: float = 0.020
 ## Iron Demon Body hits absorbed, speed = forward-speed multiplier, sprint =
 ## Blood Sprint speed kick per kill. Mortal Husk is deliberately weak/fragile.
 var _realms: Array = [
-	{"name": "Mortal Husk",     "souls": 0,  "color": Color(0.85, 0.78, 0.55), "range": 4.0, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 0.0},
-	{"name": "Blood Awakening", "souls": 4,  "color": Color(0.90, 0.45, 0.30), "range": 4.6, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 1.5},
-	{"name": "Sinister Core",   "souls": 10, "color": Color(0.80, 0.28, 0.34), "range": 5.4, "tol": 2.6, "shield": 0, "speed": 1.00, "sprint": 1.5},
-	{"name": "Demon Flesh",     "souls": 18, "color": Color(0.70, 0.24, 0.40), "range": 6.0, "tol": 2.6, "shield": 1, "speed": 1.00, "sprint": 2.0},
-	{"name": "Shadow Soul",     "souls": 28, "color": Color(0.50, 0.20, 0.52), "range": 6.6, "tol": 2.8, "shield": 1, "speed": 1.05, "sprint": 2.0},
-	{"name": "Dread Form",      "souls": 40, "color": Color(0.20, 0.04, 0.10), "range": 8.5, "tol": 4.0, "shield": 2, "speed": 1.25, "sprint": 3.0},
+	{"name": "Qi Condensation",       "souls": 0,  "color": Color(0.62, 0.66, 0.72), "range": 4.0, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 0.0},
+	{"name": "Foundation Establishment", "souls": 4, "color": Color(0.55, 0.82, 0.62), "range": 4.6, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 1.5},
+	{"name": "Golden Core",           "souls": 10, "color": Color(0.95, 0.80, 0.35), "range": 5.4, "tol": 2.6, "shield": 0, "speed": 1.00, "sprint": 1.5},
+	{"name": "Nascent Soul",          "souls": 18, "color": Color(0.45, 0.70, 1.00), "range": 6.0, "tol": 2.6, "shield": 1, "speed": 1.00, "sprint": 2.0},
+	{"name": "Spirit Severing",       "souls": 28, "color": Color(0.72, 0.48, 1.00), "range": 6.6, "tol": 2.8, "shield": 1, "speed": 1.05, "sprint": 2.0},
+	{"name": "Ascension",             "souls": 40, "color": Color(1.00, 0.95, 0.70), "range": 8.5, "tol": 4.0, "shield": 2, "speed": 1.25, "sprint": 3.0},
 ]
 var realm: int = 0
 
@@ -55,11 +55,11 @@ var realm: int = 0
 ## their techniques (the hazards you dodge) grow visually from a dull flicker to a
 ## blazing heaven-cleaving wave. accent = qi color, energy = glow, scale = size.
 var _tiers: Array = [
-	{"name": "Third-rate",   "accent": Color(0.75, 0.75, 0.80), "energy": 0.7, "scale": 0.90},
-	{"name": "Second-rate",  "accent": Color(0.50, 0.70, 1.00), "energy": 1.1, "scale": 1.00},
-	{"name": "First-rate",   "accent": Color(0.40, 1.00, 0.60), "energy": 1.5, "scale": 1.12},
-	{"name": "Peak",         "accent": Color(0.85, 0.50, 1.00), "energy": 2.0, "scale": 1.25},
-	{"name": "Transcendent", "accent": Color(1.00, 0.90, 0.55), "energy": 2.7, "scale": 1.45},
+	{"name": "Mortal",          "accent": Color(0.75, 0.75, 0.80), "energy": 0.7, "scale": 0.90},
+	{"name": "Qi Condensation", "accent": Color(0.50, 0.70, 1.00), "energy": 1.1, "scale": 1.00},
+	{"name": "Foundation",      "accent": Color(0.40, 1.00, 0.60), "energy": 1.5, "scale": 1.12},
+	{"name": "Golden Core",     "accent": Color(0.95, 0.80, 0.35), "energy": 2.0, "scale": 1.25},
+	{"name": "Nascent Soul",    "accent": Color(1.00, 0.92, 0.60), "energy": 2.7, "scale": 1.45},
 ]
 # "li fled" thresholds per stage. Intervals grow at HALF a doubling per stage
 # (sqrt(2)^n) from a mildly-raised base of 180 li third->second:
@@ -284,14 +284,14 @@ func _breakthrough(idx: int) -> void:
 	if _player != null:
 		_player.apply_realm_stats(data)
 		_player.on_breakthrough(rcolor)
-	if rname == "Dread Form":
+	if rname == "Ascension":
 		_enter_dread_form()
 
 ## Announce a stronger rank of pursuer closing in.
 func _on_tier_up() -> void:
 	var tname: String = String(_tiers[enemy_tier]["name"])
 	if _hud != null:
-		_hud.show_banner(tname + " Martial Artists")
+		_hud.show_banner(tname + " cultivators bar the road")
 		_hud.flash(Color(0.55, 0.65, 1.0))
 	_sfx("breakthrough")
 	_shake(0.3)
@@ -377,17 +377,16 @@ func _setup_atmosphere() -> void:
 func _enter_dread_form() -> void:
 	_shake(0.9)
 	_hitstop(0.15)
-	# Permanent blood color grade for the rest of the run: dim the sky into a
-	# hellscape and flood the scene with crimson ambient + fog.
+	# Ascension: the heavens brighten — radiant gold-white grade for the rest of the run.
 	if _env != null:
-		_env.background_energy_multiplier = 0.4
+		_env.background_energy_multiplier = 1.4
 		_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		_env.ambient_light_color = Color(0.45, 0.16, 0.20)
-		_env.ambient_light_energy = 0.9
-		_env.fog_light_color = Color(0.30, 0.04, 0.06)
+		_env.ambient_light_color = Color(0.85, 0.80, 0.62)
+		_env.ambient_light_energy = 1.1
+		_env.fog_light_color = Color(0.70, 0.62, 0.40)
 	var ground = get_node_or_null("Ground")
 	if ground != null:
-		ground.set_theme(Color(0.20, 0.06, 0.06), Color(0.13, 0.04, 0.04), Color(0.08, 0.02, 0.02), Color(0.90, 0.15, 0.12))
+		ground.set_theme(Color(0.30, 0.28, 0.22), Color(0.24, 0.22, 0.17), Color(0.18, 0.16, 0.12), Color(1.0, 0.92, 0.55))
 	if _player != null:
 		_player.enter_dread_form()
 
