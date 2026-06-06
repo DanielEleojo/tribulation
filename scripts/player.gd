@@ -46,6 +46,17 @@ var _jump_buf: float = 0.0            # jump-input buffer (forgives early presse
 var _coyote: float = 0.0             # grace window to jump just after leaving the floor
 var _air_jumps_used: int = 0         # Qi Leap (double-jump) counter, reset on landing
 var _swipe                           # swipe detector (for touch-hold glide)
+# Sword-flight (御剑) — a periodic aerial mode unlocked at Spirit Severing.
+const FLIGHT_MIN_Y: float = 2.2
+const FLIGHT_MAX_Y: float = 6.0
+const FLIGHT_CLIMB: float = 7.0
+const FLIGHT_DURATION: float = 8.0
+const FLIGHT_COOLDOWN: float = 16.0
+const FLIGHT_FIRST: float = 7.0      # delay before the first flight after reaching the realm
+var _flying: bool = false
+var _flight_t: float = 0.0
+var _flight_cd: float = FLIGHT_FIRST
+var _sword_mount: MeshInstance3D
 const JUMP_BUFFER: float = 0.12
 const COYOTE: float = 0.10
 var _game
@@ -323,6 +334,11 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
+	# Sword-flight mode owns the whole frame while active.
+	if _flying:
+		_process_flight(delta)
+		return
+
 	# Lane / jump / slide keyboard input.
 	if Input.is_action_just_pressed("move_left"):
 		move_left()
@@ -340,6 +356,13 @@ func _physics_process(delta: float) -> void:
 	var grounded := is_on_floor()
 	if _dust != null:
 		_dust.emitting = grounded   # only kick up dust while running on the ground
+
+	# Periodically take to the sky once Sword-flight is cultivated.
+	if grounded and _can_swordfly():
+		_flight_cd -= delta
+		if _flight_cd <= 0.0:
+			_enter_flight()
+			return
 
 	# Jump buffer + coyote time: responsive and forgiving so a leap reliably clears.
 	if grounded:
@@ -464,6 +487,82 @@ func _glide_held() -> bool:
 	if Input.is_action_pressed("jump"):
 		return true
 	return _swipe != null and _swipe.has_method("is_holding") and _swipe.is_holding()
+
+func is_flying() -> bool:
+	return _flying
+
+func _can_swordfly() -> bool:
+	if _game == null:
+		_game = get_tree().get_first_node_in_group("game")
+	return _game != null and _game.has_method("has_ability") and _game.has_ability("swordflight")
+
+func _enter_flight() -> void:
+	_flying = true
+	_flight_t = FLIGHT_DURATION
+	if is_sliding:
+		_end_slide()
+	# A glowing flying-sword under the feet.
+	_sword_mount = MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.4, 0.12, 2.6)
+	_sword_mount.mesh = bm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.7, 0.85, 1.0)
+	m.emission_enabled = true
+	m.emission = Color(0.6, 0.85, 1.0)
+	m.emission_energy_multiplier = 2.0
+	_sword_mount.material_override = m
+	_sword_mount.position = Vector3(0.0, 0.05, 0.0)
+	add_child(_sword_mount)
+	_sfx("jump")
+
+func _exit_flight() -> void:
+	_flying = false
+	_flight_cd = FLIGHT_COOLDOWN
+	if _sword_mount != null:
+		_sword_mount.queue_free()
+		_sword_mount = null
+	# gravity resumes next frame -> a natural descent back to the road.
+
+## Aerial control: lane + climb/dive within a band; no gravity; timed.
+func _process_flight(delta: float) -> void:
+	if Input.is_action_just_pressed("move_left"):
+		move_left()
+	if Input.is_action_just_pressed("move_right"):
+		move_right()
+	if Input.is_action_just_pressed("slash"):
+		try_slash()
+	if _slash_cd > 0.0:
+		_slash_cd -= delta
+
+	# Vertical: lift onto the sword, then climb (jump/hold) / dive (slide) within the band.
+	var y := global_position.y
+	var vy := 0.0
+	if y < FLIGHT_MIN_Y:
+		vy = FLIGHT_CLIMB
+	elif Input.is_action_pressed("jump") or (_swipe != null and _swipe.is_holding()):
+		vy = FLIGHT_CLIMB if y < FLIGHT_MAX_Y else 0.0
+	elif Input.is_action_pressed("slide"):
+		vy = -FLIGHT_CLIMB if y > FLIGHT_MIN_Y else 0.0
+	velocity.y = vy
+
+	# Forward + lane (shared with ground running).
+	_run_time += delta
+	var ramp: float = clampf(_run_time / speed_ramp_time, 0.0, 1.0)
+	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _sprint_boost
+	velocity.z = -run_speed
+	var target_x: float = float(current_lane - 1) * LANE_WIDTH
+	velocity.x = clampf((target_x - global_position.x) * LANE_SHARPNESS, -MAX_LANE_SPEED, MAX_LANE_SPEED)
+	move_and_slide()
+
+	if _has_model:
+		_update_anim(false)
+	else:
+		_animate_figure(delta, false)
+
+	_flight_t -= delta
+	if _flight_t <= 0.0:
+		_exit_flight()
 
 ## Slide. On the ground: crouch. In the air: fast-fall and queue a slide on landing.
 func start_slide() -> void:

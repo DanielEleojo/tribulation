@@ -90,10 +90,14 @@ func _current_interval() -> float:
 	return lerpf(start_interval, min_interval, t)
 
 func _spawn() -> void:
+	var base_z: float = player.global_position.z - SPAWN_AHEAD
+	# In Sword-flight the road falls away: dodge aerial hazards by lane + altitude.
+	if player.has_method("is_flying") and player.is_flying():
+		_spawn_aerial(base_z)
+		return
 	# Cycle the three kinds so jump / slide / slash all get exercised.
 	var kind: int = _spawn_index % 3
 	_spawn_index += 1
-	var base_z: float = player.global_position.z - SPAWN_AHEAD
 	match kind:
 		1:
 			_spawn_barrier(false, base_z)   # bar -> slide
@@ -242,6 +246,20 @@ func _solid(c: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = c
 	return m
+
+## A floating sword-formation hazard at flight altitude — dodge by lane + climb/dive.
+func _spawn_aerial(z: float) -> void:
+	var ts := _tier()
+	var accent: Color = ts["accent"]
+	var energy: float = ts["energy"]
+	var lane: int = randi() % 3
+	var x: float = float(lane - 1) * LANE_WIDTH
+	var y: float = randf_range(2.6, 5.2)
+	var size := Vector3(2.0, 1.6, 1.0)
+	var area := _make_area(size, 0.0, false)
+	area.position = Vector3(x, y, z)
+	_add_glow(area, size, Vector3.ZERO, HUE_HIGH, accent, energy)
+	add_child(area)
 
 func _find_anim(root: Node) -> AnimationPlayer:
 	var f := root.find_children("*", "AnimationPlayer", true, false)
