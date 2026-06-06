@@ -261,7 +261,8 @@ func _apply_theme(r: int) -> void:
 			_env.fog_light_color = Color(0.34, 0.40, 0.32)
 			_env.fog_density = FOG_BASE
 		if ground != null:
-			ground.set_theme(Color(0.22, 0.20, 0.14), Color(0.18, 0.17, 0.11), Color(0.45, 0.50, 0.36))
+			# forest: mossy shoulders, dark earthen path, warm green-gold glow
+			ground.set_theme(Color(0.22, 0.20, 0.14), Color(0.18, 0.17, 0.11), Color(0.14, 0.13, 0.10), Color(0.55, 0.66, 0.34))
 	else:
 		# Sect grounds at night — now you are the hunter on their turf.
 		if _sky_mat != null:
@@ -273,7 +274,8 @@ func _apply_theme(r: int) -> void:
 			_env.fog_light_color = Color(0.10, 0.08, 0.12)
 			_env.fog_density = FOG_BASE
 		if ground != null:
-			ground.set_theme(Color(0.18, 0.18, 0.23), Color(0.13, 0.13, 0.18), Color(0.60, 0.50, 0.30))
+			# sect grounds: cold stone shoulders, dark flagstone path, gold glow
+			ground.set_theme(Color(0.18, 0.18, 0.23), Color(0.13, 0.13, 0.18), Color(0.10, 0.10, 0.14), Color(0.85, 0.70, 0.30))
 
 ## Blood moon + drifting embers, parented to the camera so they sit in the sky.
 func _setup_atmosphere() -> void:
@@ -335,7 +337,7 @@ func _enter_dread_form() -> void:
 		_env.fog_light_color = Color(0.30, 0.04, 0.06)
 	var ground = get_node_or_null("Ground")
 	if ground != null:
-		ground.set_theme(Color(0.20, 0.06, 0.06), Color(0.13, 0.04, 0.04), Color(0.60, 0.12, 0.10))
+		ground.set_theme(Color(0.20, 0.06, 0.06), Color(0.13, 0.04, 0.04), Color(0.08, 0.02, 0.02), Color(0.90, 0.15, 0.12))
 	if _player != null:
 		_player.enter_dread_form()
 
