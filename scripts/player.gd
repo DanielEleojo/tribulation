@@ -206,7 +206,17 @@ func _update_anim(_grounded: bool) -> void:
 		want = CLIP["slide"]
 	elif not _grounded:
 		want = CLIP["jump"]
-	if _anim_player.current_animation != want and _anim_player.has_animation(want):
+	if _anim_player.current_animation == want or not _anim_player.has_animation(want):
+		return
+	if want == CLIP["jump"]:
+		# Time-fit the Jump clip to the airtime so it completes right as we land.
+		var clip_len: float = _anim_player.get_animation(want).length
+		var airtime: float = 2.0 * jump_velocity / gravity
+		var spd: float = 1.0
+		if airtime > 0.05 and clip_len > 0.01:
+			spd = clip_len / airtime
+		_anim_player.play(want, -1, spd)
+	else:
 		_anim_player.play(want)
 
 ## Primitive fallback: a dark caped swordsman built from boxes/capsules.
@@ -338,8 +348,7 @@ func _physics_process(delta: float) -> void:
 		_jump_buf = 0.0
 		_pending_slide = false
 		_sfx("jump")
-		if _has_model:
-			_play_clip("jump")
+		# (the Jump clip is played by _update_anim once airborne, time-fitted to airtime)
 
 	# A queued fast-fall slide fires the moment we touch down.
 	if grounded and not _was_on_floor and _pending_slide:
