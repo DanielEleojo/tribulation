@@ -98,10 +98,14 @@ func _build_body() -> void:
 		_build_primitive_figure()
 	_build_dust()
 
-## Load the Mixamo FBX warrior, merge the other clips' animations into its
-## AnimationPlayer, normalize scale + orientation. Returns false if anything's missing.
+const PLAYER_GLB := "res://Models/PC animation/warrior_wuxia_animated.glb"
+# Logical state -> the clip name baked into the player GLB.
+const CLIP := {"run": "Running", "idle": "Idle", "jump": "Jump", "slide": "Slide", "slash": "Slash", "death": "Death"}
+
+## Load the rigged player model (GLB with baked clips), loop locomotion + strip
+## root motion so it runs in place. Returns false if missing (-> primitive fallback).
 func _build_model() -> bool:
-	var base: PackedScene = load("res://Models/Running.fbx")
+	var base: PackedScene = load(PLAYER_GLB)
 	if base == null:
 		return false
 	_model = base.instantiate() as Node3D
@@ -110,44 +114,27 @@ func _build_model() -> bool:
 		_model.free()
 		_model = null
 		return false
-	var lib := _get_first_lib(_anim_player)
-	if lib == null:
-		_model.free()
-		_model = null
-		return false
-	# Base "Running" clip -> "run" (looping).
-	if lib.has_animation("mixamo_com"):
-		var run := lib.get_animation("mixamo_com")
-		run.loop_mode = Animation.LOOP_LINEAR
-		lib.add_animation("run", run)
-	# Merge the other FBX clips under friendly names.
-	var extra := {"fast_run": "Fast Run", "slide": "Running Slide", "jump": "Running Forward Flip", "turn": "Running Right Turn", "pickup": "Pick Up Item"}
-	for nm in extra:
-		var sc: PackedScene = load("res://Models/%s.fbx" % extra[nm])
-		if sc == null:
-			continue
-		var tmp: Node = sc.instantiate()
-		var ap2 := _find_node(tmp, "AnimationPlayer") as AnimationPlayer
-		if ap2 != null:
-			var l2 := _get_first_lib(ap2)
-			if l2 != null and l2.has_animation("mixamo_com"):
-				var a := l2.get_animation("mixamo_com")
-				if nm == "fast_run":
-					a.loop_mode = Animation.LOOP_LINEAR
-				lib.add_animation(nm, a)
-		tmp.free()
+	for nm in _anim_player.get_animation_list():
+		var a := _anim_player.get_animation(nm)
+		if nm == CLIP["run"] or nm == CLIP["idle"]:
+			a.loop_mode = Animation.LOOP_LINEAR
+		_strip_root_motion(a)
 	_figure = Node3D.new()
 	add_child(_figure)
 	_figure.add_child(_model)
 	_model.rotation_degrees.y = 180.0   # face -Z so we see the demon's back as he flees
-	# Strip baked-in forward root motion so loops don't snap backward (run in place).
-	for nm in _anim_player.get_animation_list():
-		_strip_root_motion(_anim_player.get_animation(nm))
 	_has_model = true
 	call_deferred("_normalize_model")
-	if _anim_player.has_animation("run"):
-		_anim_player.play("run")
+	_play_clip("idle")
 	return true
+
+## Play a logical clip on the model (no-op if missing).
+func _play_clip(logical: String) -> void:
+	if _anim_player == null:
+		return
+	var nm: String = CLIP.get(logical, logical)
+	if _anim_player.has_animation(nm):
+		_anim_player.play(nm)
 
 ## Lock the horizontal drift of any root/hip position track (keep vertical bounce),
 ## so looping locomotion stays in place instead of snapping back each cycle.
@@ -188,36 +175,33 @@ func _get_first_lib(ap: AnimationPlayer) -> AnimationLibrary:
 
 ## Scale the model to STAND_HEIGHT and sit its feet at the body origin.
 func _normalize_model() -> void:
-	var skel := _find_node(_model, "Skeleton3D") as Skeleton3D
-	if skel == null:
-		return
-	var gt := skel.global_transform
-	var miny := INF
-	var maxy := -INF
-	for i in range(skel.get_bone_count()):
-		var w: Vector3 = gt * skel.get_bone_global_rest(i).origin
-		miny = minf(miny, w.y)
-		maxy = maxf(maxy, w.y)
-	var h := maxy - miny
+	var box := _local_aabb(_model)
+	var h := box.size.y
 	if h <= 0.0001:
 		return
-	_figure.scale *= (STAND_HEIGHT / h) * model_scale_mult
-	await get_tree().process_frame
-	var gt2 := skel.global_transform
-	var fy := INF
-	for i in range(skel.get_bone_count()):
-		fy = minf(fy, (gt2 * skel.get_bone_global_rest(i).origin).y)
-	_figure.position.y -= (fy - global_position.y)
+	var k := (STAND_HEIGHT / h) * model_scale_mult
+	_figure.scale = Vector3(k, k, k)
+	_figure.position.y = -box.position.y * k   # drop feet to the body origin
 
-## Switch the model's clip to match the player's state.
-func _update_anim(grounded: bool) -> void:
+## Merged local AABB of all meshes under a node.
+func _local_aabb(root: Node) -> AABB:
+	var box := AABB()
+	for m in root.find_children("*", "MeshInstance3D", true, false):
+		var a: AABB = (m as MeshInstance3D).get_aabb()
+		box = a if box.size == Vector3.ZERO else box.merge(a)
+	return box
+
+## Switch the model's clip to match the player's state (let a slash finish first).
+func _update_anim(_grounded: bool) -> void:
 	if _anim_player == null:
 		return
-	var want := "run"
+	if _anim_player.current_animation == CLIP["slash"] and _anim_player.is_playing():
+		return
+	var want: String = CLIP["run"]
 	if is_sliding:
-		want = "slide"
-	elif not grounded:
-		want = "jump"
+		want = CLIP["slide"]
+	elif not _grounded:
+		want = CLIP["jump"]
 	if _anim_player.current_animation != want and _anim_player.has_animation(want):
 		_anim_player.play(want)
 
@@ -453,6 +437,8 @@ func try_slash() -> void:
 	_slash_cd = slash_cooldown
 	_sfx("slash")
 	_show_slash_fx()
+	if _has_model:
+		_play_clip("slash")
 	var killed: int = 0
 	for e in get_tree().get_nodes_in_group("enemy"):
 		if not is_instance_valid(e):
@@ -606,6 +592,8 @@ func begin_run() -> void:
 ## Called by the game coordinator when the player dies.
 func on_death() -> void:
 	_dead = true
+	if _has_model:
+		_play_clip("death")
 
 ## Distance readout: forward progress in whole units ("meters").
 ## 0..1 ramp fraction of current speed (base -> max). Drives FOV / fog juice.

@@ -30,6 +30,9 @@ const ENEMY_COLOR := Color(0.75, 0.12, 0.16)
 
 const GateScript = preload("res://scripts/gate.gd")
 const FoeScript = preload("res://scripts/foe.gd")
+const ENEMY_GLB := "res://Models/Enemy Animation/ninja_zombie_animated.glb"
+
+var _enemy_scene: PackedScene
 
 # Frequency ramp.
 @export var start_interval: float = 1.4
@@ -49,6 +52,7 @@ func _ready() -> void:
 	game = get_tree().get_first_node_in_group("game")
 	_timer = start_interval
 	_gate_timer = gate_interval
+	_enemy_scene = load(ENEMY_GLB)
 
 func _process(delta: float) -> void:
 	if player == null:
@@ -149,30 +153,91 @@ func _make_barrier(is_block: bool, width: float) -> Area3D:
 		return area
 
 func _make_enemy() -> Area3D:
-	# Blocking Disciple — a robed martial artist; blade glows by their rank.
+	# Blocking Disciple — the real sect-foe model, running in place toward the player.
 	var ts := _tier()
-	var accent: Color = ts["accent"]
-	var energy: float = ts["energy"]
 	var sc: float = ts["scale"]
 	var cy := ENEMY_SIZE.y * 0.5
 	var area := _make_area(ENEMY_SIZE, cy, true)
-	var holder := Node3D.new()
-	holder.set_script(FoeScript)         # gives the disciple a running bob/sway
-	holder.scale = Vector3(sc, sc, sc)   # higher-rank foes loom larger (visual only)
-	area.add_child(holder)
+
+	if _enemy_scene != null:
+		var model := _enemy_scene.instantiate() as Node3D
+		var box := _local_aabb(model)
+		var h: float = box.size.y
+		var k: float = (ENEMY_SIZE.y / h) if h > 0.001 else 1.0
+		var holder := Node3D.new()
+		holder.scale = Vector3(k, k, k) * sc          # match the hitbox; loom larger by rank
+		holder.position.y = -box.position.y * k        # feet to the ground
+		holder.add_child(model)
+		area.add_child(holder)
+		var ap := _find_anim(model)
+		if ap != null:
+			for nm in ap.get_animation_list():
+				var a := ap.get_animation(nm)
+				if nm == "Run" or nm == "Idle":
+					a.loop_mode = Animation.LOOP_LINEAR
+				_strip_root_motion(a)
+			if ap.has_animation("Run"):
+				ap.play("Run")
+			elif ap.has_animation("Idle"):
+				ap.play("Idle")
+		return area
+
+	# Fallback: procedural robed disciple (capsule + sash + qi blade).
+	var accent: Color = ts["accent"]
+	var energy: float = ts["energy"]
+	var holder2 := Node3D.new()
+	holder2.set_script(FoeScript)
+	holder2.scale = Vector3(sc, sc, sc)
+	area.add_child(holder2)
 	var body := MeshInstance3D.new()
 	var cap := CapsuleMesh.new()
 	cap.radius = 0.42
 	cap.height = ENEMY_SIZE.y
 	body.mesh = cap
 	var rmat := StandardMaterial3D.new()
-	rmat.albedo_color = Color(0.82, 0.83, 0.90).lerp(accent, 0.25)   # robe tinted by rank-qi
+	rmat.albedo_color = Color(0.82, 0.83, 0.90).lerp(accent, 0.25)
 	body.material_override = rmat
 	body.position = Vector3(0.0, cy, 0.0)
-	holder.add_child(body)
-	_add_box(holder, Vector3(0.9, 0.18, 0.9), Vector3(0.0, cy - 0.1, 0.0), Color(0.55, 0.10, 0.12), Color.BLACK, false)  # sash
-	_add_glow(holder, Vector3(0.09, 1.35, 0.09), Vector3(0.5, cy + 0.2, -0.1), Color(0.85, 0.88, 0.95), accent, energy * 1.2)  # qi blade
+	holder2.add_child(body)
+	_add_box(holder2, Vector3(0.9, 0.18, 0.9), Vector3(0.0, cy - 0.1, 0.0), Color(0.55, 0.10, 0.12), Color.BLACK, false)
+	_add_glow(holder2, Vector3(0.09, 1.35, 0.09), Vector3(0.5, cy + 0.2, -0.1), Color(0.85, 0.88, 0.95), accent, energy * 1.2)
 	return area
+
+func _find_anim(root: Node) -> AnimationPlayer:
+	var f := root.find_children("*", "AnimationPlayer", true, false)
+	return f[0] if f.size() > 0 else null
+
+func _local_aabb(root: Node) -> AABB:
+	var box := AABB()
+	for m in root.find_children("*", "MeshInstance3D", true, false):
+		var a: AABB = (m as MeshInstance3D).get_aabb()
+		box = a if box.size == Vector3.ZERO else box.merge(a)
+	return box
+
+## Lock horizontal drift of the root/hip position track (keep vertical bounce).
+func _strip_root_motion(anim: Animation) -> void:
+	if anim == null:
+		return
+	for i in range(anim.get_track_count()):
+		if anim.track_get_type(i) != Animation.TYPE_POSITION_3D:
+			continue
+		var n := anim.track_get_key_count(i)
+		if n == 0:
+			continue
+		var minx := INF
+		var maxx := -INF
+		var minz := INF
+		var maxz := -INF
+		for k in range(n):
+			var v: Vector3 = anim.track_get_key_value(i, k)
+			minx = minf(minx, v.x); maxx = maxf(maxx, v.x)
+			minz = minf(minz, v.z); maxz = maxf(maxz, v.z)
+		if (maxx - minx) < 0.15 and (maxz - minz) < 0.15:
+			continue
+		var base_v: Vector3 = anim.track_get_key_value(i, 0)
+		for k in range(n):
+			var v: Vector3 = anim.track_get_key_value(i, k)
+			anim.track_set_key_value(i, k, Vector3(base_v.x, v.y, base_v.z))
 
 ## A glowing energy mesh: dark base hue, emission pushed toward the rank's qi color.
 func _add_glow(parent: Node3D, size: Vector3, pos: Vector3, hue: Color, accent: Color, energy: float) -> void:
