@@ -1,52 +1,53 @@
 extends CanvasLayer
-## The Heavenly Net: four dark edges that close inward as the net tightens.
-## net = 0 -> edges invisible (fully open); net = 1 -> edges meet (closed = death).
+## The Heavenly Net: a glowing golden lattice that closes inward from the screen
+## edges as the net tightens. net = 0 -> clear center; net = 1 -> fully netted (death).
 ## Driven by the game coordinator via on_net_changed().
 
-const HALF_W: float = 640.0     # design-space half width (1280 base, canvas_items stretch)
-const HALF_H: float = 360.0     # design-space half height (720 base)
-const NET_COLOR := Color(0.92, 0.78, 0.32, 0.78)   # divine gold — the Heavenly Net is a righteous formation
+const SHADER_CODE := "
+shader_type canvas_item;
+render_mode blend_mix;
+uniform float net : hint_range(0.0, 1.0) = 0.0;
+uniform vec4 net_color : source_color = vec4(0.95, 0.82, 0.35, 1.0);
+void fragment() {
+	vec2 uv = UV;
+	// 0 at the nearest screen edge, 1 at the center.
+	float e = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)) * 2.0;
+	// The net has crept in to depth `net` (soft inner edge).
+	float band = 1.0 - smoothstep(net - 0.06, net, e);
+	// Woven lattice: crossing line sets = a net mesh.
+	vec2 g = uv * vec2(20.0, 36.0);
+	vec2 f = abs(fract(g) - 0.5);
+	float lx = 1.0 - smoothstep(0.40, 0.5, f.x);
+	float ly = 1.0 - smoothstep(0.40, 0.5, f.y);
+	float line = clamp(lx + ly, 0.0, 1.0);
+	float a = band * (0.10 + 0.80 * line);
+	COLOR = vec4(net_color.rgb, a * net_color.a);
+}
+"
 
-var _top: ColorRect
-var _bottom: ColorRect
-var _left: ColorRect
-var _right: ColorRect
+var _rect: ColorRect
+var _mat: ShaderMaterial
 
 func _ready() -> void:
 	add_to_group("net_overlay")
-	layer = 0   # above the 3D world, below the HUD text (HUD is layer 1)
-	_top = _make_edge()
-	_bottom = _make_edge()
-	_left = _make_edge()
-	_right = _make_edge()
-	_set_anchors(_top, 0.0, 0.0, 1.0, 0.0)      # full width, pinned to top
-	_set_anchors(_bottom, 0.0, 1.0, 1.0, 1.0)   # full width, pinned to bottom
-	_set_anchors(_left, 0.0, 0.0, 0.0, 1.0)     # full height, pinned to left
-	_set_anchors(_right, 1.0, 0.0, 1.0, 1.0)    # full height, pinned to right
+	layer = 0   # above the 3D world, below the HUD (HUD is layer 1)
+	var sh := Shader.new()
+	sh.code = SHADER_CODE
+	_mat = ShaderMaterial.new()
+	_mat.shader = sh
+	_rect = ColorRect.new()
+	_rect.anchor_right = 1.0
+	_rect.anchor_bottom = 1.0
+	_rect.offset_left = 0.0
+	_rect.offset_top = 0.0
+	_rect.offset_right = 0.0
+	_rect.offset_bottom = 0.0
+	_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rect.material = _mat
+	add_child(_rect)
 	on_net_changed(0.0)
 
-func _make_edge() -> ColorRect:
-	var r := ColorRect.new()
-	r.color = NET_COLOR
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(r)
-	return r
-
-func _set_anchors(r: ColorRect, l: float, t: float, rr: float, b: float) -> void:
-	r.anchor_left = l
-	r.anchor_top = t
-	r.anchor_right = rr
-	r.anchor_bottom = b
-	r.offset_left = 0.0
-	r.offset_top = 0.0
-	r.offset_right = 0.0
-	r.offset_bottom = 0.0
-
-## Resize the edges to reflect how closed the net is (0..1).
+## Set how far the net has closed (0..1).
 func on_net_changed(net: float) -> void:
-	var h: float = net * HALF_H
-	var w: float = net * HALF_W
-	_top.offset_bottom = h
-	_bottom.offset_top = -h
-	_left.offset_right = w
-	_right.offset_left = -w
+	if _mat != null:
+		_mat.set_shader_parameter("net", net)

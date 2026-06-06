@@ -10,9 +10,9 @@ extends CharacterBody3D
 @export var base_speed: float = 12.0       # starting forward speed (units/sec, -Z)
 @export var max_speed: float = 22.0        # speed cap so it stays playable
 @export var speed_ramp_time: float = 90.0  # seconds of running to reach max_speed
-@export var gravity: float = 30.0          # downward acceleration (units/sec^2)
-@export var jump_velocity: float = 12.0  # upward velocity on jump (units/sec; scales with martial stage)
-@export var fast_fall_speed: float = 30.0  # downward dive speed when sliding mid-air
+@export var gravity: float = 48.0          # downward acceleration (units/sec^2) — snappier arc
+@export var jump_velocity: float = 17.0  # upward velocity on jump (units/sec; scales with martial stage)
+@export var fast_fall_speed: float = 46.0  # downward dive speed when sliding mid-air
 @export var slash_range: float = 4.0     # how far ahead a slash reaches (units; grows per realm)
 @export var slash_cooldown: float = 0.25 # min seconds between slashes
 
@@ -42,6 +42,10 @@ var _was_on_floor: bool = false
 var _dead: bool = false
 var _running: bool = false            # false until the run starts (title screen)
 var _slash_cd: float = 0.0
+var _jump_buf: float = 0.0            # jump-input buffer (forgives early presses)
+var _coyote: float = 0.0             # grace window to jump just after leaving the floor
+const JUMP_BUFFER: float = 0.12
+const COYOTE: float = 0.10
 var _game
 var _snd
 var _base_color: Color = STAND_COLOR  # current standing color (shifts per realm)
@@ -318,6 +322,25 @@ func _physics_process(delta: float) -> void:
 	var grounded := is_on_floor()
 	if _dust != null:
 		_dust.emitting = grounded   # only kick up dust while running on the ground
+
+	# Jump buffer + coyote time: responsive and forgiving so a leap reliably clears.
+	if grounded:
+		_coyote = COYOTE
+	else:
+		_coyote = maxf(0.0, _coyote - delta)
+	if _jump_buf > 0.0:
+		_jump_buf -= delta
+	if _jump_buf > 0.0 and _coyote > 0.0:
+		if is_sliding:
+			_end_slide()
+		velocity.y = jump_velocity
+		_coyote = 0.0
+		_jump_buf = 0.0
+		_pending_slide = false
+		_sfx("jump")
+		if _has_model:
+			_play_clip("jump")
+
 	# A queued fast-fall slide fires the moment we touch down.
 	if grounded and not _was_on_floor and _pending_slide:
 		_pending_slide = false
@@ -390,15 +413,11 @@ func move_right() -> void:
 		return
 	current_lane = min(LANE_COUNT - 1, current_lane + 1)
 
-## Jump when grounded. Jumping mid-slide cancels the slide.
+## Queue a jump (buffered). Executed in _physics_process when grounded/coyote allows.
 func try_jump() -> void:
-	if _dead or not is_on_floor():
+	if _dead:
 		return
-	if is_sliding:
-		_end_slide()
-	_pending_slide = false
-	velocity.y = jump_velocity
-	_sfx("jump")
+	_jump_buf = JUMP_BUFFER
 
 ## Slide. On the ground: crouch. In the air: fast-fall and queue a slide on landing.
 func start_slide() -> void:

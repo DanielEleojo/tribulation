@@ -14,8 +14,8 @@ const DESPAWN_BEHIND: float = 25.0
 const LANE_WIDTH: float = 2.5          # must match the player's lane spacing
 const FULL_WIDTH: float = 8.0          # spans all three lanes
 
-const BLOCK_HEIGHT: float = 1.5
-const BLOCK_DEPTH: float = 1.5
+const BLOCK_HEIGHT: float = 1.0
+const BLOCK_DEPTH: float = 1.2
 const BLOCK_LANE_WIDTH: float = 2.0
 const BLOCK_COLOR := Color(0.85, 0.22, 0.22)
 
@@ -113,14 +113,12 @@ func _spawn_gate() -> void:
 	gate.setup(safe_lane, game)
 
 func _spawn_enemy_row(z: float) -> void:
-	# gap in {0,1,2} leaves that lane open; gap == 3 means a full wall (must slash).
-	var gap: int = randi() % 4
-	for lane in range(3):
-		if lane == gap:
-			continue
-		var e := _make_enemy()
-		e.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
-		add_child(e)
+	# A single disciple in one lane — the player goes out of their way to slay it
+	# (kills push back the Heavenly Net), rather than facing an unavoidable wall.
+	var lane: int = randi() % 3
+	var e := _make_enemy()
+	e.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
+	add_child(e)
 
 # Plane-coded base hues so the player reads the required dodge at a glance.
 const HUE_LOW := Color(1.0, 0.5, 0.12)    # amber — ground sword-qi (JUMP)

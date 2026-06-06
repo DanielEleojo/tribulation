@@ -12,7 +12,7 @@ signal souls_changed(souls: int)
 @export var qi_max: float = 100.0      # Qi needed to trigger a Qi Burst
 @export var qi_per_kill: float = 20.0  # Qi gained per enemy slain (5 kills = burst)
 
-@export var net_close_rate: float = 0.045   # how fast the Heavenly Net closes (per sec)
+@export var net_close_rate: float = 0.025   # how fast the Heavenly Net closes (per sec)
 @export var net_push_per_kill: float = 0.12 # how much a kill pushes the net back
 @export var net_burst_relief: float = 0.30  # extra net relief from a Qi Burst
 
@@ -65,8 +65,8 @@ const TIER_DIST: Array = [0, 180, 434, 794, 1303]
 var enemy_tier: int = 0
 
 # Jump power scales with martial stage: base at third-rate, capped max by first-rate.
-const JUMP_BASE: float = 12.0
-const JUMP_MAX: float = 14.0
+const JUMP_BASE: float = 17.0
+const JUMP_MAX: float = 20.0
 
 ## Current foe-rank style, read by the spawner when building a technique/hazard.
 func tier_style() -> Dictionary:
