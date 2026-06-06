@@ -42,14 +42,35 @@ const FOG_MAX: float = 0.020
 ## Iron Demon Body hits absorbed, speed = forward-speed multiplier, sprint =
 ## Blood Sprint speed kick per kill. Mortal Husk is deliberately weak/fragile.
 var _realms: Array = [
-	{"name": "Qi Condensation",       "souls": 0,  "color": Color(0.62, 0.66, 0.72), "range": 4.0, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 0.0},
-	{"name": "Foundation Establishment", "souls": 4, "color": Color(0.55, 0.82, 0.62), "range": 4.6, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 1.5},
-	{"name": "Golden Core",           "souls": 10, "color": Color(0.95, 0.80, 0.35), "range": 5.4, "tol": 2.6, "shield": 0, "speed": 1.00, "sprint": 1.5},
-	{"name": "Nascent Soul",          "souls": 18, "color": Color(0.45, 0.70, 1.00), "range": 6.0, "tol": 2.6, "shield": 1, "speed": 1.00, "sprint": 2.0},
-	{"name": "Spirit Severing",       "souls": 28, "color": Color(0.72, 0.48, 1.00), "range": 6.6, "tol": 2.8, "shield": 1, "speed": 1.05, "sprint": 2.0},
-	{"name": "Ascension",             "souls": 40, "color": Color(1.00, 0.95, 0.70), "range": 8.5, "tol": 4.0, "shield": 2, "speed": 1.25, "sprint": 3.0},
+	{"name": "Qi Condensation",       "souls": 0,   "color": Color(0.62, 0.66, 0.72), "range": 4.0, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 0.0},
+	{"name": "Foundation Establishment", "souls": 8, "color": Color(0.55, 0.82, 0.62), "range": 4.6, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 1.5},
+	{"name": "Golden Core",           "souls": 20,  "color": Color(0.95, 0.80, 0.35), "range": 5.4, "tol": 2.6, "shield": 0, "speed": 1.00, "sprint": 1.5},
+	{"name": "Nascent Soul",          "souls": 42,  "color": Color(0.45, 0.70, 1.00), "range": 6.0, "tol": 2.6, "shield": 1, "speed": 1.00, "sprint": 2.0},
+	{"name": "Spirit Severing",       "souls": 75,  "color": Color(0.72, 0.48, 1.00), "range": 6.6, "tol": 2.8, "shield": 1, "speed": 1.05, "sprint": 2.0},
+	{"name": "Ascension",             "souls": 120, "color": Color(1.00, 0.95, 0.70), "range": 8.5, "tol": 4.0, "shield": 2, "speed": 1.25, "sprint": 3.0},
 ]
 var realm: int = 0
+
+## The road is long and hard: a mortal can only ENDURE and dodge. Verbs are earned
+## by ascending — which realm first grants each ability (cumulative). R3 implements
+## the new verbs (dash/glide/sword-flight/tribulation) behind these same gates.
+const ABILITY_REALM := {
+	"run": 0, "jump": 0, "slide": 0, "lane": 0,   # Qi Condensation: mortal, dodge-only
+	"dash": 1,                                      # Foundation Establishment
+	"slash": 2, "qi": 2,                            # Golden Core: fight back; Qi cultivation
+	"glide": 3,                                     # Nascent Soul
+	"swordflight": 4,                               # Spirit Severing
+	"tribulation": 5,                              # Ascension
+}
+## Newly-awakened art announced at each breakthrough.
+const UNLOCKS := {
+	1: "Qi Dash", 2: "Sword-qi & Qi cultivation", 3: "Cloud Glide",
+	4: "Sword-flight 御剑", 5: "Heavenly Tribulation",
+}
+
+## True if the current cultivation realm grants this ability.
+func has_ability(name: String) -> bool:
+	return realm >= int(ABILITY_REALM.get(name, 0))
 
 ## The pursuing martial artists also cultivate: their rank rises over the run, and
 ## their techniques (the hazards you dodge) grow visually from a dull flicker to a
@@ -113,6 +134,7 @@ func _ready() -> void:
 	if _hud != null:
 		_hud.set_realm(String(_realms[0]["name"]))
 		_hud.set_best(_best)
+		_hud.set_qi_visible(has_ability("qi"))   # hidden until Golden Core
 	if _player != null:
 		_player.apply_realm_stats(_realms[0])   # weak Mortal Husk baseline
 		_player.set_jump_power(_jump_for_tier(enemy_tier))   # third-rate base jump
@@ -274,10 +296,14 @@ func _breakthrough(idx: int) -> void:
 	var data: Dictionary = _realms[idx]
 	var rname: String = data["name"]
 	var rcolor: Color = data["color"]
+	var msg := rname
+	if UNLOCKS.has(idx):
+		msg += "\n" + String(UNLOCKS[idx]) + " awakened"
 	if _hud != null:
 		_hud.set_realm(rname)
-		_hud.show_banner(rname)
+		_hud.show_banner(msg)
 		_hud.flash(Color(1.0, 0.85, 0.4))
+		_hud.set_qi_visible(has_ability("qi"))   # Qi cultivation begins at Golden Core
 	_sfx("breakthrough")
 	_shake(0.4)
 	_apply_theme(idx)

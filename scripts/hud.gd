@@ -4,6 +4,7 @@ extends CanvasLayer
 @onready var distance_label: Label = $Distance
 @onready var death_label: Label = $DeathLabel
 @onready var qi_bar: ProgressBar = $QiBar
+@onready var qi_label: Label = $QiLabel
 @onready var flash_rect: ColorRect = $Flash
 @onready var souls_label: Label = $SoulsLabel
 @onready var title_root: Control = $Title
@@ -98,6 +99,11 @@ func on_combo_changed(c: int, mult: float) -> void:
 		_combo_label.visible = true
 	else:
 		_combo_label.visible = false
+
+## Show/hide the Qi meter (Qi cultivation only begins at Golden Core).
+func set_qi_visible(v: bool) -> void:
+	qi_bar.visible = v
+	qi_label.visible = v
 
 ## Best distance ever (shown on title + death).
 func set_best(b: int) -> void:

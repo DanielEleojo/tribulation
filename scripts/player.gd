@@ -467,6 +467,11 @@ func _set_height(h: float, col: Color) -> void:
 func try_slash() -> void:
 	if _dead or not _running or _slash_cd > 0.0:
 		return
+	# Sword-qi is not yet yours — a mortal can only endure and dodge (gated by realm).
+	if _game == null:
+		_game = get_tree().get_first_node_in_group("game")
+	if _game != null and _game.has_method("has_ability") and not _game.has_ability("slash"):
+		return
 	_slash_cd = slash_cooldown
 	_sfx("slash")
 	_show_slash_fx()
