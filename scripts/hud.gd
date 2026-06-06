@@ -197,6 +197,25 @@ func set_qi_visible(v: bool) -> void:
 	qi_bar.visible = v
 	qi_label.visible = v
 
+var _trib_label: Label
+
+## Heavenly Tribulation banner + survival countdown (hidden when not in one).
+func set_tribulation(active: bool, t: float) -> void:
+	if _trib_label == null:
+		_trib_label = Label.new()
+		_trib_label.anchor_left = 0.5; _trib_label.anchor_right = 0.5
+		_trib_label.anchor_top = 0.32; _trib_label.anchor_bottom = 0.32
+		_trib_label.offset_left = -340; _trib_label.offset_right = 340
+		_trib_label.offset_top = -40; _trib_label.offset_bottom = 40
+		_trib_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_trib_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_trib_label.add_theme_font_size_override("font_size", 34)
+		_trib_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+		add_child(_trib_label)
+	_trib_label.visible = active
+	if active:
+		_trib_label.text = "⚡ HEAVENLY TRIBULATION ⚡\nEndure  %ds" % int(ceil(t))
+
 ## Best distance ever (shown on title + death).
 func set_best(b: int) -> void:
 	_best_li = b

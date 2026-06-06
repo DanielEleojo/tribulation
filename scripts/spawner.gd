@@ -99,6 +99,10 @@ func _current_interval() -> float:
 
 func _spawn() -> void:
 	var base_z: float = player.global_position.z - SPAWN_AHEAD
+	# Heavenly Tribulation: relentless lightning while you endure the breakthrough.
+	if game != null and game.has_method("in_tribulation") and game.in_tribulation():
+		_spawn_lightning(base_z)
+		return
 	# In Sword-flight the road falls away: dodge aerial hazards by lane + altitude.
 	if player.has_method("is_flying") and player.is_flying():
 		_spawn_aerial(base_z)

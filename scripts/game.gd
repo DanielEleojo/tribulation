@@ -24,6 +24,13 @@ var net: float = 0.0                  # 0 = open, 1 = closed (death)
 var souls: int = 0                    # Spirit Stones gathered THIS run (HUD/death/combo)
 var total: int = 0                    # LIFETIME Spirit Stones EARNED — spendable currency, persisted
 var run_progress: int = 0             # stones toward the NEXT realm THIS attempt (resets on death)
+var _tribulation: bool = false        # in a breakthrough Heavenly Tribulation
+var _trib_t: float = 0.0
+var _heart_demon: Node3D
+const TRIB_DURATION: float = 12.0
+
+func in_tribulation() -> bool:
+	return _tribulation
 # Stones to climb a whole realm (1st Layer -> breakthrough) IN ONE attempt. Major realms
 # are saved; minor-layer progress is not — die and you restart your realm at the 1st Layer.
 const REALM_SPAN := [60, 140, 300, 600, 1200, 999999]
@@ -280,17 +287,59 @@ func minor_level() -> int:
 	var f: float = clampf(float(run_progress) / float(maxi(1, _span())), 0.0, 0.999)
 	return int(f * 10.0) + 1
 
-## Fill the current realm's span this attempt to break through (realm++ is PERSISTENT).
+## Filling the realm's span this attempt summons a Heavenly Tribulation to break through.
 func _update_cultivation() -> void:
-	var changed := false
-	while realm < _realms.size() - 1 and run_progress >= _span():
-		run_progress -= _span()
-		realm += 1
-		_breakthrough(realm)
-		changed = true
-	if changed:
-		_save()                       # major realms always save
+	if not _tribulation and realm < _realms.size() - 1 and run_progress >= _span():
+		_begin_tribulation()
 	_refresh_realm()
+
+func _begin_tribulation() -> void:
+	_tribulation = true
+	_trib_t = TRIB_DURATION
+	_shake(0.7)
+	_hitstop(0.1)
+	_sfx("breakthrough")
+	_spawn_heart_demon()
+	if _hud != null:
+		_hud.show_banner("⚡  Heavenly Tribulation  ⚡\nSurvive to break through")
+		_hud.set_tribulation(true, _trib_t)
+
+func _surmount_tribulation() -> void:
+	_tribulation = false
+	run_progress = maxi(0, run_progress - _span())
+	realm += 1
+	_breakthrough(realm)              # ascends: stats/world/aura/abilities + banner; saved below
+	_save()
+	_free_heart_demon()
+	var r := 150
+	souls += r
+	total += r
+	souls_changed.emit(souls)
+	if _hud != null:
+		_hud.set_tribulation(false, 0.0)
+
+func _spawn_heart_demon() -> void:
+	if _cam == null:
+		return
+	_heart_demon = MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 6.0
+	sm.height = 12.0
+	_heart_demon.mesh = sm
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(0.06, 0.02, 0.05)
+	m.emission_enabled = true
+	m.emission = Color(0.7, 0.05, 0.12)
+	m.emission_energy_multiplier = 1.2
+	_heart_demon.material_override = m
+	_heart_demon.position = Vector3(0.0, 13.0, -72.0)   # looms ahead in the sky
+	_cam.add_child(_heart_demon)
+
+func _free_heart_demon() -> void:
+	if _heart_demon != null:
+		_heart_demon.queue_free()
+		_heart_demon = null
 
 ## Apply the player's CURRENT (already-established) realm at run start — no fanfare.
 func _apply_realm_now(r: int) -> void:
@@ -452,14 +501,20 @@ func _process(delta: float) -> void:
 				_player.set_jump_power(_jump_for_tier(enemy_tier))
 			_on_tier_up()
 
-	# The Tribulation steadily gathers; full closure is death. But a cultivator who has
-	# reached Ascension defies heaven — the net can no longer fully close on them
-	# (Heaven Defiance); only the Heavenly Tribulation lightning can fell them now.
-	var cap: float = 0.85 if has_ability("tribulation") else 1.0
-	net = minf(cap, net + net_close_rate * delta)
-	net_changed.emit(net)
-	if net >= 1.0:
-		die()
+	# Breakthrough Tribulation: a timed survival gauntlet; the Net is frozen meanwhile.
+	if _tribulation:
+		_trib_t -= delta
+		if _hud != null:
+			_hud.set_tribulation(true, _trib_t)
+		if _trib_t <= 0.0:
+			_surmount_tribulation()
+	else:
+		# The Tribulation net gathers; Ascension defies heaven (can't fully close).
+		var cap: float = 0.85 if has_ability("tribulation") else 1.0
+		net = minf(cap, net + net_close_rate * delta)
+		net_changed.emit(net)
+		if net >= 1.0:
+			die()
 
 ## Hazard/enemy contact. Iron Demon Body absorbs the hit if available; else death.
 func player_hit() -> void:
@@ -483,6 +538,11 @@ func die() -> void:
 	if dist > _best:
 		_best = dist
 	run_progress = 0              # qi deviation — lose the layer climb, keep the major realm
+	if _tribulation:             # felled during the Tribulation — breakthrough fails
+		_tribulation = false
+		_free_heart_demon()
+		if _hud != null:
+			_hud.set_tribulation(false, 0.0)
 	_save()                       # persist realm + lifetime stones + best
 	if _hud != null:
 		_hud.set_best(_best)
