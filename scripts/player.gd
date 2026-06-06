@@ -358,6 +358,7 @@ func _physics_process(delta: float) -> void:
 	var grounded := is_on_floor()
 	if _dust != null:
 		_dust.emitting = grounded   # only kick up dust while running on the ground
+	_powerup_tick(delta)
 
 	# Periodically take to the sky once Sword-flight is cultivated.
 	if grounded and _can_swordfly():
@@ -418,7 +419,7 @@ func _physics_process(delta: float) -> void:
 
 	_run_time += delta
 	var ramp: float = clampf(_run_time / speed_ramp_time, 0.0, 1.0)
-	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _sprint_boost
+	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _sprint_boost + _dash_bonus()
 	velocity.z = -run_speed
 	# Ease sideways toward the target lane's X.
 	var target_x: float = float(current_lane - 1) * LANE_WIDTH
@@ -551,7 +552,7 @@ func _process_flight(delta: float) -> void:
 	# Forward + lane (shared with ground running).
 	_run_time += delta
 	var ramp: float = clampf(_run_time / speed_ramp_time, 0.0, 1.0)
-	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _sprint_boost
+	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _sprint_boost + _dash_bonus()
 	velocity.z = -run_speed
 	var target_x: float = float(current_lane - 1) * LANE_WIDTH
 	velocity.x = clampf((target_x - global_position.x) * LANE_SHARPNESS, -MAX_LANE_SPEED, MAX_LANE_SPEED)
@@ -708,6 +709,29 @@ func try_absorb_hit() -> bool:
 
 func get_shields() -> int:
 	return _shields
+
+## Iron Aegis talisman grants an extra absorb charge.
+func grant_shield() -> void:
+	_shields += 1
+	_max_shields = maxi(_max_shields, _shields)
+
+func _dash_bonus() -> float:
+	if _game != null and _game.has_method("is_powerup_active") and _game.is_powerup_active("dash"):
+		return 12.0
+	return 0.0
+
+## Per-frame pill effects: Soul-Attraction pulls orbs; Sword-Qi Dash keeps invuln.
+func _powerup_tick(delta: float) -> void:
+	if _game == null:
+		_game = get_tree().get_first_node_in_group("game")
+	if _game == null or not _game.has_method("is_powerup_active"):
+		return
+	if _game.is_powerup_active("magnet"):
+		for orb in get_tree().get_nodes_in_group("orb"):
+			if is_instance_valid(orb) and orb.global_position.distance_to(global_position) < 12.0:
+				orb.global_position = orb.global_position.move_toward(global_position + Vector3(0.0, 1.0, 0.0), 18.0 * delta)
+	if _game.is_powerup_active("dash"):
+		_invuln_t = maxf(_invuln_t, 0.15)   # plow on, untouchable while dashing
 
 ## Cultivation breakthrough: shift the demon's color (power tier set separately).
 func on_breakthrough(realm_color: Color) -> void:

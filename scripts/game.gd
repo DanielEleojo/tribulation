@@ -24,6 +24,61 @@ var net: float = 0.0                  # 0 = open, 1 = closed (death)
 var souls: int = 0                    # Demon Souls collected this run
 var combo: int = 0                    # streak of kills/orbs (resets when hit); scales soul gain
 var _best: int = 0                    # best distance ("li") ever, persisted
+
+## Pills & talismans — fleeting cultivation arts picked up on the road.
+const POWERUPS := {
+	"magnet": {"name": "Soul-Attraction Talisman", "color": Color(0.40, 0.90, 1.00), "dur": 8.0},
+	"double": {"name": "Soul-Doubling Pill",       "color": Color(1.00, 0.60, 0.90), "dur": 10.0},
+	"dash":   {"name": "Sword-Qi Dash",            "color": Color(0.75, 0.92, 1.00), "dur": 3.0},
+	"surge":  {"name": "Qi Surge Pill",            "color": Color(0.50, 1.00, 0.70), "dur": 0.0},
+	"aegis":  {"name": "Iron Aegis Talisman",      "color": Color(0.85, 0.85, 0.98), "dur": 0.0},
+}
+var _powerups: Dictionary = {}        # id -> seconds remaining (timed arts only)
+
+## Pick up a pill/talisman: instant ones fire now, timed ones start their clock.
+func activate_powerup(id: String) -> void:
+	if is_dead or not POWERUPS.has(id):
+		return
+	var data: Dictionary = POWERUPS[id]
+	_sfx("breakthrough")
+	if _hud != null:
+		_hud.flash(Color(data["color"]) * Color(1, 1, 1, 0.5))
+		_hud.show_banner(String(data["name"]))
+	match id:
+		"surge":
+			qi = qi_max
+			qi_changed.emit(qi, qi_max)
+			if has_ability("qi"):
+				_qi_burst()
+			else:
+				net = maxf(0.0, net - 0.30)
+				net_changed.emit(net)
+		"aegis":
+			if _player != null and _player.has_method("grant_shield"):
+				_player.grant_shield()
+		_:
+			_powerups[id] = float(data["dur"])
+	_refresh_powerups()
+
+func is_powerup_active(id: String) -> bool:
+	return _powerups.has(id)
+
+func _tick_powerups(delta: float) -> void:
+	if _powerups.is_empty():
+		return
+	for id in _powerups.keys():
+		_powerups[id] -= delta
+		if _powerups[id] <= 0.0:
+			_powerups.erase(id)
+	_refresh_powerups()
+
+func _refresh_powerups() -> void:
+	if _hud == null:
+		return
+	var parts: Array = []
+	for id in _powerups.keys():
+		parts.append("%s %ds" % [String(POWERUPS[id]["name"]), int(ceil(_powerups[id]))])
+	_hud.set_powerups("   ".join(parts))
 var _hud
 var _cam
 var _player
@@ -240,6 +295,7 @@ func _process(delta: float) -> void:
 	# Mirror Iron Demon Body charges to the HUD.
 	if _hud != null and _player != null:
 		_hud.set_shields(_player.get_shields())
+	_tick_powerups(delta)
 
 	# The hunters cultivate: raise their rank as we flee deeper.
 	if _player != null:
@@ -298,7 +354,10 @@ func on_orb_collected() -> void:
 		return
 	combo += 1
 	var m := _combo_mult()
-	souls += int(round(m))
+	var g := int(round(m))
+	if is_powerup_active("double"):
+		g *= 2
+	souls += g
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, m)
 	qi = minf(qi_max, qi + 4.0)
@@ -332,7 +391,10 @@ func on_enemy_killed(count: int = 1) -> void:
 		return
 	combo += count
 	var m := _combo_mult()
-	souls += int(round(float(count) * m))
+	var g := int(round(float(count) * m))
+	if is_powerup_active("double"):
+		g *= 2
+	souls += g
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, m)
 	_check_breakthrough()

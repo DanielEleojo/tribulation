@@ -17,6 +17,7 @@ var _souls: int = 0
 var _best_li: int = 0
 var _combo_label: Label
 var _title_best: Label
+var _pu_label: Label
 var _glass_shader: Shader
 var _glass_panels: Array = []
 
@@ -89,6 +90,23 @@ func _build_combo_and_best() -> void:
 	_title_best.add_theme_font_size_override("font_size", 24)
 	_title_best.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
 	title_root.add_child(_title_best)
+	# Active pills/talismans readout (centered, below the combo).
+	_pu_label = Label.new()
+	_pu_label.anchor_left = 0.5; _pu_label.anchor_right = 0.5
+	_pu_label.offset_left = -300; _pu_label.offset_right = 300
+	_pu_label.offset_top = 92; _pu_label.offset_bottom = 120
+	_pu_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_pu_label.add_theme_font_size_override("font_size", 20)
+	_pu_label.add_theme_color_override("font_color", Color(0.6, 0.95, 1.0))
+	_pu_label.visible = false
+	add_child(_pu_label)
+
+## Active pills/talismans + countdown (hidden when none).
+func set_powerups(text: String) -> void:
+	if _pu_label == null:
+		return
+	_pu_label.text = text
+	_pu_label.visible = text != ""
 
 ## Combo streak readout (hidden until 2+).
 func on_combo_changed(c: int, mult: float) -> void:

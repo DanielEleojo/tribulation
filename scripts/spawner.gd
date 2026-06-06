@@ -40,6 +40,8 @@ var _enemy_scene: PackedScene
 @export var ramp_time: float = 60.0
 @export var gate_interval: float = 11.0   # seconds between Life/Death Gates
 @export var orb_interval: float = 2.4     # seconds between Spirit Orb trails
+@export var pill_interval: float = 9.0    # seconds between pill/talisman drops
+const PILL_IDS := ["magnet", "double", "dash", "surge", "aegis"]
 
 const ORB_COLOR := Color(0.55, 0.85, 1.0)   # spirit-cyan
 const ORB_TRAIL := 5                          # orbs per trail
@@ -51,6 +53,7 @@ var _elapsed: float = 0.0
 var _timer: float = 0.0
 var _gate_timer: float = 0.0
 var _orb_timer: float = 0.0
+var _pill_timer: float = 0.0
 var _spawn_index: int = 0
 
 func _ready() -> void:
@@ -59,6 +62,7 @@ func _ready() -> void:
 	_timer = start_interval
 	_gate_timer = gate_interval
 	_orb_timer = orb_interval
+	_pill_timer = pill_interval
 	# Enemy now uses a procedural sect-swordsman (our style) — GLB no longer loaded.
 
 func _process(delta: float) -> void:
@@ -83,6 +87,10 @@ func _process(delta: float) -> void:
 	if _orb_timer <= 0.0:
 		_spawn_orb_trail()
 		_orb_timer = orb_interval
+	_pill_timer -= delta
+	if _pill_timer <= 0.0:
+		_spawn_pill()
+		_pill_timer = pill_interval
 	_cleanup()
 
 func _current_interval() -> float:
@@ -169,6 +177,42 @@ func _spawn_orb_trail() -> void:
 		orb.body_entered.connect(_on_orb_hit.bind(orb))
 		orb.position = Vector3(x, 0.0, z0 - float(i) * ORB_GAP)
 		add_child(orb)
+
+## Drop a single pill/talisman (a glowing gem) in a lane; pick-up activates its art.
+func _spawn_pill() -> void:
+	var id: String = PILL_IDS[randi() % PILL_IDS.size()]
+	var col := Color(0.8, 0.9, 1.0)
+	if game != null and "POWERUPS" in game and game.POWERUPS.has(id):
+		col = game.POWERUPS[id]["color"]
+	var lane: int = randi() % 3
+	var pill := Area3D.new()
+	var mesh := MeshInstance3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = 0.45
+	sph.height = 0.9
+	mesh.mesh = sph
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = col
+	mat.emission_enabled = true
+	mat.emission = col
+	mat.emission_energy_multiplier = 2.6
+	mesh.material_override = mat
+	mesh.position = Vector3(0.0, 1.2, 0.0)
+	var cs := CollisionShape3D.new()
+	var ss := SphereShape3D.new()
+	ss.radius = 0.7
+	cs.shape = ss
+	cs.position = Vector3(0.0, 1.2, 0.0)
+	pill.add_child(mesh)
+	pill.add_child(cs)
+	pill.body_entered.connect(_on_pickup.bind(pill, id))
+	pill.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, player.global_position.z - SPAWN_AHEAD)
+	add_child(pill)
+
+func _on_pickup(body: Node, pill: Area3D, id: String) -> void:
+	if body.is_in_group("player") and game != null and is_instance_valid(pill):
+		game.activate_powerup(id)
+		pill.queue_free()
 
 func _on_orb_hit(body: Node, orb: Area3D) -> void:
 	if body.is_in_group("player") and game != null and is_instance_valid(orb):
@@ -349,7 +393,7 @@ func _make_area(size: Vector3, center_y: float, is_enemy: bool) -> Area3D:
 	area.add_child(col)
 	if is_enemy:
 		area.add_to_group("enemy")
-	area.body_entered.connect(_on_hazard_body_entered)
+	area.body_entered.connect(_on_hazard_body_entered.bind(area))
 	return area
 
 func _add_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color, emis: Color, emis_on: bool) -> void:
@@ -366,9 +410,15 @@ func _add_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color, emis: C
 	m.position = pos
 	parent.add_child(m)
 
-func _on_hazard_body_entered(body: Node) -> void:
-	if body.is_in_group("player") and game != null:
-		game.player_hit()
+func _on_hazard_body_entered(body: Node, area: Area3D) -> void:
+	if not body.is_in_group("player") or game == null:
+		return
+	# Sword-Qi Dash plows straight through hazards/foes instead of being felled.
+	if game.has_method("is_powerup_active") and game.is_powerup_active("dash"):
+		if is_instance_valid(area):
+			area.queue_free()
+		return
+	game.player_hit()
 
 func _cleanup() -> void:
 	var kill_z: float = player.global_position.z + DESPAWN_BEHIND
