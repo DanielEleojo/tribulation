@@ -44,6 +44,8 @@ var _running: bool = false            # false until the run starts (title screen
 var _slash_cd: float = 0.0
 var _jump_buf: float = 0.0            # jump-input buffer (forgives early presses)
 var _coyote: float = 0.0             # grace window to jump just after leaving the floor
+var _air_jumps_used: int = 0         # Qi Leap (double-jump) counter, reset on landing
+var _swipe                           # swipe detector (for touch-hold glide)
 const JUMP_BUFFER: float = 0.12
 const COYOTE: float = 0.10
 var _game
@@ -83,6 +85,7 @@ func _ready() -> void:
 	_build_body()
 	# Wire touch swipes to the matching actions.
 	var swipe := get_tree().get_first_node_in_group("swipe_input")
+	_swipe = swipe
 	if swipe != null:
 		swipe.swiped_left.connect(move_left)
 		swipe.swiped_right.connect(move_right)
@@ -341,19 +344,28 @@ func _physics_process(delta: float) -> void:
 	# Jump buffer + coyote time: responsive and forgiving so a leap reliably clears.
 	if grounded:
 		_coyote = COYOTE
+		_air_jumps_used = 0
 	else:
 		_coyote = maxf(0.0, _coyote - delta)
 	if _jump_buf > 0.0:
 		_jump_buf -= delta
-	if _jump_buf > 0.0 and _coyote > 0.0:
-		if is_sliding:
-			_end_slide()
-		velocity.y = jump_velocity
-		_coyote = 0.0
-		_jump_buf = 0.0
-		_pending_slide = false
-		_sfx("jump")
-		# (the Jump clip is played by _update_anim once airborne, time-fitted to airtime)
+	if _jump_buf > 0.0:
+		if _coyote > 0.0:
+			# Ground jump.
+			if is_sliding:
+				_end_slide()
+			velocity.y = jump_velocity
+			_coyote = 0.0
+			_jump_buf = 0.0
+			_pending_slide = false
+			_sfx("jump")
+		elif _air_jumps_used < _max_air_jumps():
+			# Qi Leap — a second jump in mid-air (Foundation+).
+			velocity.y = jump_velocity * 0.92
+			_air_jumps_used += 1
+			_jump_buf = 0.0
+			_sfx("jump")
+			_spawn_burst(global_position + Vector3(0.0, 0.5, 0.0), Color(0.6, 0.85, 1.0), 12, 5.0, 0.3, 0.13)
 
 	# A queued fast-fall slide fires the moment we touch down.
 	if grounded and not _was_on_floor and _pending_slide:
@@ -387,8 +399,11 @@ func _physics_process(delta: float) -> void:
 	var target_x: float = float(current_lane - 1) * LANE_WIDTH
 	var dx: float = target_x - global_position.x
 	velocity.x = clampf(dx * LANE_SHARPNESS, -MAX_LANE_SPEED, MAX_LANE_SPEED)
-	# Gravity; landing cancels downward velocity.
-	velocity.y -= gravity * delta
+	# Gravity — Cloud Tread (Nascent Soul+) slows the fall while you hold the jump.
+	var g: float = gravity
+	if not grounded and velocity.y < 0.0 and _can_glide() and _glide_held():
+		g = gravity * 0.22
+	velocity.y -= g * delta
 	move_and_slide()
 
 	if _has_model:
@@ -432,6 +447,23 @@ func try_jump() -> void:
 	if _dead:
 		return
 	_jump_buf = JUMP_BUFFER
+
+## Qi Leap: extra mid-air jumps granted from Foundation Establishment.
+func _max_air_jumps() -> int:
+	if _game == null:
+		_game = get_tree().get_first_node_in_group("game")
+	return 1 if (_game != null and _game.has_method("has_ability") and _game.has_ability("doublejump")) else 0
+
+func _can_glide() -> bool:
+	if _game == null:
+		_game = get_tree().get_first_node_in_group("game")
+	return _game != null and _game.has_method("has_ability") and _game.has_ability("glide")
+
+## Glide is engaged by HOLDING jump (keyboard) or keeping a finger down (touch).
+func _glide_held() -> bool:
+	if Input.is_action_pressed("jump"):
+		return true
+	return _swipe != null and _swipe.has_method("is_holding") and _swipe.is_holding()
 
 ## Slide. On the ground: crouch. In the air: fast-fall and queue a slide on landing.
 func start_slide() -> void:

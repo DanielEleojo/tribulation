@@ -22,6 +22,10 @@ var _touching: bool = false
 func _ready() -> void:
 	add_to_group("swipe_input")
 
+## True while a finger is held on the screen (used for touch-hold glide).
+func is_holding() -> bool:
+	return _touching
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:

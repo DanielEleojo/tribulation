@@ -56,7 +56,7 @@ var realm: int = 0
 ## the new verbs (dash/glide/sword-flight/tribulation) behind these same gates.
 const ABILITY_REALM := {
 	"run": 0, "jump": 0, "slide": 0, "lane": 0,   # Qi Condensation: mortal, dodge-only
-	"dash": 1,                                      # Foundation Establishment
+	"doublejump": 1,                                # Foundation Establishment (Qi Leap)
 	"slash": 2, "qi": 2,                            # Golden Core: fight back; Qi cultivation
 	"glide": 3,                                     # Nascent Soul
 	"swordflight": 4,                               # Spirit Severing
@@ -64,7 +64,7 @@ const ABILITY_REALM := {
 }
 ## Newly-awakened art announced at each breakthrough.
 const UNLOCKS := {
-	1: "Qi Dash", 2: "Sword-qi & Qi cultivation", 3: "Cloud Glide",
+	1: "Qi Leap (double jump)", 2: "Sword-qi & Qi cultivation", 3: "Cloud Tread (glide)",
 	4: "Sword-flight 御剑", 5: "Heavenly Tribulation",
 }
 
