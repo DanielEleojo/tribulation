@@ -106,9 +106,14 @@ const PLAYER_GLB := "res://Models/PC animation/warrior_wuxia_animated.glb"
 # Logical state -> the clip name baked into the player GLB.
 const CLIP := {"run": "Running", "idle": "Idle", "jump": "Jump", "slide": "Slide", "slash": "Slash", "death": "Death"}
 
+## Set false to use the primitive caped-swordsman figure instead of the GLB model.
+const USE_PLAYER_MODEL := false
+
 ## Load the rigged player model (GLB with baked clips), loop locomotion + strip
 ## root motion so it runs in place. Returns false if missing (-> primitive fallback).
 func _build_model() -> bool:
+	if not USE_PLAYER_MODEL:
+		return false   # reverted to the primitive figure
 	var base: PackedScene = load(PLAYER_GLB)
 	if base == null:
 		return false
