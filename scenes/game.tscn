@@ -10,6 +10,7 @@
 [ext_resource type="Script" uid="uid://dmn5pg05n0qni" path="res://scripts/net_overlay.gd" id="8_net"]
 [ext_resource type="Script" uid="uid://cd423arshd6mr" path="res://scripts/sound_manager.gd" id="9_sound"]
 [ext_resource type="Script" uid="uid://rt7pg2puccev" path="res://scripts/scenery.gd" id="10_scenery"]
+[ext_resource type="Script" path="res://scripts/music.gd" id="11_music"]
 
 [node name="Game" type="Node3D" unique_id=70175388 groups=["game"]]
 script = ExtResource("1_game")
@@ -19,6 +20,9 @@ script = ExtResource("2_swipe")
 
 [node name="Sound" type="Node" parent="." unique_id=408514225]
 script = ExtResource("9_sound")
+
+[node name="Music" type="Node" parent="."]
+script = ExtResource("11_music")
 
 [node name="Ground" type="Node3D" parent="." unique_id=2145353944]
 script = ExtResource("3_ground")
