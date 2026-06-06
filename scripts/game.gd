@@ -28,6 +28,59 @@ var _best: int = 0                    # best distance ("li") ever, persisted
 var _last_layer: int = 1
 var _autosave_t: float = 20.0
 
+## Cultivation trials — a run's vows. Roll 3 each run; fulfilling one rewards stones.
+const TRIALS := [
+	{"id": "slay",    "fmt": "Slay %d foes",            "goals": [8, 16, 28],     "rewards": [40, 90, 170]},
+	{"id": "li",      "fmt": "Flee %d li",              "goals": [400, 900, 1600], "rewards": [40, 90, 170]},
+	{"id": "qi",      "fmt": "Gather %d Spirit Qi",     "goals": [15, 30, 55],    "rewards": [40, 90, 170]},
+	{"id": "combo",   "fmt": "Reach a Dao Heart of %d", "goals": [8, 16, 28],     "rewards": [40, 90, 170]},
+	{"id": "survive", "fmt": "Endure %d seconds",       "goals": [30, 60, 100],   "rewards": [40, 90, 170]},
+]
+var _trials: Array = []
+
+func _roll_trials() -> void:
+	_trials.clear()
+	var idx := range(TRIALS.size())
+	idx.shuffle()
+	for i in range(min(3, idx.size())):
+		var tpl: Dictionary = TRIALS[idx[i]]
+		var d: int = randi() % 3
+		_trials.append({"id": tpl["id"], "fmt": tpl["fmt"], "goal": int(tpl["goals"][d]), "reward": int(tpl["rewards"][d]), "progress": 0.0, "done": false})
+
+func _trial_add(id: String, amt: float) -> void:
+	for t in _trials:
+		if t["id"] == id and not t["done"]:
+			t["progress"] += amt
+			_check_trial(t)
+
+func _trial_max(id: String, val: float) -> void:
+	for t in _trials:
+		if t["id"] == id and not t["done"] and val > float(t["progress"]):
+			t["progress"] = val
+			_check_trial(t)
+
+func _check_trial(t: Dictionary) -> void:
+	if t["progress"] >= float(t["goal"]):
+		t["done"] = true
+		var r: int = int(t["reward"])
+		souls += r
+		total += r
+		souls_changed.emit(souls)
+		_update_cultivation()
+		_sfx("breakthrough")
+		if _hud != null:
+			_hud.show_banner("Trial fulfilled  ·  +%d Spirit Stones" % r)
+
+func _refresh_trials() -> void:
+	if _hud == null:
+		return
+	var lines: Array = []
+	for t in _trials:
+		var mark := "✓ " if t["done"] else "◦ "
+		var prog: int = mini(int(t["progress"]), int(t["goal"]))
+		lines.append("%s%s (%d/%d)" % [mark, (String(t["fmt"]) % int(t["goal"])), prog, int(t["goal"])])
+	_hud.set_trials("\n".join(lines))
+
 ## Pills & talismans — fleeting cultivation arts picked up on the road.
 const POWERUPS := {
 	"magnet": {"name": "Soul-Attraction Talisman", "color": Color(0.40, 0.90, 1.00), "dur": 8.0},
@@ -334,6 +387,11 @@ func _process(delta: float) -> void:
 	if _hud != null and _player != null:
 		_hud.set_shields(_player.get_shields())
 	_tick_powerups(delta)
+	# Cultivation trials: passive trackers + HUD refresh.
+	if _player != null:
+		_trial_max("li", float(_player.get_distance()))
+	_trial_add("survive", delta)
+	_refresh_trials()
 	_autosave_t -= delta
 	if _autosave_t <= 0.0:
 		_autosave_t = 20.0
@@ -403,6 +461,8 @@ func on_orb_collected() -> void:
 	total += g                     # bank toward lifetime cultivation
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, m)
+	_trial_add("qi", 1.0)
+	_trial_max("combo", float(combo))
 	qi = minf(qi_max, qi + 4.0)
 	qi_changed.emit(qi, qi_max)
 	_update_cultivation()
@@ -442,6 +502,8 @@ func on_enemy_killed(count: int = 1) -> void:
 	total += g                     # bank toward lifetime cultivation
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, m)
+	_trial_add("slay", float(count))
+	_trial_max("combo", float(combo))
 	_update_cultivation()
 	_sfx("kill")
 	_shake(0.12)
@@ -639,6 +701,7 @@ func start_game() -> void:
 		return
 	started = true
 	_sfx("start")
+	_roll_trials()
 	if _player != null:
 		_player.begin_run()
 	if _hud != null:

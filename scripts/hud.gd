@@ -18,6 +18,7 @@ var _best_li: int = 0
 var _combo_label: Label
 var _title_best: Label
 var _pu_label: Label
+var _trials_label: Label
 var _glass_shader: Shader
 var _glass_panels: Array = []
 
@@ -107,6 +108,17 @@ func set_powerups(text: String) -> void:
 		return
 	_pu_label.text = text
 	_pu_label.visible = text != ""
+
+## Cultivation trials list (top-left, under the Qi cluster).
+func set_trials(text: String) -> void:
+	if _trials_label == null:
+		_trials_label = Label.new()
+		_trials_label.offset_left = 24; _trials_label.offset_top = 104
+		_trials_label.offset_right = 400; _trials_label.offset_bottom = 220
+		_trials_label.add_theme_font_size_override("font_size", 18)
+		_trials_label.add_theme_color_override("font_color", Color(0.9, 0.92, 1.0))
+		add_child(_trials_label)
+	_trials_label.text = text
 
 ## Combo streak readout (hidden until 2+).
 func on_combo_changed(c: int, mult: float) -> void:
