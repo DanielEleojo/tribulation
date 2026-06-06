@@ -1,48 +1,48 @@
-[gd_scene load_steps=8 format=3 uid="uid://btrib0game00"]
+[gd_scene format=3 uid="uid://btrib0game00"]
 
-[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
-[ext_resource type="Script" path="res://scripts/swipe_detector.gd" id="2_swipe"]
-[ext_resource type="Script" path="res://scripts/ground.gd" id="3_ground"]
-[ext_resource type="Script" path="res://scripts/player.gd" id="4_player"]
-[ext_resource type="Script" path="res://scripts/camera_follow.gd" id="5_cam"]
-[ext_resource type="Script" path="res://scripts/hud.gd" id="6_hud"]
-[ext_resource type="Script" path="res://scripts/spawner.gd" id="7_spawn"]
-[ext_resource type="Script" path="res://scripts/net_overlay.gd" id="8_net"]
-[ext_resource type="Script" path="res://scripts/sound_manager.gd" id="9_sound"]
-[ext_resource type="Script" path="res://scripts/scenery.gd" id="10_scenery"]
+[ext_resource type="Script" uid="uid://bis3dk4b016i0" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="Script" uid="uid://c2vl68jbbn3ty" path="res://scripts/swipe_detector.gd" id="2_swipe"]
+[ext_resource type="Script" uid="uid://bslpbnesrsbgj" path="res://scripts/ground.gd" id="3_ground"]
+[ext_resource type="Script" uid="uid://dpl2qktavsn2p" path="res://scripts/player.gd" id="4_player"]
+[ext_resource type="Script" uid="uid://b8q4l3ptmwj3a" path="res://scripts/camera_follow.gd" id="5_cam"]
+[ext_resource type="Script" uid="uid://b3nictls1v8kf" path="res://scripts/hud.gd" id="6_hud"]
+[ext_resource type="Script" uid="uid://bhfhnycwp7jk1" path="res://scripts/spawner.gd" id="7_spawn"]
+[ext_resource type="Script" uid="uid://dmn5pg05n0qni" path="res://scripts/net_overlay.gd" id="8_net"]
+[ext_resource type="Script" uid="uid://cd423arshd6mr" path="res://scripts/sound_manager.gd" id="9_sound"]
+[ext_resource type="Script" uid="uid://rt7pg2puccev" path="res://scripts/scenery.gd" id="10_scenery"]
 
-[node name="Game" type="Node3D" groups=["game"]]
+[node name="Game" type="Node3D" unique_id=70175388 groups=["game"]]
 script = ExtResource("1_game")
 
-[node name="SwipeInput" type="Node" parent="."]
+[node name="SwipeInput" type="Node" parent="." unique_id=658710318]
 script = ExtResource("2_swipe")
 
-[node name="Sound" type="Node" parent="."]
+[node name="Sound" type="Node" parent="." unique_id=408514225]
 script = ExtResource("9_sound")
 
-[node name="Ground" type="Node3D" parent="."]
+[node name="Ground" type="Node3D" parent="." unique_id=2145353944]
 script = ExtResource("3_ground")
 
-[node name="Scenery" type="Node3D" parent="."]
+[node name="Scenery" type="Node3D" parent="." unique_id=620205374]
 script = ExtResource("10_scenery")
 
-[node name="Spawner" type="Node3D" parent="."]
+[node name="Spawner" type="Node3D" parent="." unique_id=1589784237]
 script = ExtResource("7_spawn")
 
-[node name="Player" type="CharacterBody3D" parent="."]
+[node name="Player" type="CharacterBody3D" parent="." unique_id=1321536886]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
 script = ExtResource("4_player")
 
-[node name="Camera" type="Camera3D" parent="."]
+[node name="Camera" type="Camera3D" parent="." unique_id=271686315]
 script = ExtResource("5_cam")
 
-[node name="Net" type="CanvasLayer" parent="."]
+[node name="Net" type="CanvasLayer" parent="." unique_id=2122680422]
 script = ExtResource("8_net")
 
-[node name="HUD" type="CanvasLayer" parent="."]
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1351098903]
 script = ExtResource("6_hud")
 
-[node name="Flash" type="ColorRect" parent="HUD"]
+[node name="Flash" type="ColorRect" parent="HUD" unique_id=1766979586]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -51,7 +51,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 1, 1, 0)
 
-[node name="Distance" type="Label" parent="HUD"]
+[node name="Distance" type="Label" parent="HUD" unique_id=817490974]
 offset_left = 24.0
 offset_top = 16.0
 offset_right = 360.0
@@ -59,7 +59,7 @@ offset_bottom = 60.0
 theme_override_font_sizes/font_size = 28
 text = "Distance: 0 m"
 
-[node name="QiLabel" type="Label" parent="HUD"]
+[node name="QiLabel" type="Label" parent="HUD" unique_id=2015038572]
 offset_left = 24.0
 offset_top = 58.0
 offset_right = 120.0
@@ -67,16 +67,15 @@ offset_bottom = 84.0
 theme_override_font_sizes/font_size = 20
 text = "Qi"
 
-[node name="QiBar" type="ProgressBar" parent="HUD"]
+[node name="QiBar" type="ProgressBar" parent="HUD" unique_id=1709408968]
 offset_left = 64.0
 offset_top = 60.0
 offset_right = 324.0
 offset_bottom = 84.0
-max_value = 100.0
-value = 0.0
 show_percentage = false
 
-[node name="RealmLabel" type="Label" parent="HUD"]
+[node name="RealmLabel" type="Label" parent="HUD" unique_id=731227756]
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -200.0
@@ -88,7 +87,8 @@ theme_override_font_sizes/font_size = 30
 text = "Mortal Husk"
 horizontal_alignment = 1
 
-[node name="Banner" type="Label" parent="HUD"]
+[node name="Banner" type="Label" parent="HUD" unique_id=1391593379]
+anchors_preset = -1
 anchor_left = 0.5
 anchor_top = 0.4
 anchor_right = 0.5
@@ -99,11 +99,11 @@ offset_right = 450.0
 offset_bottom = 50.0
 grow_horizontal = 2
 theme_override_font_sizes/font_size = 60
-text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="SoulsLabel" type="Label" parent="HUD"]
+[node name="SoulsLabel" type="Label" parent="HUD" unique_id=1220631576]
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -240.0
@@ -115,8 +115,9 @@ theme_override_font_sizes/font_size = 26
 text = "Souls: 0"
 horizontal_alignment = 2
 
-[node name="ShieldLabel" type="Label" parent="HUD"]
+[node name="ShieldLabel" type="Label" parent="HUD" unique_id=1304633879]
 visible = false
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -240.0
@@ -128,7 +129,7 @@ theme_override_font_sizes/font_size = 22
 text = "Iron Body"
 horizontal_alignment = 2
 
-[node name="DeathLabel" type="Label" parent="HUD"]
+[node name="DeathLabel" type="Label" parent="HUD" unique_id=1557136954]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -145,18 +146,22 @@ text = "YOU DIED"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Title" type="Control" parent="HUD"]
+[node name="Title" type="Control" parent="HUD" unique_id=834038398]
+layout_mode = 3
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 
-[node name="Backdrop" type="ColorRect" parent="HUD/Title"]
+[node name="Backdrop" type="ColorRect" parent="HUD/Title" unique_id=1739427047]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 color = Color(0.03, 0.02, 0.05, 0.6)
 
-[node name="Name" type="Label" parent="HUD/Title"]
+[node name="Name" type="Label" parent="HUD/Title" unique_id=612658483]
+layout_mode = 0
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
@@ -171,7 +176,8 @@ text = "TRIBULATION"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Hint" type="Label" parent="HUD/Title"]
+[node name="Hint" type="Label" parent="HUD/Title" unique_id=856550576]
+layout_mode = 0
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5

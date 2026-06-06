@@ -13,6 +13,8 @@ uniform vec4 col_main : source_color = vec4(0.50, 0.82, 1.0, 1.0);
 uniform vec4 col_glow : source_color = vec4(0.88, 0.96, 1.0, 1.0);
 const float RINGS = 9.0;
 const float SPOKES = 16.0;
+const float R_OCT = 0.15;     // bagua octagon radius
+const float R_GLYPH = 0.55;   // talisman/glyph ring radius
 void fragment() {
 	vec2 p = (UV - 0.5) * screen_size;             // pixels from center
 	float r = length(p) / (0.5 * screen_size.y);   // ~1.0 at top/bottom edge
@@ -27,6 +29,23 @@ void fragment() {
 	float da = min(fract(xa), 1.0 - fract(xa));
 	float spoke = (1.0 - smoothstep(0.0, 0.05, da)) * smoothstep(0.04, 0.22, r);
 	float pattern = max(ring, spoke);
+
+	// --- Bagua core (octagon + 8 trigram ticks + taiji ring) ---
+	float fold = abs(mod(ang, PI * 0.25) - PI * 0.125);
+	float oct_r = R_OCT * (cos(PI * 0.125) / cos(fold));
+	float oct = 1.0 - smoothstep(0.0, 0.012, abs(r - oct_r));
+	float a8 = (ang / TAU + 0.5) * 8.0;
+	float d8 = min(fract(a8), 1.0 - fract(a8));
+	float bag = (1.0 - smoothstep(0.0, 0.07, d8)) * smoothstep(R_OCT, R_OCT * 1.1, r) * (1.0 - smoothstep(R_OCT * 2.0, R_OCT * 2.3, r));
+	float taiji = 1.0 - smoothstep(0.0, 0.012, abs(r - 0.055));
+	float core = max(oct, max(bag, taiji));
+
+	// --- Glyph/talisman ring (dashed) ---
+	float gring = 1.0 - smoothstep(0.0, 0.02, abs(r - R_GLYPH));
+	float dash = step(0.55, fract((ang / TAU + 0.5) * 44.0));
+	float glyph = gring * dash;
+
+	pattern = max(pattern, max(core, glyph));
 
 	// The formation only manifests in the closing band (outside the clear center).
 	float m = smoothstep(rc - 0.02, rc + 0.05, r);
