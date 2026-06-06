@@ -65,8 +65,8 @@ const TIER_DIST: Array = [0, 180, 434, 794, 1303]
 var enemy_tier: int = 0
 
 # Jump power scales with martial stage: base at third-rate, capped max by first-rate.
-const JUMP_BASE: float = 17.0
-const JUMP_MAX: float = 20.0
+const JUMP_BASE: float = 14.0
+const JUMP_MAX: float = 16.0
 
 ## Current foe-rank style, read by the spawner when building a technique/hazard.
 func tier_style() -> Dictionary:
