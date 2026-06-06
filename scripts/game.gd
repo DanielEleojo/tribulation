@@ -27,6 +27,53 @@ var combo: int = 0                    # streak of kills/orbs (resets when hit); 
 var _best: int = 0                    # best distance ("li") ever, persisted
 var _last_layer: int = 1
 var _autosave_t: float = 20.0
+var _spent: int = 0                    # lifetime stones spent on upgrades (realm uses EARNED `total`)
+var _upgrades: Dictionary = {}         # id -> level, persisted
+
+## Permanent cultivation upgrades bought with the spendable balance (total - spent).
+## Spending does NOT lower your realm (driven by lifetime EARNED total).
+const UPGRADES := {
+	"spirit_gathering": {"name": "Spirit Gathering", "max": 10, "base": 300,  "mult": 1.6, "desc": "+8% Spirit Stones"},
+	"talisman":         {"name": "Talisman Mastery", "max": 5,  "base": 600,  "mult": 1.8, "desc": "+1.5s art duration"},
+	"qi_sea":           {"name": "Qi Sea",           "max": 5,  "base": 800,  "mult": 1.8, "desc": "+20% Qi gain"},
+	"iron_body":        {"name": "Iron Body Refining","max": 2, "base": 2500, "mult": 4.0, "desc": "+1 starting Iron Body"},
+}
+
+func balance() -> int:
+	return maxi(0, total - _spent)
+
+func upgrade_level(id: String) -> int:
+	return int(_upgrades.get(id, 0))
+
+func upgrade_maxed(id: String) -> bool:
+	return upgrade_level(id) >= int(UPGRADES[id]["max"])
+
+## Cost of the NEXT level (base * mult^level), or -1 if maxed.
+func upgrade_cost(id: String) -> int:
+	if upgrade_maxed(id):
+		return -1
+	var d: Dictionary = UPGRADES[id]
+	return int(round(float(d["base"]) * pow(float(d["mult"]), float(upgrade_level(id)))))
+
+func buy_upgrade(id: String) -> bool:
+	if not UPGRADES.has(id) or upgrade_maxed(id):
+		return false
+	var cost := upgrade_cost(id)
+	if balance() < cost:
+		return false
+	_upgrades[id] = upgrade_level(id) + 1
+	_spent += cost
+	_save()
+	return true
+
+func _soul_mult() -> float:
+	return 1.0 + float(upgrade_level("spirit_gathering")) * 0.08
+
+func _qi_mult() -> float:
+	return 1.0 + float(upgrade_level("qi_sea")) * 0.20
+
+func _pill_bonus() -> float:
+	return float(upgrade_level("talisman")) * 1.5
 
 ## Cultivation trials — a run's vows. Roll 3 each run; fulfilling one rewards stones.
 const TRIALS := [
@@ -113,7 +160,7 @@ func activate_powerup(id: String) -> void:
 			if _player != null and _player.has_method("grant_shield"):
 				_player.grant_shield()
 		_:
-			_powerups[id] = float(data["dur"])
+			_powerups[id] = float(data["dur"]) + _pill_bonus()
 	_refresh_powerups()
 
 func is_powerup_active(id: String) -> bool:
@@ -454,7 +501,7 @@ func on_orb_collected() -> void:
 		return
 	combo += 1
 	var m := _combo_mult()
-	var g := int(round(m))
+	var g := int(round(m * _soul_mult()))
 	if is_powerup_active("double"):
 		g *= 2
 	souls += g
@@ -480,13 +527,19 @@ func _load_save() -> void:
 	var c := ConfigFile.new()
 	if c.load("user://tribulation.cfg") == OK:
 		total = int(c.get_value("cult", "total_stones", 0))
+		_spent = int(c.get_value("cult", "spent", 0))
 		_best = int(c.get_value("run", "best_li", 0))
+		for id in UPGRADES.keys():
+			_upgrades[id] = int(c.get_value("upg", id, 0))
 
 func _save() -> void:
 	var c := ConfigFile.new()
 	c.load("user://tribulation.cfg")
 	c.set_value("cult", "total_stones", total)
+	c.set_value("cult", "spent", _spent)
 	c.set_value("run", "best_li", _best)
+	for id in UPGRADES.keys():
+		c.set_value("upg", id, upgrade_level(id))
 	c.save("user://tribulation.cfg")
 
 ## Called by the player after a slash kills enemies. Charges Qi; bursts at max.
@@ -495,7 +548,7 @@ func on_enemy_killed(count: int = 1) -> void:
 		return
 	combo += count
 	var m := _combo_mult()
-	var g := int(round(float(count) * m))
+	var g := int(round(float(count) * m * _soul_mult()))
 	if is_powerup_active("double"):
 		g *= 2
 	souls += g
@@ -507,7 +560,7 @@ func on_enemy_killed(count: int = 1) -> void:
 	_update_cultivation()
 	_sfx("kill")
 	_shake(0.12)
-	qi = minf(qi_max, qi + qi_per_kill * float(count))
+	qi = minf(qi_max, qi + qi_per_kill * float(count) * _qi_mult())
 	qi_changed.emit(qi, qi_max)
 	# Each kill pushes the Heavenly Net back.
 	net = maxf(0.0, net - net_push_per_kill * float(count))
@@ -703,6 +756,8 @@ func start_game() -> void:
 	_sfx("start")
 	_roll_trials()
 	if _player != null:
+		for i in range(upgrade_level("iron_body")):   # Iron Body Refining: start with extra charges
+			_player.grant_shield()
 		_player.begin_run()
 	if _hud != null:
 		_hud.show_title(false)

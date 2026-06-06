@@ -70,6 +70,68 @@ func _ready() -> void:
 	_build_combo_and_best()
 	get_viewport().size_changed.connect(_refresh_glass)
 	call_deferred("_refresh_glass")
+	call_deferred("_build_cultivation_menu")
+
+var _cult_root: VBoxContainer
+var _cult_balance: Label
+var _cult_buttons: Dictionary = {}
+var _game_ref
+
+func _game():
+	if _game_ref == null:
+		_game_ref = get_tree().get_first_node_in_group("game")
+	return _game_ref
+
+## Cultivation upgrade menu on the title screen (spend lifetime stones).
+func _build_cultivation_menu() -> void:
+	var g = _game()
+	if g == null or not ("UPGRADES" in g):
+		return
+	_cult_root = VBoxContainer.new()
+	_cult_root.anchor_left = 0.5; _cult_root.anchor_right = 0.5
+	_cult_root.anchor_top = 0.5; _cult_root.anchor_bottom = 0.5
+	_cult_root.offset_left = -280; _cult_root.offset_right = 280
+	_cult_root.offset_top = 130; _cult_root.offset_bottom = 460
+	_cult_root.add_theme_constant_override("separation", 8)
+	var hdr := Label.new()
+	hdr.text = "— Cultivation —"
+	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hdr.add_theme_font_size_override("font_size", 26)
+	_cult_root.add_child(hdr)
+	_cult_balance = Label.new()
+	_cult_balance.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_cult_balance.add_theme_font_size_override("font_size", 20)
+	_cult_root.add_child(_cult_balance)
+	for id in g.UPGRADES.keys():
+		var b := Button.new()
+		b.pressed.connect(_on_buy.bind(id))
+		_cult_buttons[id] = b
+		_cult_root.add_child(b)
+	title_root.add_child(_cult_root)
+	_refresh_cult()
+
+func _refresh_cult() -> void:
+	var g = _game()
+	if g == null or _cult_root == null:
+		return
+	_cult_balance.text = "Spirit Stones: %d" % g.balance()
+	for id in _cult_buttons:
+		var d = g.UPGRADES[id]
+		var b: Button = _cult_buttons[id]
+		var lv: int = g.upgrade_level(id)
+		var mx: int = int(d["max"])
+		if g.upgrade_maxed(id):
+			b.text = "%s   Lv %d/%d   ✦ MAX" % [d["name"], lv, mx]
+			b.disabled = true
+		else:
+			var cost: int = g.upgrade_cost(id)
+			b.text = "%s  Lv %d/%d  ·  %s  ·  Cultivate (%d)" % [d["name"], lv, mx, d["desc"], cost]
+			b.disabled = g.balance() < cost
+
+func _on_buy(id: String) -> void:
+	var g = _game()
+	if g != null and g.buy_upgrade(id):
+		_refresh_cult()
 
 ## Combo readout (center, under the realm) + best-li line on the title.
 func _build_combo_and_best() -> void:
