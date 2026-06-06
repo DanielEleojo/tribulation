@@ -21,9 +21,12 @@ var started: bool = false             # false on the title screen, true once run
 var is_dead: bool = false
 var qi: float = 0.0
 var net: float = 0.0                  # 0 = open, 1 = closed (death)
-var souls: int = 0                    # Demon Souls collected this run
+var souls: int = 0                    # Spirit Stones gathered THIS run (HUD/death/combo)
+var total: int = 0                    # LIFETIME Spirit Stones — drives cultivation, persisted
 var combo: int = 0                    # streak of kills/orbs (resets when hit); scales soul gain
 var _best: int = 0                    # best distance ("li") ever, persisted
+var _last_layer: int = 1
+var _autosave_t: float = 20.0
 
 ## Pills & talismans — fleeting cultivation arts picked up on the road.
 const POWERUPS := {
@@ -97,12 +100,14 @@ const FOG_MAX: float = 0.020
 ## Iron Demon Body hits absorbed, speed = forward-speed multiplier, sprint =
 ## Blood Sprint speed kick per kill. Mortal Husk is deliberately weak/fragile.
 var _realms: Array = [
-	{"name": "Qi Condensation",       "souls": 0,   "color": Color(0.62, 0.66, 0.72), "range": 4.0, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 0.0},
-	{"name": "Foundation Establishment", "souls": 8, "color": Color(0.55, 0.82, 0.62), "range": 4.6, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 1.5},
-	{"name": "Golden Core",           "souls": 20,  "color": Color(0.95, 0.80, 0.35), "range": 5.4, "tol": 2.6, "shield": 0, "speed": 1.00, "sprint": 1.5},
-	{"name": "Nascent Soul",          "souls": 42,  "color": Color(0.45, 0.70, 1.00), "range": 6.0, "tol": 2.6, "shield": 1, "speed": 1.00, "sprint": 2.0},
-	{"name": "Spirit Severing",       "souls": 75,  "color": Color(0.72, 0.48, 1.00), "range": 6.6, "tol": 2.8, "shield": 1, "speed": 1.05, "sprint": 2.0},
-	{"name": "Ascension",             "souls": 120, "color": Color(1.00, 0.95, 0.70), "range": 8.5, "tol": 4.0, "shield": 2, "speed": 1.25, "sprint": 3.0},
+	# "souls" here is the LIFETIME total Spirit Stones (saved) needed to reach the realm.
+	# Early verbs come in the first sessions; Ascension is a weeks-to-months summit.
+	{"name": "Qi Condensation",       "souls": 0,     "color": Color(0.62, 0.66, 0.72), "range": 4.0, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 0.0},
+	{"name": "Foundation Establishment", "souls": 150, "color": Color(0.55, 0.82, 0.62), "range": 4.6, "tol": 1.4, "shield": 0, "speed": 1.00, "sprint": 1.5},
+	{"name": "Golden Core",           "souls": 600,   "color": Color(0.95, 0.80, 0.35), "range": 5.4, "tol": 2.6, "shield": 0, "speed": 1.00, "sprint": 1.5},
+	{"name": "Nascent Soul",          "souls": 3000,  "color": Color(0.45, 0.70, 1.00), "range": 6.0, "tol": 2.6, "shield": 1, "speed": 1.00, "sprint": 2.0},
+	{"name": "Spirit Severing",       "souls": 12000, "color": Color(0.72, 0.48, 1.00), "range": 6.6, "tol": 2.8, "shield": 1, "speed": 1.05, "sprint": 2.0},
+	{"name": "Ascension",             "souls": 50000, "color": Color(1.00, 0.95, 0.70), "range": 8.5, "tol": 4.0, "shield": 2, "speed": 1.25, "sprint": 3.0},
 ]
 var realm: int = 0
 
@@ -164,10 +169,45 @@ func foe_name() -> String:
 ## souls have progressed toward the next realm's threshold.
 func minor_level() -> int:
 	var lo: int = int(_realms[realm]["souls"])
-	var hi: int = int(_realms[realm + 1]["souls"]) if realm + 1 < _realms.size() else lo + 60
+	var hi: int = int(_realms[realm + 1]["souls"]) if realm + 1 < _realms.size() else lo + 50000
 	var span: int = maxi(1, hi - lo)
-	var f: float = clampf(float(souls - lo) / float(span), 0.0, 0.999)
+	var f: float = clampf(float(total - lo) / float(span), 0.0, 0.999)
 	return int(f * 10.0) + 1
+
+## Highest realm whose lifetime threshold the total has reached.
+func _realm_from_total(t: int) -> int:
+	var r := 0
+	for i in range(_realms.size()):
+		if t >= int(_realms[i]["souls"]):
+			r = i
+	return r
+
+## Re-evaluate cultivation after banking stones; fire breakthroughs on crossings.
+func _update_cultivation() -> void:
+	var nr := _realm_from_total(total)
+	var changed := false
+	while realm < nr and realm < _realms.size() - 1:
+		realm += 1
+		_breakthrough(realm)
+		changed = true
+	_refresh_realm()
+	var ml := minor_level()
+	if ml != _last_layer:
+		_last_layer = ml
+	if changed:
+		_save()
+
+## Apply the player's CURRENT (already-established) realm at run start — no fanfare.
+func _apply_realm_now(r: int) -> void:
+	if _player != null:
+		_player.apply_realm_stats(_realms[r])
+		_player.set_jump_power(_jump_for_tier(enemy_tier))
+	_apply_theme(r)
+	if _hud != null:
+		_hud.set_qi_visible(has_ability("qi"))
+		_refresh_realm()
+	if r >= 5 and _player != null and _player.has_method("enter_dread_form"):
+		_player.enter_dread_form()
 
 func _layer_text(n: int) -> String:
 	if n >= 10:
@@ -237,18 +277,16 @@ func _ready() -> void:
 	_setup_atmosphere()
 	_apply_theme(0)   # start in the forest
 
-	_load_best()
-	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
+	_load_save()
+	realm = _realm_from_total(total)   # start at your established cultivation realm
+	_last_layer = minor_level()
+	qi_changed.emit(qi, qi_max)
 	net_changed.emit(net)
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, 1.0)
 	if _hud != null:
-		_refresh_realm()
 		_hud.set_best(_best)
-		_hud.set_qi_visible(has_ability("qi"))   # hidden until Golden Core
-	if _player != null:
-		_player.apply_realm_stats(_realms[0])   # weak Mortal Husk baseline
-		_player.set_jump_power(_jump_for_tier(enemy_tier))   # third-rate base jump
+	_apply_realm_now(realm)
 
 func _setup_world() -> void:
 	# Environment: real CC0 night-sky HDRI (Poly Haven) + image-based lighting + fog.
@@ -296,6 +334,10 @@ func _process(delta: float) -> void:
 	if _hud != null and _player != null:
 		_hud.set_shields(_player.get_shields())
 	_tick_powerups(delta)
+	_autosave_t -= delta
+	if _autosave_t <= 0.0:
+		_autosave_t = 20.0
+		_save()
 
 	# The hunters cultivate: raise their rank as we flee deeper.
 	if _player != null:
@@ -340,7 +382,7 @@ func die() -> void:
 	var dist: int = _player.get_distance() if _player != null else 0
 	if dist > _best:
 		_best = dist
-		_save_best()
+	_save()                       # persist lifetime cultivation + best
 	if _hud != null:
 		_hud.set_best(_best)
 	_sfx("death")
@@ -358,12 +400,12 @@ func on_orb_collected() -> void:
 	if is_powerup_active("double"):
 		g *= 2
 	souls += g
+	total += g                     # bank toward lifetime cultivation
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, m)
 	qi = minf(qi_max, qi + 4.0)
 	qi_changed.emit(qi, qi_max)
-	_check_breakthrough()
-	_refresh_realm()
+	_update_cultivation()
 	_sfx("orb")
 
 func _combo_mult() -> float:
@@ -374,14 +416,16 @@ func _reset_combo() -> void:
 		combo = 0
 		combo_changed.emit(0, 1.0)
 
-func _load_best() -> void:
+func _load_save() -> void:
 	var c := ConfigFile.new()
 	if c.load("user://tribulation.cfg") == OK:
+		total = int(c.get_value("cult", "total_stones", 0))
 		_best = int(c.get_value("run", "best_li", 0))
 
-func _save_best() -> void:
+func _save() -> void:
 	var c := ConfigFile.new()
 	c.load("user://tribulation.cfg")
+	c.set_value("cult", "total_stones", total)
 	c.set_value("run", "best_li", _best)
 	c.save("user://tribulation.cfg")
 
@@ -395,10 +439,10 @@ func on_enemy_killed(count: int = 1) -> void:
 	if is_powerup_active("double"):
 		g *= 2
 	souls += g
+	total += g                     # bank toward lifetime cultivation
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, m)
-	_check_breakthrough()
-	_refresh_realm()
+	_update_cultivation()
 	_sfx("kill")
 	_shake(0.12)
 	qi = minf(qi_max, qi + qi_per_kill * float(count))

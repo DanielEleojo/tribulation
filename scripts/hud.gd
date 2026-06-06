@@ -180,9 +180,12 @@ func _style_widgets() -> void:
 	qi_bar.add_theme_stylebox_override("background", track)
 	qi_bar.add_theme_stylebox_override("fill", fill)
 
+var _realm_text: String = ""
+
 ## Update the current cultivation realm name (top-center).
 func set_realm(name: String) -> void:
 	realm_label.text = name
+	_realm_text = name
 
 ## Show Iron Demon Body charges (hidden at zero).
 func set_shields(n: int) -> void:
@@ -230,5 +233,5 @@ func on_death() -> void:
 	var dist := 0
 	if player != null:
 		dist = player.get_distance()
-	death_label.text = "QI DEVIATION\n\n%d li traveled     Best: %d li\nSpirit Stones: %d\n\nEnter / tap to walk again\n[ Watch ad to continue — coming soon ]" % [dist, _best_li, _souls]
+	death_label.text = "QI DEVIATION\n\n%d li traveled     Best: %d li\n+%d Spirit Stones this run\n%s\n\nEnter / tap to walk again\n[ Watch ad to continue — coming soon ]" % [dist, _best_li, _souls, _realm_text]
 	death_label.visible = true
