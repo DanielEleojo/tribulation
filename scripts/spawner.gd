@@ -184,25 +184,32 @@ func _tier() -> Dictionary:
 		return game.tier_style()
 	return {"accent": Color(0.8, 0.8, 0.85), "energy": 1.0, "scale": 1.0}
 
+## Per-cultivation-stage hazard palette (jump/slide hues + foe robe).
+func _hz() -> Dictionary:
+	if game != null and game.has_method("hazard_style"):
+		return game.hazard_style()
+	return {"low": HUE_LOW, "high": HUE_HIGH, "foe": Color(0.82, 0.84, 0.92)}
+
 func _make_barrier(is_block: bool, width: float) -> Area3D:
 	var ts := _tier()
 	var accent: Color = ts["accent"]
 	var energy: float = ts["energy"]
 	var sc: float = ts["scale"]
+	var hz := _hz()
 	if is_block:
-		# Earth-Splitting Sweep — a low crescent of sword-qi skimming the ground (JUMP).
+		# Low ground hazard to JUMP (boulder/sweep — hue shifts per cultivation stage).
 		var size := Vector3(width, BLOCK_HEIGHT, BLOCK_DEPTH)
 		var cy := BLOCK_HEIGHT * 0.5
 		var area := _make_area(size, cy, false)
-		_add_glow(area, Vector3(width * sc, BLOCK_HEIGHT * 0.85, 0.35), Vector3(0.0, cy, 0.0), HUE_LOW, accent, energy)
-		_add_glow(area, Vector3(width * sc, 0.14, 0.7), Vector3(0.0, 0.07, 0.0), HUE_LOW, accent, energy * 1.4)  # bright ground line
+		_add_glow(area, Vector3(width * sc, BLOCK_HEIGHT * 0.85, 0.35), Vector3(0.0, cy, 0.0), hz["low"], accent, energy)
+		_add_glow(area, Vector3(width * sc, 0.14, 0.7), Vector3(0.0, 0.07, 0.0), hz["low"], accent, energy * 1.4)  # bright ground line
 		return area
 	else:
-		# Heaven-Cleaving Slash — high blade-qi at head height (SLIDE).
+		# High hazard to SLIDE under (branch/blade — hue shifts per stage).
 		var size := Vector3(width, BAR_HEIGHT, BAR_DEPTH)
 		var cy := BAR_BOTTOM_Y + BAR_HEIGHT * 0.5
 		var area := _make_area(size, cy, false)
-		_add_glow(area, Vector3(width * sc, BAR_HEIGHT, 0.3), Vector3(0.0, cy, 0.0), HUE_HIGH, accent, energy)
+		_add_glow(area, Vector3(width * sc, BAR_HEIGHT, 0.3), Vector3(0.0, cy, 0.0), hz["high"], accent, energy)
 		return area
 
 func _make_enemy() -> Area3D:
@@ -219,7 +226,7 @@ func _make_enemy() -> Area3D:
 	f.scale = Vector3(sc, sc, sc)
 	area.add_child(f)
 
-	var robe := Color(0.82, 0.84, 0.92).lerp(accent, 0.22)   # righteous-sect robe
+	var robe: Color = Color(_hz()["foe"]).lerp(accent, 0.22)   # foe identity shifts per stage
 	# Torso (robe capsule) + flared lower robe.
 	var body := MeshInstance3D.new()
 	var cap := CapsuleMesh.new()

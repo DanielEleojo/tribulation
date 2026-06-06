@@ -72,6 +72,39 @@ const UNLOCKS := {
 func has_ability(name: String) -> bool:
 	return realm >= int(ABILITY_REALM.get(name, 0))
 
+## Per-cultivation-stage WORLD: sky, ambient/fog, ground colors, hazard palette
+## (low=jump-hazard hue, high=slide-hazard hue, foe=enemy robe), foe identity, aura.
+## The world, the threats, and the cultivator's aura all evolve as you ascend.
+var _stages: Array = [
+	{"forest": true,  "amb": Color(0.55,0.60,0.50), "amb_e": 0.85, "fog": Color(0.34,0.40,0.32), "dens": 0.012, "bg": 1.0,
+	 "g": [Color(0.22,0.20,0.14), Color(0.18,0.17,0.11), Color(0.14,0.13,0.10), Color(0.50,0.62,0.32)],
+	 "aura": Color(0.60,0.66,0.72), "low": Color(0.55,0.42,0.25), "high": Color(0.50,0.70,0.45), "foe": Color(0.45,0.32,0.22), "foename": "wild beasts"},
+	{"forest": true,  "amb": Color(0.50,0.56,0.55), "amb_e": 0.80, "fog": Color(0.30,0.36,0.36), "dens": 0.013, "bg": 1.0,
+	 "g": [Color(0.20,0.20,0.18), Color(0.16,0.16,0.15), Color(0.12,0.12,0.12), Color(0.50,0.80,0.60)],
+	 "aura": Color(0.55,0.82,0.62), "low": Color(0.50,0.45,0.30), "high": Color(0.45,0.75,0.60), "foe": Color(0.50,0.45,0.35), "foename": "rogue cultivators"},
+	{"forest": false, "amb": Color(0.50,0.50,0.60), "amb_e": 0.55, "fog": Color(0.10,0.09,0.13), "dens": 0.012, "bg": 1.0,
+	 "g": [Color(0.18,0.18,0.23), Color(0.13,0.13,0.18), Color(0.10,0.10,0.14), Color(0.95,0.80,0.35)],
+	 "aura": Color(0.95,0.80,0.35), "low": Color(0.95,0.55,0.20), "high": Color(0.30,0.80,1.00), "foe": Color(0.80,0.82,0.92), "foename": "sect disciples"},
+	{"forest": false, "amb": Color(0.45,0.55,0.70), "amb_e": 0.60, "fog": Color(0.12,0.16,0.26), "dens": 0.011, "bg": 1.1,
+	 "g": [Color(0.20,0.24,0.32), Color(0.15,0.18,0.26), Color(0.12,0.14,0.20), Color(0.45,0.70,1.00)],
+	 "aura": Color(0.45,0.70,1.00), "low": Color(0.40,0.60,1.00), "high": Color(0.50,0.85,1.00), "foe": Color(0.55,0.70,0.95), "foename": "spirit beasts"},
+	{"forest": false, "amb": Color(0.55,0.45,0.70), "amb_e": 0.60, "fog": Color(0.18,0.12,0.26), "dens": 0.012, "bg": 1.1,
+	 "g": [Color(0.24,0.18,0.30), Color(0.18,0.13,0.24), Color(0.14,0.10,0.18), Color(0.72,0.48,1.00)],
+	 "aura": Color(0.72,0.48,1.00), "low": Color(0.80,0.40,1.00), "high": Color(0.70,0.50,1.00), "foe": Color(0.50,0.35,0.55), "foename": "demonic cultivators"},
+	{"forest": false, "amb": Color(0.85,0.80,0.62), "amb_e": 1.10, "fog": Color(0.70,0.62,0.40), "dens": 0.012, "bg": 1.4,
+	 "g": [Color(0.30,0.28,0.22), Color(0.24,0.22,0.17), Color(0.18,0.16,0.12), Color(1.00,0.92,0.55)],
+	 "aura": Color(1.00,0.95,0.70), "low": Color(1.00,0.85,0.40), "high": Color(0.90,0.95,1.00), "foe": Color(0.90,0.85,0.70), "foename": "inner demons"},
+]
+
+## Hazard palette (jump/slide hues + foe robe) for the current cultivation stage.
+func hazard_style() -> Dictionary:
+	var s: Dictionary = _stages[clampi(realm, 0, _stages.size() - 1)]
+	return {"low": s["low"], "high": s["high"], "foe": s["foe"]}
+
+## Identity of the foes on this stretch of road (wild beasts -> ... -> inner demons).
+func foe_name() -> String:
+	return String(_stages[clampi(realm, 0, _stages.size() - 1)]["foename"])
+
 ## The pursuing martial artists also cultivate: their rank rises over the run, and
 ## their techniques (the hazards you dodge) grow visually from a dull flicker to a
 ## blazing heaven-cleaving wave. accent = qi color, energy = glow, scale = size.
@@ -320,7 +353,7 @@ func _breakthrough(idx: int) -> void:
 func _on_tier_up() -> void:
 	var tname: String = String(_tiers[enemy_tier]["name"])
 	if _hud != null:
-		_hud.show_banner(tname + " cultivators bar the road")
+		_hud.show_banner(tname + " " + foe_name() + " bar the road")
 		_hud.flash(Color(0.55, 0.65, 1.0))
 	_sfx("breakthrough")
 	_shake(0.3)
@@ -328,33 +361,22 @@ func _on_tier_up() -> void:
 ## Environment theme by realm: forest flight (early) -> sect grounds at night (mid).
 ## Dread Form's hellscape is applied separately in _enter_dread_form.
 func _apply_theme(r: int) -> void:
+	var s: Dictionary = _stages[clampi(r, 0, _stages.size() - 1)]
+	if _sky_mat != null:
+		_sky_mat.panorama = _tex_forest if bool(s["forest"]) else _tex_night
+	if _env != null:
+		_env.background_energy_multiplier = float(s["bg"])
+		_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		_env.ambient_light_color = s["amb"]
+		_env.ambient_light_energy = float(s["amb_e"])
+		_env.fog_light_color = s["fog"]
+		_env.fog_density = float(s["dens"])
 	var ground = get_node_or_null("Ground")
-	if r <= 1:
-		# Forest — fleeing through the woods.
-		if _sky_mat != null:
-			_sky_mat.panorama = _tex_forest
-		if _env != null:
-			_env.background_energy_multiplier = 1.0
-			_env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-			_env.ambient_light_energy = 0.8
-			_env.fog_light_color = Color(0.34, 0.40, 0.32)
-			_env.fog_density = FOG_BASE
-		if ground != null:
-			# forest: mossy shoulders, dark earthen path, warm green-gold glow
-			ground.set_theme(Color(0.22, 0.20, 0.14), Color(0.18, 0.17, 0.11), Color(0.14, 0.13, 0.10), Color(0.55, 0.66, 0.34))
-	else:
-		# Sect grounds at night — now you are the hunter on their turf.
-		if _sky_mat != null:
-			_sky_mat.panorama = _tex_night
-		if _env != null:
-			_env.background_energy_multiplier = 1.0
-			_env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-			_env.ambient_light_energy = 0.55
-			_env.fog_light_color = Color(0.10, 0.08, 0.12)
-			_env.fog_density = FOG_BASE
-		if ground != null:
-			# sect grounds: cold stone shoulders, dark flagstone path, gold glow
-			ground.set_theme(Color(0.18, 0.18, 0.23), Color(0.13, 0.13, 0.18), Color(0.10, 0.10, 0.14), Color(0.85, 0.70, 0.30))
+	if ground != null:
+		var g: Array = s["g"]
+		ground.set_theme(g[0], g[1], g[2], g[3])
+	if _player != null and _player.has_method("set_aura"):
+		_player.set_aura(s["aura"], float(r) / 5.0)   # mortal has no aura; brightens as you ascend
 
 ## Blood moon + drifting embers, parented to the camera so they sit in the sky.
 func _setup_atmosphere() -> void:
@@ -404,18 +426,9 @@ func _setup_atmosphere() -> void:
 
 ## The marquee mid-run transformation: the world ruptures, the demon flares.
 func _enter_dread_form() -> void:
+	# The radiant world grade is applied by the Ascension stage theme (_apply_theme).
 	_shake(0.9)
 	_hitstop(0.15)
-	# Ascension: the heavens brighten — radiant gold-white grade for the rest of the run.
-	if _env != null:
-		_env.background_energy_multiplier = 1.4
-		_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		_env.ambient_light_color = Color(0.85, 0.80, 0.62)
-		_env.ambient_light_energy = 1.1
-		_env.fog_light_color = Color(0.70, 0.62, 0.40)
-	var ground = get_node_or_null("Ground")
-	if ground != null:
-		ground.set_theme(Color(0.30, 0.28, 0.22), Color(0.24, 0.22, 0.17), Color(0.18, 0.16, 0.12), Color(1.0, 0.92, 0.55))
 	if _player != null:
 		_player.enter_dread_form()
 

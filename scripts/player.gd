@@ -65,6 +65,8 @@ var _base_color: Color = STAND_COLOR  # current standing color (shifts per realm
 var _speed_mult: float = 1.0          # realm forward-speed multiplier
 var _dread: bool = false
 var _tendrils: CPUParticles3D
+var _aura: CPUParticles3D
+var _aura_mat: StandardMaterial3D
 # Iron Demon Body (shield) + Blood Sprint
 var _shields: int = 0
 var _max_shields: int = 0
@@ -749,6 +751,33 @@ func _build_tendrils() -> void:
 	_tendrils.mesh = bm
 	_tendrils.position = Vector3(0.0, 1.2, 0.3)
 	add_child(_tendrils)
+
+## Cultivation aura — soft rising motes whose color/strength grow per realm.
+func set_aura(c: Color, intensity: float) -> void:
+	if _aura == null:
+		_aura = CPUParticles3D.new()
+		_aura.amount = 20
+		_aura.lifetime = 1.1
+		_aura.local_coords = false
+		_aura.direction = Vector3(0.0, 1.0, 0.0)
+		_aura.spread = 22.0
+		_aura.initial_velocity_min = 0.5
+		_aura.initial_velocity_max = 1.3
+		_aura.gravity = Vector3(0.0, 0.8, 0.0)
+		_aura.scale_amount_min = 0.07
+		_aura.scale_amount_max = 0.17
+		var bm := BoxMesh.new()
+		bm.size = Vector3.ONE
+		_aura_mat = StandardMaterial3D.new()
+		_aura_mat.emission_enabled = true
+		bm.material = _aura_mat
+		_aura.mesh = bm
+		_aura.position = Vector3(0.0, 1.0, 0.0)
+		add_child(_aura)
+	_aura_mat.albedo_color = c
+	_aura_mat.emission = c
+	_aura_mat.emission_energy_multiplier = 0.6 + intensity * 2.0
+	_aura.emitting = intensity > 0.01   # a mortal radiates nothing
 
 ## Jump power scales with martial stage (set by the game coordinator).
 func set_jump_power(v: float) -> void:
