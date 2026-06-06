@@ -105,6 +105,29 @@ func hazard_style() -> Dictionary:
 func foe_name() -> String:
 	return String(_stages[clampi(realm, 0, _stages.size() - 1)]["foename"])
 
+## Wuxia minor layer (1..10) WITHIN the current major realm, derived from how far
+## souls have progressed toward the next realm's threshold.
+func minor_level() -> int:
+	var lo: int = int(_realms[realm]["souls"])
+	var hi: int = int(_realms[realm + 1]["souls"]) if realm + 1 < _realms.size() else lo + 60
+	var span: int = maxi(1, hi - lo)
+	var f: float = clampf(float(souls - lo) / float(span), 0.0, 0.999)
+	return int(f * 10.0) + 1
+
+func _layer_text(n: int) -> String:
+	if n >= 10:
+		return "Great Perfection"
+	var suffix := "th"
+	if n == 1: suffix = "st"
+	elif n == 2: suffix = "nd"
+	elif n == 3: suffix = "rd"
+	return "%d%s Layer" % [n, suffix]
+
+## "Realm · Nth Layer" on the HUD; called on start, souls change, and breakthrough.
+func _refresh_realm() -> void:
+	if _hud != null:
+		_hud.set_realm("%s · %s" % [String(_realms[realm]["name"]), _layer_text(minor_level())])
+
 ## The pursuing martial artists also cultivate: their rank rises over the run, and
 ## their techniques (the hazards you dodge) grow visually from a dull flicker to a
 ## blazing heaven-cleaving wave. accent = qi color, energy = glow, scale = size.
@@ -165,7 +188,7 @@ func _ready() -> void:
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, 1.0)
 	if _hud != null:
-		_hud.set_realm(String(_realms[0]["name"]))
+		_refresh_realm()
 		_hud.set_best(_best)
 		_hud.set_qi_visible(has_ability("qi"))   # hidden until Golden Core
 	if _player != null:
@@ -281,6 +304,7 @@ func on_orb_collected() -> void:
 	qi = minf(qi_max, qi + 4.0)
 	qi_changed.emit(qi, qi_max)
 	_check_breakthrough()
+	_refresh_realm()
 	_sfx("orb")
 
 func _combo_mult() -> float:
@@ -312,6 +336,7 @@ func on_enemy_killed(count: int = 1) -> void:
 	souls_changed.emit(souls)
 	combo_changed.emit(combo, m)
 	_check_breakthrough()
+	_refresh_realm()
 	_sfx("kill")
 	_shake(0.12)
 	qi = minf(qi_max, qi + qi_per_kill * float(count))
@@ -336,7 +361,7 @@ func _breakthrough(idx: int) -> void:
 	if UNLOCKS.has(idx):
 		msg += "\n" + String(UNLOCKS[idx]) + " awakened"
 	if _hud != null:
-		_hud.set_realm(rname)
+		_refresh_realm()
 		_hud.show_banner(msg)
 		_hud.flash(Color(1.0, 0.85, 0.4))
 		_hud.set_qi_visible(has_ability("qi"))   # Qi cultivation begins at Golden Core

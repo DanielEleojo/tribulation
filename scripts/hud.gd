@@ -117,7 +117,7 @@ func _build_glass() -> void:
 	_glass_shader.code = GLASS_SHADER
 	# Left cluster (distance + Qi), center (realm), right (souls + shield).
 	_glass(self, 12, 8, 372, 98, 0, 0, 0, 0, 24)
-	_glass(self, -156, 6, 156, 54, 0.5, 0, 0.5, 0, 22)
+	_glass(self, -240, 6, 240, 54, 0.5, 0, 0.5, 0, 22)
 	_glass(self, -252, 8, -12, 92, 1.0, 0, 1.0, 0, 22)
 	# Death card.
 	_glass(death_label, -28, -28, 28, 28, 0, 0, 1, 1, 28)
@@ -149,6 +149,9 @@ func _style_widgets() -> void:
 	for lbl in [distance_label, souls_label, shield_label, banner_label]:
 		lbl.add_theme_color_override("font_color", white)
 	realm_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.6))
+	realm_label.add_theme_font_size_override("font_size", 22)   # room for "Realm · Nth Layer"
+	realm_label.offset_left = -270
+	realm_label.offset_right = 270
 	# Qi capsule: translucent rounded track + glowing cyan fill.
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(1, 1, 1, 0.12)
