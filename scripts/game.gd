@@ -8,6 +8,7 @@ signal died
 signal qi_changed(qi: float, qi_max: float)
 signal net_changed(net: float)
 signal souls_changed(souls: int)
+signal combo_changed(combo: int, mult: float)
 
 @export var qi_max: float = 100.0      # Qi needed to trigger a Qi Burst
 @export var qi_per_kill: float = 20.0  # Qi gained per enemy slain (5 kills = burst)
@@ -20,7 +21,9 @@ var started: bool = false             # false on the title screen, true once run
 var is_dead: bool = false
 var qi: float = 0.0
 var net: float = 0.0                  # 0 = open, 1 = closed (death)
-var souls: int = 0                    # Demon Souls collected this run (+1 per kill)
+var souls: int = 0                    # Demon Souls collected this run
+var combo: int = 0                    # streak of kills/orbs (resets when hit); scales soul gain
+var _best: int = 0                    # best distance ("li") ever, persisted
 var _hud
 var _cam
 var _player
@@ -91,6 +94,7 @@ func _ready() -> void:
 		died.connect(hud.on_death)
 		qi_changed.connect(hud.on_qi_changed)
 		souls_changed.connect(hud.on_souls_changed)
+		combo_changed.connect(hud.on_combo_changed)
 	if swipe != null:
 		swipe.tapped.connect(_on_tap)
 	var net_overlay := get_tree().get_first_node_in_group("net_overlay")
@@ -101,11 +105,14 @@ func _ready() -> void:
 	_setup_atmosphere()
 	_apply_theme(0)   # start in the forest
 
+	_load_best()
 	qi_changed.emit(qi, qi_max)   # initialize the HUD bar at 0
 	net_changed.emit(net)
 	souls_changed.emit(souls)
+	combo_changed.emit(combo, 1.0)
 	if _hud != null:
 		_hud.set_realm(String(_realms[0]["name"]))
+		_hud.set_best(_best)
 	if _player != null:
 		_player.apply_realm_stats(_realms[0])   # weak Mortal Husk baseline
 		_player.set_jump_power(_jump_for_tier(enemy_tier))   # third-rate base jump
@@ -182,6 +189,7 @@ func player_hit() -> void:
 	if _player != null and _player.try_absorb_hit():
 		_sfx("breakthrough")
 		_shake(0.45)
+		_reset_combo()                            # a blow breaks the streak (you survived)
 		if _hud != null:
 			_hud.flash(Color(0.55, 0.6, 0.95))   # iron-body absorb flash
 		return
@@ -192,17 +200,59 @@ func die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	var dist: int = _player.get_distance() if _player != null else 0
+	if dist > _best:
+		_best = dist
+		_save_best()
+	if _hud != null:
+		_hud.set_best(_best)
 	_sfx("death")
 	_shake(0.9)
 	_hitstop(0.12)
 	died.emit()
 
+## A Spirit Orb was run through — soul + Qi reward, builds the combo.
+func on_orb_collected() -> void:
+	if is_dead:
+		return
+	combo += 1
+	var m := _combo_mult()
+	souls += int(round(m))
+	souls_changed.emit(souls)
+	combo_changed.emit(combo, m)
+	qi = minf(qi_max, qi + 4.0)
+	qi_changed.emit(qi, qi_max)
+	_check_breakthrough()
+	_sfx("orb")
+
+func _combo_mult() -> float:
+	return minf(5.0, 1.0 + float(combo) * 0.1)   # +0.1x per streak, capped 5x
+
+func _reset_combo() -> void:
+	if combo != 0:
+		combo = 0
+		combo_changed.emit(0, 1.0)
+
+func _load_best() -> void:
+	var c := ConfigFile.new()
+	if c.load("user://tribulation.cfg") == OK:
+		_best = int(c.get_value("run", "best_li", 0))
+
+func _save_best() -> void:
+	var c := ConfigFile.new()
+	c.load("user://tribulation.cfg")
+	c.set_value("run", "best_li", _best)
+	c.save("user://tribulation.cfg")
+
 ## Called by the player after a slash kills enemies. Charges Qi; bursts at max.
 func on_enemy_killed(count: int = 1) -> void:
 	if is_dead:
 		return
-	souls += count
+	combo += count
+	var m := _combo_mult()
+	souls += int(round(float(count) * m))
 	souls_changed.emit(souls)
+	combo_changed.emit(combo, m)
 	_check_breakthrough()
 	_sfx("kill")
 	_shake(0.12)
@@ -393,6 +443,7 @@ func on_gate(safe: bool) -> void:
 	else:
 		qi = maxf(0.0, qi - 40.0)
 		net = minf(1.0, net + 0.30)
+		_reset_combo()
 		_sfx("gate_bad")
 		_shake(0.5)
 		if _hud != null:

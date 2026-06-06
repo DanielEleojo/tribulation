@@ -13,6 +13,9 @@ extends CanvasLayer
 
 var player
 var _souls: int = 0
+var _best_li: int = 0
+var _combo_label: Label
+var _title_best: Label
 var _glass_shader: Shader
 var _glass_panels: Array = []
 
@@ -61,8 +64,46 @@ func _ready() -> void:
 	banner_label.modulate.a = 0.0
 	_build_glass()
 	_style_widgets()
+	_build_combo_and_best()
 	get_viewport().size_changed.connect(_refresh_glass)
 	call_deferred("_refresh_glass")
+
+## Combo readout (center, under the realm) + best-li line on the title.
+func _build_combo_and_best() -> void:
+	_combo_label = Label.new()
+	_combo_label.anchor_left = 0.5; _combo_label.anchor_right = 0.5
+	_combo_label.offset_left = -180; _combo_label.offset_right = 180
+	_combo_label.offset_top = 52; _combo_label.offset_bottom = 90
+	_combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_combo_label.add_theme_font_size_override("font_size", 28)
+	_combo_label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.35))
+	_combo_label.visible = false
+	add_child(_combo_label)
+	_title_best = Label.new()
+	_title_best.anchor_left = 0.5; _title_best.anchor_right = 0.5
+	_title_best.anchor_top = 0.5; _title_best.anchor_bottom = 0.5
+	_title_best.offset_left = -300; _title_best.offset_right = 300
+	_title_best.offset_top = 84; _title_best.offset_bottom = 120
+	_title_best.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_best.add_theme_font_size_override("font_size", 24)
+	_title_best.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
+	title_root.add_child(_title_best)
+
+## Combo streak readout (hidden until 2+).
+func on_combo_changed(c: int, mult: float) -> void:
+	if _combo_label == null:
+		return
+	if c > 1:
+		_combo_label.text = "COMBO  x%d   %.1f×" % [c, mult]
+		_combo_label.visible = true
+	else:
+		_combo_label.visible = false
+
+## Best distance ever (shown on title + death).
+func set_best(b: int) -> void:
+	_best_li = b
+	if _title_best != null:
+		_title_best.text = ("Best: %d li" % b) if b > 0 else ""
 
 ## Build frosted-glass panels behind the HUD clusters.
 func _build_glass() -> void:
@@ -162,5 +203,5 @@ func on_death() -> void:
 	var dist := 0
 	if player != null:
 		dist = player.get_distance()
-	death_label.text = "GAME OVER\n\nDistance: %d m\nDemon Souls: %d\n\nEnter / tap to retry\n[ Watch ad to continue — coming soon ]" % [dist, _souls]
+	death_label.text = "GAME OVER\n\nDistance: %d li     Best: %d li\nDemon Souls: %d\n\nEnter / tap to retry\n[ Watch ad to continue — coming soon ]" % [dist, _best_li, _souls]
 	death_label.visible = true

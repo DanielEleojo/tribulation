@@ -39,12 +39,18 @@ var _enemy_scene: PackedScene
 @export var min_interval: float = 0.7
 @export var ramp_time: float = 60.0
 @export var gate_interval: float = 11.0   # seconds between Life/Death Gates
+@export var orb_interval: float = 2.4     # seconds between Spirit Orb trails
+
+const ORB_COLOR := Color(0.55, 0.85, 1.0)   # spirit-cyan
+const ORB_TRAIL := 5                          # orbs per trail
+const ORB_GAP := 3.2                          # spacing along the trail
 
 var player: Node3D
 var game
 var _elapsed: float = 0.0
 var _timer: float = 0.0
 var _gate_timer: float = 0.0
+var _orb_timer: float = 0.0
 var _spawn_index: int = 0
 
 func _ready() -> void:
@@ -52,6 +58,7 @@ func _ready() -> void:
 	game = get_tree().get_first_node_in_group("game")
 	_timer = start_interval
 	_gate_timer = gate_interval
+	_orb_timer = orb_interval
 	_enemy_scene = load(ENEMY_GLB)
 
 func _process(delta: float) -> void:
@@ -72,6 +79,10 @@ func _process(delta: float) -> void:
 	if _gate_timer <= 0.0:
 		_spawn_gate()
 		_gate_timer = gate_interval
+	_orb_timer -= delta
+	if _orb_timer <= 0.0:
+		_spawn_orb_trail()
+		_orb_timer = orb_interval
 	_cleanup()
 
 func _current_interval() -> float:
@@ -119,6 +130,42 @@ func _spawn_enemy_row(z: float) -> void:
 	var e := _make_enemy()
 	e.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
 	add_child(e)
+
+## A trail of Spirit Orbs down one lane — run through them for souls + Qi (builds combo).
+func _spawn_orb_trail() -> void:
+	var lane: int = randi() % 3
+	var x: float = float(lane - 1) * LANE_WIDTH
+	var z0: float = player.global_position.z - SPAWN_AHEAD * 0.85
+	for i in range(ORB_TRAIL):
+		var orb := Area3D.new()
+		var mesh := MeshInstance3D.new()
+		var sph := SphereMesh.new()
+		sph.radius = 0.35
+		sph.height = 0.7
+		mesh.mesh = sph
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = ORB_COLOR
+		mat.emission_enabled = true
+		mat.emission = ORB_COLOR
+		mat.emission_energy_multiplier = 2.0
+		mesh.material_override = mat
+		mesh.position = Vector3(0.0, 1.0, 0.0)
+		var col := CollisionShape3D.new()
+		var sh := SphereShape3D.new()
+		sh.radius = 0.6
+		col.shape = sh
+		col.position = Vector3(0.0, 1.0, 0.0)
+		orb.add_child(mesh)
+		orb.add_child(col)
+		orb.add_to_group("orb")
+		orb.body_entered.connect(_on_orb_hit.bind(orb))
+		orb.position = Vector3(x, 0.0, z0 - float(i) * ORB_GAP)
+		add_child(orb)
+
+func _on_orb_hit(body: Node, orb: Area3D) -> void:
+	if body.is_in_group("player") and game != null and is_instance_valid(orb):
+		game.on_orb_collected()
+		orb.queue_free()
 
 # Plane-coded base hues so the player reads the required dodge at a glance.
 const HUE_LOW := Color(1.0, 0.5, 0.12)    # amber — ground sword-qi (JUMP)
