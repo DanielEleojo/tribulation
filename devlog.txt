@@ -64,3 +64,6 @@
 
 [R5e] Audio — 2026-06-06
 Procedural placeholder SFX bank (11 WAVs: start/slash/kill/jump/slide/gate_good/gate_bad/burst/breakthrough/death/orb) auto-loaded by sound_manager. New music.gd: loads assets/music/theme.wav (16s seamless ambient drone), loops it, ramps pitch with run speed, swells in Tribulation, ducks on death; no-op if no track present. Wired Music node into game.tscn. Headless: 11 SFX players built, music loads+plays, no script errors.
+
+[U1] Audio overhaul — 2026-06-06
+Replaced harsh placeholders with a calming, modern, generative ambient loop: a slow-breathing Am9 pad + sparse pentatonic bells, 96s SEAMLESS (whole-cycle partials, bell tails inside the loop) so it can play for hours without fatigue or an audible seam. Stereo 16-bit PCM, looped via import settings (was lossy QOA). All 11 SFX regenerated soft/pleasant with smooth click-free envelopes, mixed low to sit under the music. New reusable generator tools/gen_audio.py (numpy). music.gd loop math fixed for stereo. Headless: music loops full file, SFX load, no errors.

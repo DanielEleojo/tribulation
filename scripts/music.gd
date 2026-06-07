@@ -19,7 +19,9 @@ func _ready() -> void:
 	if stream is AudioStreamWAV:
 		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		stream.loop_begin = 0
-		stream.loop_end = int(stream.data.size() / 2)   # mono 16-bit -> frames
+		var bps := 2 if stream.format == AudioStreamWAV.FORMAT_16_BITS else 1
+		var ch := 2 if stream.stereo else 1
+		stream.loop_end = int(stream.data.size() / (bps * ch))   # bytes -> frames
 	_player = AudioStreamPlayer.new()
 	_player.stream = stream
 	_player.volume_db = -9.0
