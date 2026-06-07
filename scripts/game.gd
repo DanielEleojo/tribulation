@@ -49,6 +49,16 @@ var _autosave_t: float = 20.0
 var _spent: int = 0                    # lifetime stones spent on upgrades (realm uses EARNED `total`)
 var _upgrades: Dictionary = {}         # id -> level, persisted
 
+# --- onboarding + retention meta (all persisted) ---
+var _tutorial_done: bool = false       # first-run controls tutorial shown?
+var _daily_last_day: int = -1          # day-number (UTC) of the last daily Qi claim
+var _daily_streak: int = 0             # consecutive-day claim streak
+var _stat_runs: int = 0                # lifetime runs begun
+var _stat_foes: int = 0                # lifetime foes slain
+var _stat_tribs: int = 0              # lifetime Tribulations survived
+var _stat_deaths: int = 0             # lifetime deaths
+var _ach_unlocked: Array = []          # earned achievement ids
+
 # --- Audio settings (0..1 linear), persisted in [audio]; applied to audio buses ---
 var _music_vol: float = 0.8
 var _sfx_vol: float = 0.9
@@ -648,6 +658,15 @@ func _load_save() -> void:
 		_music_vol = clampf(float(c.get_value("audio", "music", 0.8)), 0.0, 1.0)
 		_sfx_vol = clampf(float(c.get_value("audio", "sfx", 0.9)), 0.0, 1.0)
 		_muted = bool(c.get_value("audio", "muted", false))
+		_tutorial_done = bool(c.get_value("meta", "tutorial_done", false))
+		_daily_last_day = int(c.get_value("daily", "last_day", -1))
+		_daily_streak = int(c.get_value("daily", "streak", 0))
+		_stat_runs = int(c.get_value("stats", "runs", 0))
+		_stat_foes = int(c.get_value("stats", "foes", 0))
+		_stat_tribs = int(c.get_value("stats", "tribs", 0))
+		_stat_deaths = int(c.get_value("stats", "deaths", 0))
+		var au = c.get_value("ach", "unlocked", "")
+		_ach_unlocked = (String(au).split(",", false)) if String(au) != "" else []
 
 func _save() -> void:
 	var c := ConfigFile.new()
@@ -661,6 +680,14 @@ func _save() -> void:
 	c.set_value("audio", "music", _music_vol)
 	c.set_value("audio", "sfx", _sfx_vol)
 	c.set_value("audio", "muted", _muted)
+	c.set_value("meta", "tutorial_done", _tutorial_done)
+	c.set_value("daily", "last_day", _daily_last_day)
+	c.set_value("daily", "streak", _daily_streak)
+	c.set_value("stats", "runs", _stat_runs)
+	c.set_value("stats", "foes", _stat_foes)
+	c.set_value("stats", "tribs", _stat_tribs)
+	c.set_value("stats", "deaths", _stat_deaths)
+	c.set_value("ach", "unlocked", ",".join(_ach_unlocked))
 	c.save("user://tribulation.cfg")
 
 ## Called by the player after a slash kills enemies. Charges Qi; bursts at max.
@@ -865,8 +892,20 @@ func _start_pressed() -> bool:
 		or Input.is_action_just_pressed("move_right") \
 		or Input.is_action_just_pressed("restart")
 
+## First-ever start teaches the controls before the run begins; the tutorial then
+## calls back into start_game() once tutorial_done is set.
+func mark_tutorial_done() -> void:
+	_tutorial_done = true
+	_save()
+
+func is_tutorial_done() -> bool:
+	return _tutorial_done
+
 func start_game() -> void:
 	if started:
+		return
+	if not _tutorial_done and _hud != null and _hud.has_method("begin_tutorial"):
+		_hud.begin_tutorial(true)
 		return
 	started = true
 	_sfx("start")

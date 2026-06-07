@@ -86,3 +86,6 @@ Dusted off rough edges and made the project release-ready (iOS export happens on
 - Removed death-card "Watch ad — coming soon" (no ads in v1; reviewers reject vaporware) -> thematic persistence tip.
 - SHIP_iOS.md: full Mac+Xcode+App Store Connect runbook & checklist (no data collected / no tracking labels).
 - Verified: import clean, icon opaque 1024 RGB, scene + gameplay error-free, payload 79MB -> ~21MB before texture compression.
+
+[T1] Onboarding tutorial — 2026-06-07
+First-ever start runs a 5-step coached overlay (intro -> change lane -> leap -> slide -> ascend) before the run begins; teaches only the always-available verbs (the rest are announced at breakthroughs). Gestures detected off the overlay's own gui_input (swipe) + key polling (A/D/Space/S); Skip + Esc bail out. Persisted via [meta]tutorial_done so it shows once; replayable from Settings -> How to Play. game.start_game() gates the first run into begin_tutorial then calls back. Headless-verified: first launch triggers it, advances, finishes -> starts run + persists; relaunch skips it.

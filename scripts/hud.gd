@@ -66,6 +66,33 @@ var _death_title: Label
 var _death_stats: Label
 var _paused: bool = false
 
+# ---- onboarding tutorial ----
+var _tut_root: Control
+var _tut_count: Label
+var _tut_title: Label
+var _tut_body: Label
+var _tut_cont: Button
+var _tut_skip: Button
+var _tut_active: bool = false
+var _tut_step: int = 0
+var _tut_then_start: bool = false
+var _tut_touch_start: Vector2 = Vector2.ZERO
+var _tut_touching: bool = false
+const _TUT_STEPS := [
+	{"type": "info", "title": "The Cultivator's Road",
+	 "body": "You walk the endless road of cultivation.\nEndure its trials, gather Qi, and ascend realm by realm.",
+	 "btn": "Continue"},
+	{"type": "gesture", "need": ["left", "right"], "title": "Change Lane",
+	 "body": "Swipe LEFT or RIGHT   ( ◀ ▶ / A · D )\nto step between the three lanes.\n\nTry it now."},
+	{"type": "gesture", "need": ["up"], "title": "Leap",
+	 "body": "Swipe UP   ( ▲ / Space )\nto leap over Stone Wards.\n\nTry it now."},
+	{"type": "gesture", "need": ["down"], "title": "Slide",
+	 "body": "Swipe DOWN   ( ▼ / S )\nto slide under Spirit Barriers.\n\nTry it now."},
+	{"type": "info", "title": "Ascend",
+	 "body": "New arts awaken as you ascend — Qi Leap, sword-qi, even flight. Your major realm is saved; a fall costs only this layer's progress.",
+	 "btn": "Begin Cultivation"},
+]
+
 
 func _game():
 	if _game_ref == null:
@@ -85,6 +112,7 @@ func _ready() -> void:
 	_build_pause()
 	_build_settings()
 	_build_death()
+	_build_tutorial()
 	call_deferred("_build_shop")
 
 
@@ -438,6 +466,11 @@ func _build_settings() -> void:
 
 	var sp2 := Control.new(); sp2.size_flags_vertical = Control.SIZE_EXPAND_FILL; v.add_child(sp2)
 
+	var howto := _btn("How to Play", "ghost", 22)
+	howto.custom_minimum_size = Vector2(0, 54)
+	howto.pressed.connect(func(): _show_overlay(_settings_root, false); begin_tutorial(false))
+	v.add_child(howto)
+
 	_reset_btn = _btn("Reset Cultivation", "danger", 22)
 	_reset_btn.custom_minimum_size = Vector2(0, 54)
 	_reset_btn.pressed.connect(_on_reset)
@@ -532,6 +565,149 @@ func _quit_to_menu() -> void:
 		g.restart()   # reloads the scene -> back to the title
 
 
+# ================================================================ onboarding tutorial
+func _sfx(n: String) -> void:
+	var s = get_tree().get_first_node_in_group("sound")
+	if s != null:
+		s.play(n)
+
+
+func _build_tutorial() -> void:
+	# STOP root so it owns input; we read swipes off its own gui_input (no dependency
+	# on the gameplay swipe detector), and poll keys in _process.
+	_tut_root = Control.new()
+	_tut_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tut_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_tut_root.process_mode = Node.PROCESS_MODE_ALWAYS
+	_tut_root.gui_input.connect(_tut_on_gui)
+	var bg := ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.02, 0.03, 0.05, 0.90)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tut_root.add_child(bg)
+	add_child(_tut_root)
+	var card := _card(_tut_root, 600, 470)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE   # let practice swipes cross the card
+	var v := VBoxContainer.new()
+	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = 32; v.offset_right = -32; v.offset_top = 28; v.offset_bottom = -26
+	v.add_theme_constant_override("separation", 14)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(v)
+	_tut_count = _label("", 16, ACCENT, HORIZONTAL_ALIGNMENT_CENTER)
+	v.add_child(_tut_count)
+	_tut_title = _label("", 32, TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	v.add_child(_tut_title)
+	_tut_body = _label("", 21, DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	_tut_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tut_body.custom_minimum_size = Vector2(0, 150)
+	_tut_body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	v.add_child(_tut_body)
+	var sp := Control.new(); sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE; v.add_child(sp)
+	_tut_cont = _btn("Continue", "primary", 26)
+	_tut_cont.custom_minimum_size = Vector2(0, 58)
+	_tut_cont.pressed.connect(_tut_advance)
+	v.add_child(_tut_cont)
+	_tut_skip = _btn("Skip", "ghost", 20)
+	_tut_skip.custom_minimum_size = Vector2(0, 42)
+	_tut_skip.pressed.connect(_tut_skip_all)
+	v.add_child(_tut_skip)
+	_tut_root.visible = false
+
+
+## then_start=true: first-run flow (start the game when done). false: replay from Settings.
+func begin_tutorial(then_start: bool = true) -> void:
+	if _tut_active:
+		return
+	_tut_active = true
+	_tut_then_start = then_start
+	_tut_step = 0
+	_show_overlay(_tut_root, true)
+	_tut_render()
+
+
+func _tut_render() -> void:
+	var s = _TUT_STEPS[_tut_step]
+	_tut_count.text = "%d / %d" % [_tut_step + 1, _TUT_STEPS.size()]
+	_tut_title.text = String(s["title"])
+	_tut_body.text = String(s["body"])
+	var is_info: bool = s["type"] == "info"
+	_tut_cont.visible = is_info
+	if is_info:
+		_tut_cont.text = String(s.get("btn", "Continue"))
+	_tut_skip.visible = _tut_step < _TUT_STEPS.size() - 1
+
+
+func _tut_next() -> void:
+	if _tut_step >= _TUT_STEPS.size() - 1:
+		_tut_finish()
+	else:
+		_tut_step += 1
+		_tut_render()
+
+
+func _tut_advance() -> void:        # info-step "Continue/Begin" button
+	_sfx("orb")
+	_tut_next()
+
+
+func _tut_gesture(kind: String) -> void:
+	if not _tut_active:
+		return
+	var s = _TUT_STEPS[_tut_step]
+	if s["type"] != "gesture":
+		return
+	if kind in s["need"]:
+		_sfx("orb")
+		flash(ACCENT)
+		_tut_next()
+
+
+func _tut_skip_all() -> void:
+	_tut_finish()
+
+
+func _tut_finish() -> void:
+	_tut_active = false
+	_show_overlay(_tut_root, false)
+	var g = _game()
+	if g != null and g.has_method("mark_tutorial_done"):
+		g.mark_tutorial_done()
+	if _tut_then_start and g != null:
+		g.start_game()
+
+
+## Read swipes directly off the overlay (works with emulate_touch_from_mouse too).
+func _tut_on_gui(event: InputEvent) -> void:
+	if not _tut_active:
+		return
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_tut_touch_start = event.position
+			_tut_touching = true
+		elif _tut_touching:
+			_tut_touching = false
+			var d: Vector2 = event.position - _tut_touch_start
+			if absf(d.x) < 60.0 and absf(d.y) < 60.0:
+				return
+			if absf(d.x) > absf(d.y):
+				_tut_gesture("right" if d.x > 0.0 else "left")
+			else:
+				_tut_gesture("down" if d.y > 0.0 else "up")
+
+
+func _tut_poll_keys() -> void:
+	if Input.is_action_just_pressed("move_left"):
+		_tut_gesture("left")
+	elif Input.is_action_just_pressed("move_right"):
+		_tut_gesture("right")
+	elif Input.is_action_just_pressed("jump"):
+		_tut_gesture("up")
+	elif Input.is_action_just_pressed("slide"):
+		_tut_gesture("down")
+
+
 # ================================================================ death card
 func _build_death() -> void:
 	_death_root = _full_overlay(0.80)
@@ -568,7 +744,9 @@ func _show_overlay(root: Control, v: bool) -> void:
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		var g = _game()
-		if _settings_root != null and _settings_root.visible:
+		if _tut_active:
+			_tut_skip_all()
+		elif _settings_root != null and _settings_root.visible:
 			_show_overlay(_settings_root, false)
 		elif _shop_root != null and _shop_root.visible:
 			_show_overlay(_shop_root, false)
@@ -679,6 +857,8 @@ func on_souls_changed(souls: int) -> void:
 
 
 func _process(_delta: float) -> void:
+	if _tut_active:
+		_tut_poll_keys()
 	if player != null:
 		distance_label.text = "%d li" % player.get_distance()
 
