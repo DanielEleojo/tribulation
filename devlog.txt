@@ -76,3 +76,13 @@ Full rewrite of hud.gd into one cohesive jade-Qi themed app. Main menu: wordmark
 
 [R6] Balance & feel pass — 2026-06-06
 Core fix: removed the difficulty PLATEAU that let skilled players farm forever. Endless creep — player speed keeps rising past the 90s ramp (speed_creep 0.07/s, bounded +16 -> max 38 by ~5min) and spawn interval keeps tightening past the 60s ramp (endless_ramp 200s -> floor 0.42s by ~4.3min). Per-realm difficulty offset (DIFFICULTY_PER_REALM 12s): higher realms start deeper in the curve via player.begin_run(off)+spawner.begin_run(off). Re-tuned REALM_SPAN [50,120,300,750,1800] — quick early hook, near-perfect-run+upgrades wall at the top for a weeks-to-months Ascension. Pre-combat realms 0-1: gathering Qi eases the Net (-0.012/orb) since no kills yet. Removed dead _check_breakthrough. Headless god-mode measurement validated no plateau + sane economy; clean real-death smoke. New BALANCE.md documents the curve, measured rates, and tuning knobs.
+
+[SHIP] App Store / Xcode prep — 2026-06-07
+Dusted off rough edges and made the project release-ready (iOS export happens on Mac).
+- Real app icon: opaque 1024 jade-Qi sword (tools/gen_icon.py -> assets/icon.png); replaced default Godot icon.svg (removed).
+- project.godot: config/version 1.0.0 + description; config/icon -> assets/icon.png; mobile ASTC texture compression (import_etc2_astc).
+- export_presets.cfg: iOS preset — bundle com.vellicade.tribulation, v1.0.0/build1, min iOS 13, iPhone&iPad, launch storyboard, tracking off, exclude_filter strips ~43MB dead weight (disabled Models/, unused net_formation.png, docs, tools) from the build.
+- Music shipped as looping OGG (973KB) instead of 16.9MB PCM WAV (ffmpeg libvorbis q6, loop=true in import); gen_audio.py now encodes OGG; music.gd loads it (AudioStreamOggVorbis, verified looping).
+- Removed death-card "Watch ad — coming soon" (no ads in v1; reviewers reject vaporware) -> thematic persistence tip.
+- SHIP_iOS.md: full Mac+Xcode+App Store Connect runbook & checklist (no data collected / no tracking labels).
+- Verified: import clean, icon opaque 1024 RGB, scene + gameplay error-free, payload 79MB -> ~21MB before texture compression.

@@ -552,8 +552,9 @@ func _build_death() -> void:
 	again.custom_minimum_size = Vector2(0, 62)
 	again.pressed.connect(func(): if _game(): _game().restart())
 	v.add_child(again)
-	var ad := _label("Watch ad to continue — coming soon", 16, DIM, HORIZONTAL_ALIGNMENT_CENTER)
-	v.add_child(ad)
+	var tip := _label("Your realm endures — only this layer's progress is lost.", 16, DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(tip)
 	_show_overlay(_death_root, false)
 
 

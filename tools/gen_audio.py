@@ -11,7 +11,7 @@ under the music. Swap any file for a real recording later; nothing else changes.
 
 Run:  python3 tools/gen_audio.py
 """
-import os, math, wave, struct
+import os, math, wave, struct, shutil, subprocess
 import numpy as np
 
 SR = 44100
@@ -122,7 +122,19 @@ def gen_music():
     peak = np.max(np.abs(stereo))
     if peak > 0:
         stereo *= 0.5 / peak       # ~ -6 dBFS peak: present but unobtrusive
-    write_wav(os.path.join(MUSIC, "theme.wav"), stereo, stereo=True)
+    # Ship as OGG (~1 MB vs ~17 MB PCM). Set loop=true in theme.ogg.import.
+    wav_tmp = os.path.join(MUSIC, "theme.wav")
+    ogg_out = os.path.join(MUSIC, "theme.ogg")
+    write_wav(wav_tmp, stereo, stereo=True)
+    if shutil.which("ffmpeg"):
+        subprocess.run(["ffmpeg", "-y", "-i", wav_tmp, "-c:a", "libvorbis",
+                        "-qscale:a", "6", ogg_out], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.remove(wav_tmp)
+        print("  encoded", os.path.relpath(ogg_out, HERE),
+              "(remember loop=true in theme.ogg.import)")
+    else:
+        print("  ffmpeg not found — kept theme.wav (large). Install ffmpeg to ship OGG.")
 
 
 # ---------------------------------------------------------------- SFX
