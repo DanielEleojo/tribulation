@@ -114,7 +114,7 @@ func _refresh_cult() -> void:
 	var g = _game()
 	if g == null or _cult_root == null:
 		return
-	_cult_balance.text = "Spirit Stones: %d" % g.balance()
+	_cult_balance.text = "Qi: %d" % g.balance()
 	for id in _cult_buttons:
 		var d = g.UPGRADES[id]
 		var b: Button = _cult_buttons[id]
@@ -314,7 +314,7 @@ func on_qi_changed(qi: float, qi_max: float) -> void:
 ## Called by the game coordinator whenever Demon Souls change (and once at start).
 func on_souls_changed(souls: int) -> void:
 	_souls = souls
-	souls_label.text = "Stones: %d" % souls
+	souls_label.text = "Qi: %d" % souls
 
 func _process(_delta: float) -> void:
 	if player == null:
@@ -326,5 +326,5 @@ func on_death() -> void:
 	var dist := 0
 	if player != null:
 		dist = player.get_distance()
-	death_label.text = "QI DEVIATION\n\n%d li traveled     Best: %d li\n+%d Spirit Stones this run\n%s\n\nEnter / tap to walk again\n[ Watch ad to continue — coming soon ]" % [dist, _best_li, _souls, _realm_text]
+	death_label.text = "QI DEVIATION\n\n%d li traveled     Best: %d li\n+%d Qi this run\n%s\n\nEnter / tap to walk again\n[ Watch ad to continue — coming soon ]" % [dist, _best_li, _souls, _realm_text]
 	death_label.visible = true

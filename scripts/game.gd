@@ -44,7 +44,7 @@ var _upgrades: Dictionary = {}         # id -> level, persisted
 ## Permanent cultivation upgrades bought with the spendable balance (total - spent).
 ## Spending does NOT lower your realm (driven by lifetime EARNED total).
 const UPGRADES := {
-	"spirit_gathering": {"name": "Spirit Gathering", "max": 10, "base": 300,  "mult": 1.6, "desc": "+8% Spirit Stones"},
+	"spirit_gathering": {"name": "Spirit Gathering", "max": 10, "base": 300,  "mult": 1.6, "desc": "+8% Qi"},
 	"talisman":         {"name": "Talisman Mastery", "max": 5,  "base": 600,  "mult": 1.8, "desc": "+1.5s art duration"},
 	"qi_sea":           {"name": "Qi Sea",           "max": 5,  "base": 800,  "mult": 1.8, "desc": "+20% Qi gain"},
 	"iron_body":        {"name": "Iron Body Refining","max": 2, "base": 2500, "mult": 4.0, "desc": "+1 starting Iron Body"},
@@ -90,7 +90,7 @@ func _pill_bonus() -> float:
 const TRIALS := [
 	{"id": "slay",    "fmt": "Slay %d foes",            "goals": [8, 16, 28],     "rewards": [40, 90, 170]},
 	{"id": "li",      "fmt": "Flee %d li",              "goals": [400, 900, 1600], "rewards": [40, 90, 170]},
-	{"id": "qi",      "fmt": "Gather %d Spirit Qi",     "goals": [15, 30, 55],    "rewards": [40, 90, 170]},
+	{"id": "qi",      "fmt": "Gather %d Qi",            "goals": [15, 30, 55],    "rewards": [40, 90, 170]},
 	{"id": "combo",   "fmt": "Reach a Dao Heart of %d", "goals": [8, 16, 28],     "rewards": [40, 90, 170]},
 	{"id": "survive", "fmt": "Endure %d seconds",       "goals": [30, 60, 100],   "rewards": [40, 90, 170]},
 ]
@@ -127,7 +127,7 @@ func _check_trial(t: Dictionary) -> void:
 		_update_cultivation()
 		_sfx("breakthrough")
 		if _hud != null:
-			_hud.show_banner("Trial fulfilled  ·  +%d Spirit Stones" % r)
+			_hud.show_banner("Trial fulfilled  ·  +%d Qi" % r)
 
 func _refresh_trials() -> void:
 	if _hud == null:

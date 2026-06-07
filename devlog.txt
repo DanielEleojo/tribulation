@@ -67,3 +67,6 @@ Procedural placeholder SFX bank (11 WAVs: start/slash/kill/jump/slide/gate_good/
 
 [U1] Audio overhaul — 2026-06-06
 Replaced harsh placeholders with a calming, modern, generative ambient loop: a slow-breathing Am9 pad + sparse pentatonic bells, 96s SEAMLESS (whole-cycle partials, bell tails inside the loop) so it can play for hours without fatigue or an audible seam. Stereo 16-bit PCM, looped via import settings (was lossy QOA). All 11 SFX regenerated soft/pleasant with smooth click-free envelopes, mixed low to sit under the music. New reusable generator tools/gen_audio.py (numpy). music.gd loop math fixed for stereo. Headless: music loops full file, SFX load, no errors.
+
+[U2] Currency rename Stone -> Qi — 2026-06-06
+The gathered motes ARE Qi: all user-facing "Spirit Stones"/"Stones"/"Souls"/"Spirit Qi" now read "Qi" (HUD counter, cultivation shop balance, trial text, upgrade desc, breakthrough/trial banners, death screen, scene label). Internal var names (souls/total) unchanged. Burst gauge to be relabelled in U3 to avoid the Qi/Qi clash. Headless smoke: no errors.
