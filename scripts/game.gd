@@ -31,9 +31,17 @@ const TRIB_DURATION: float = 12.0
 
 func in_tribulation() -> bool:
 	return _tribulation
-# Stones to climb a whole realm (1st Layer -> breakthrough) IN ONE attempt. Major realms
+# Qi to climb a whole realm (1st Layer -> breakthrough) IN ONE attempt. Major realms
 # are saved; minor-layer progress is not — die and you restart your realm at the 1st Layer.
-const REALM_SPAN := [60, 140, 300, 600, 1200, 999999]
+# Tuned for the long, bitter road: quick early realms hook the player and teach the verbs;
+# the top realms demand a near-perfect run (plus shop upgrades) so Ascension is a
+# weeks-to-months summit, not a weekend. The endless difficulty creep is what caps a run,
+# so a big span = "you must survive a very long, ever-harder run to break through".
+const REALM_SPAN := [50, 120, 300, 750, 1800, 999999]
+
+# Higher realms begin deeper into the difficulty curve (seconds of "head start" the
+# player+spawner skip). Keeps low realms gentle while making each ascent genuinely harder.
+const DIFFICULTY_PER_REALM := 12.0
 var combo: int = 0                    # streak of kills/orbs (resets when hit); scales soul gain
 var _best: int = 0                    # best distance ("li") ever, persisted
 var _last_layer: int = 1
@@ -614,6 +622,9 @@ func on_orb_collected() -> void:
 	_trial_max("combo", float(combo))
 	qi = minf(qi_max, qi + 4.0)
 	qi_changed.emit(qi, qi_max)
+	if not has_ability("slash"):       # pre-combat realms (Qi Condensation/Foundation):
+		net = maxf(0.0, net - 0.012)   # gathering Qi is your only way to ease the Net
+		net_changed.emit(net)
 	_update_cultivation()
 	_sfx("orb")
 
@@ -678,12 +689,6 @@ func on_enemy_killed(count: int = 1) -> void:
 	net_changed.emit(net)
 	if qi >= qi_max:
 		_qi_burst()
-
-## Advance cultivation realm(s) when souls cross the next threshold(s).
-func _check_breakthrough() -> void:
-	while realm < _realms.size() - 1 and souls >= int(_realms[realm + 1]["souls"]):
-		realm += 1
-		_breakthrough(realm)
 
 func _breakthrough(idx: int) -> void:
 	var data: Dictionary = _realms[idx]
@@ -866,10 +871,14 @@ func start_game() -> void:
 	started = true
 	_sfx("start")
 	_roll_trials()
+	var off := float(realm) * DIFFICULTY_PER_REALM   # higher realms start harder
 	if _player != null:
 		for i in range(upgrade_level("iron_body")):   # Iron Body Refining: start with extra charges
 			_player.grant_shield()
-		_player.begin_run()
+		_player.begin_run(off)
+	var sp = get_tree().get_first_node_in_group("spawner")
+	if sp != null and sp.has_method("begin_run"):
+		sp.begin_run(off)
 	if _hud != null:
 		_hud.show_title(false)
 

@@ -38,6 +38,8 @@ var _enemy_scene: PackedScene
 @export var start_interval: float = 1.4
 @export var min_interval: float = 0.7
 @export var ramp_time: float = 60.0
+@export var hard_min_interval: float = 0.42  # ENDLESS density floor (no plateau, but bounded)
+@export var endless_ramp: float = 200.0      # seconds past ramp_time to reach the density floor
 @export var gate_interval: float = 11.0   # seconds between Life/Death Gates
 @export var orb_interval: float = 2.4     # seconds between Spirit Orb trails
 @export var pill_interval: float = 9.0    # seconds between pill/talisman drops
@@ -58,6 +60,7 @@ var _spawn_index: int = 0
 
 func _ready() -> void:
 	randomize()
+	add_to_group("spawner")
 	game = get_tree().get_first_node_in_group("game")
 	_timer = start_interval
 	_gate_timer = gate_interval
@@ -95,7 +98,16 @@ func _process(delta: float) -> void:
 
 func _current_interval() -> float:
 	var t: float = clampf(_elapsed / ramp_time, 0.0, 1.0)
-	return lerpf(start_interval, min_interval, t)
+	var i: float = lerpf(start_interval, min_interval, t)
+	# Past the ramp the road never settles — hazards keep crowding in until the floor.
+	if _elapsed > ramp_time:
+		var e: float = clampf((_elapsed - ramp_time) / endless_ramp, 0.0, 1.0)
+		i = lerpf(min_interval, hard_min_interval, e)
+	return i
+
+## Begin a run; higher realms start deeper into the difficulty curve.
+func begin_run(difficulty_offset: float = 0.0) -> void:
+	_elapsed = difficulty_offset
 
 func _spawn() -> void:
 	var base_z: float = player.global_position.z - SPAWN_AHEAD

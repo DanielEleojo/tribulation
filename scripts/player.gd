@@ -8,8 +8,10 @@ extends CharacterBody3D
 ## Placeholder visual is a colored box built in code (no art yet).
 
 @export var base_speed: float = 12.0       # starting forward speed (units/sec, -Z)
-@export var max_speed: float = 22.0        # speed cap so it stays playable
+@export var max_speed: float = 22.0        # speed the ramp reaches by speed_ramp_time
 @export var speed_ramp_time: float = 90.0  # seconds of running to reach max_speed
+@export var speed_creep: float = 0.07      # ENDLESS: units/sec ADDED per second past the ramp
+@export var speed_creep_cap: float = 16.0  # max extra speed the endless creep can add (no plateau, but bounded)
 @export var gravity: float = 48.0          # downward acceleration (units/sec^2) — snappier arc
 @export var jump_velocity: float = 17.0  # upward velocity on jump (units/sec; scales with martial stage)
 @export var fast_fall_speed: float = 46.0  # downward dive speed when sliding mid-air
@@ -419,7 +421,7 @@ func _physics_process(delta: float) -> void:
 
 	_run_time += delta
 	var ramp: float = clampf(_run_time / speed_ramp_time, 0.0, 1.0)
-	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _sprint_boost + _dash_bonus()
+	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _endless_creep() + _sprint_boost + _dash_bonus()
 	velocity.z = -run_speed
 	# Ease sideways toward the target lane's X.
 	var target_x: float = float(current_lane - 1) * LANE_WIDTH
@@ -456,6 +458,11 @@ func _animate_figure(delta: float, grounded: bool) -> void:
 		_figure.position.y = 0.0
 		_figure.rotation.x = -0.26                               # tuck forward mid-air
 		_cape.rotation_degrees.x = 24.0                          # cape flares back
+
+## Endless difficulty: speed keeps creeping up past the ramp (bounded), so no run
+## farms forever — eventually the road outruns you. 0 until speed_ramp_time.
+func _endless_creep() -> float:
+	return clampf((_run_time - speed_ramp_time) * speed_creep, 0.0, speed_creep_cap)
 
 ## Lane changes (clamped to the three lanes).
 func move_left() -> void:
@@ -552,7 +559,7 @@ func _process_flight(delta: float) -> void:
 	# Forward + lane (shared with ground running).
 	_run_time += delta
 	var ramp: float = clampf(_run_time / speed_ramp_time, 0.0, 1.0)
-	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _sprint_boost + _dash_bonus()
+	run_speed = lerpf(base_speed, max_speed, ramp) * _speed_mult + _endless_creep() + _sprint_boost + _dash_bonus()
 	velocity.z = -run_speed
 	var target_x: float = float(current_lane - 1) * LANE_WIDTH
 	velocity.x = clampf((target_x - global_position.x) * LANE_SHARPNESS, -MAX_LANE_SPEED, MAX_LANE_SPEED)
@@ -808,8 +815,9 @@ func set_jump_power(v: float) -> void:
 	jump_velocity = v
 
 ## Called by the game coordinator when the run starts (leaving the title screen).
-func begin_run() -> void:
+func begin_run(difficulty_offset: float = 0.0) -> void:
 	_running = true
+	_run_time = difficulty_offset   # higher realms start deeper into the difficulty curve
 
 ## Called by the game coordinator when the player dies.
 func on_death() -> void:
