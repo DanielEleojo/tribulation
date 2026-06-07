@@ -41,6 +41,50 @@ var _autosave_t: float = 20.0
 var _spent: int = 0                    # lifetime stones spent on upgrades (realm uses EARNED `total`)
 var _upgrades: Dictionary = {}         # id -> level, persisted
 
+# --- Audio settings (0..1 linear), persisted in [audio]; applied to audio buses ---
+var _music_vol: float = 0.8
+var _sfx_vol: float = 0.9
+var _muted: bool = false
+
+func _ensure_bus(nm: String) -> int:
+	var i := AudioServer.get_bus_index(nm)
+	if i < 0:
+		AudioServer.add_bus()
+		i = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(i, nm)
+		AudioServer.set_bus_send(i, "Master")
+	return i
+
+## Push the saved audio settings onto the Music/SFX buses (and master mute).
+func apply_audio() -> void:
+	var mi := _ensure_bus("Music")
+	var si := _ensure_bus("SFX")
+	AudioServer.set_bus_volume_db(mi, linear_to_db(_music_vol) if _music_vol > 0.001 else -60.0)
+	AudioServer.set_bus_volume_db(si, linear_to_db(_sfx_vol) if _sfx_vol > 0.001 else -60.0)
+	AudioServer.set_bus_mute(0, _muted)   # bus 0 is always Master
+
+func get_music_vol() -> float: return _music_vol
+func get_sfx_vol() -> float: return _sfx_vol
+func is_muted() -> bool: return _muted
+
+func set_music_vol(v: float) -> void:
+	_music_vol = clampf(v, 0.0, 1.0); apply_audio(); _save()
+
+func set_sfx_vol(v: float) -> void:
+	_sfx_vol = clampf(v, 0.0, 1.0); apply_audio(); _save()
+	_sfx("orb")   # audible preview as the player drags
+
+func set_muted(m: bool) -> void:
+	_muted = m; apply_audio(); _save()
+
+## Wipe all cultivation progress (realm, lifetime Qi, upgrades, best) and restart.
+func reset_cultivation() -> void:
+	realm = 0; total = 0; _spent = 0; _best = 0
+	_upgrades.clear()
+	run_progress = 0
+	_save()
+	restart()
+
 ## Permanent cultivation upgrades bought with the spendable balance (total - spent).
 ## Spending does NOT lower your realm (driven by lifetime EARNED total).
 const UPGRADES := {
@@ -421,7 +465,8 @@ func _ready() -> void:
 	_setup_atmosphere()
 	_apply_theme(0)   # start in the forest
 
-	_load_save()                       # restores your saved MAJOR realm
+	_load_save()                       # restores your saved MAJOR realm + audio settings
+	apply_audio()                      # push saved volumes onto the Music/SFX buses
 	run_progress = 0                   # minor-layer progress is per-attempt (1st Layer)
 	_last_layer = 1
 	qi_changed.emit(qi, qi_max)
@@ -589,6 +634,9 @@ func _load_save() -> void:
 		_best = int(c.get_value("run", "best_li", 0))
 		for id in UPGRADES.keys():
 			_upgrades[id] = int(c.get_value("upg", id, 0))
+		_music_vol = clampf(float(c.get_value("audio", "music", 0.8)), 0.0, 1.0)
+		_sfx_vol = clampf(float(c.get_value("audio", "sfx", 0.9)), 0.0, 1.0)
+		_muted = bool(c.get_value("audio", "muted", false))
 
 func _save() -> void:
 	var c := ConfigFile.new()
@@ -599,6 +647,9 @@ func _save() -> void:
 	c.set_value("run", "best_li", _best)
 	for id in UPGRADES.keys():
 		c.set_value("upg", id, upgrade_level(id))
+	c.set_value("audio", "music", _music_vol)
+	c.set_value("audio", "sfx", _sfx_vol)
+	c.set_value("audio", "muted", _muted)
 	c.save("user://tribulation.cfg")
 
 ## Called by the player after a slash kills enemies. Charges Qi; bursts at max.

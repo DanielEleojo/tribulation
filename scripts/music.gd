@@ -22,11 +22,23 @@ func _ready() -> void:
 		var bps := 2 if stream.format == AudioStreamWAV.FORMAT_16_BITS else 1
 		var ch := 2 if stream.stereo else 1
 		stream.loop_end = int(stream.data.size() / (bps * ch))   # bytes -> frames
+	_ensure_bus("Music")
 	_player = AudioStreamPlayer.new()
 	_player.stream = stream
+	_player.bus = "Music"
 	_player.volume_db = -9.0
 	add_child(_player)
 	_player.play()
+
+## Make sure a named audio bus exists (routed to Master); return its index.
+func _ensure_bus(nm: String) -> int:
+	var i := AudioServer.get_bus_index(nm)
+	if i < 0:
+		AudioServer.add_bus()
+		i = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(i, nm)
+		AudioServer.set_bus_send(i, "Master")
+	return i
 
 func _load() -> AudioStream:
 	for nm in NAMES:

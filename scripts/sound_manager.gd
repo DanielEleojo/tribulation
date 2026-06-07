@@ -12,13 +12,25 @@ var _players: Dictionary = {}
 
 func _ready() -> void:
 	add_to_group("sound")
+	var bus := _ensure_bus("SFX")
 	for n in SOUNDS:
 		var stream := _load_stream(n)
 		if stream != null:
 			var p := AudioStreamPlayer.new()
 			p.stream = stream
+			p.bus = "SFX"
 			add_child(p)
 			_players[n] = p
+
+## Make sure a named audio bus exists (routed to Master); return its index.
+func _ensure_bus(nm: String) -> int:
+	var i := AudioServer.get_bus_index(nm)
+	if i < 0:
+		AudioServer.add_bus()
+		i = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(i, nm)
+		AudioServer.set_bus_send(i, "Master")
+	return i
 
 func _load_stream(n: String) -> AudioStream:
 	for ext in EXTS:
