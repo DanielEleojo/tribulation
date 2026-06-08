@@ -86,6 +86,8 @@ func _release(kind: String, n: Node) -> void:
 	if kind == "orb":
 		n.remove_from_group("orb")
 	elif kind == "haz":
+		if n.has_meta("lesson"):
+			n.remove_meta("lesson")   # don't let a stale tutorial tag follow a reused shell
 		var kids := n.get_children()
 		for i in range(kids.size() - 1, 0, -1):   # keep child 0 (the CollisionShape)
 			kids[i].free()
@@ -189,21 +191,25 @@ func _spawn() -> void:
 			_spawn_barrier(true, base_z)    # block -> jump
 
 func _spawn_barrier(is_block: bool, z: float) -> void:
+	var lesson := "jump" if is_block else "slide"   # tutorial cue (Stone Ward / Spirit Barrier)
 	if randf() < 0.5:
 		# Full-width: lane-switching can't save you, the action is forced.
 		var obs := _make_barrier(is_block, FULL_WIDTH)
 		obs.position = Vector3(0.0, 0.0, z)
+		obs.set_meta("lesson", lesson)
 	else:
 		# Single lane: dodge to another lane, or perform the action.
 		var lane: int = randi() % 3
 		var w: float = BLOCK_LANE_WIDTH if is_block else BAR_LANE_WIDTH
 		var obs := _make_barrier(is_block, w)
 		obs.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
+		obs.set_meta("lesson", lesson)
 
 func _spawn_gate() -> void:
 	var safe_lane: int = randi() % 3
 	var gate := GateScript.new()
 	gate.position = Vector3(0.0, 0.0, player.global_position.z - SPAWN_AHEAD)
+	gate.set_meta("lesson", "gate")
 	add_child(gate)
 	gate.setup(safe_lane, game)
 
@@ -213,6 +219,7 @@ func _spawn_enemy_row(z: float) -> void:
 	var lane: int = randi() % 3
 	var e := _make_enemy()
 	e.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
+	e.set_meta("lesson", "slash")
 
 ## A trail of Spirit Orbs down one lane — run through them for souls + Qi (builds combo).
 func _spawn_orb_trail() -> void:
@@ -227,6 +234,7 @@ func _spawn_orb_trail() -> void:
 func _build_orb() -> Area3D:
 	var orb := Area3D.new()
 	orb.set_meta("pkind", "orb")
+	orb.set_meta("lesson", "orb")   # tutorial cue (constant across pooled reuse)
 	var mesh := MeshInstance3D.new()
 	var sph := SphereMesh.new()
 	sph.radius = 0.35

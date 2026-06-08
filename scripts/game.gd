@@ -50,7 +50,7 @@ var _spent: int = 0                    # lifetime stones spent on upgrades (real
 var _upgrades: Dictionary = {}         # id -> level, persisted
 
 # --- onboarding + retention meta (all persisted) ---
-var _tutorial_done: bool = false       # first-run controls tutorial shown?
+var _tut_learned: Dictionary = {}      # contextual-tutorial lessons already performed (persisted)
 var _daily_last_day: int = -1          # day-number (UTC) of the last daily Qi claim
 var _daily_streak: int = 0             # consecutive-day claim streak
 var _stat_runs: int = 0                # lifetime runs begun
@@ -717,6 +717,7 @@ func die() -> void:
 func on_orb_collected() -> void:
 	if is_dead:
 		return
+	tut_learn("orb")
 	combo += 1
 	var m := _combo_mult()
 	var g := int(round(m * _soul_mult()))
@@ -757,7 +758,9 @@ func _load_save() -> void:
 		_music_vol = clampf(float(c.get_value("audio", "music", 0.8)), 0.0, 1.0)
 		_sfx_vol = clampf(float(c.get_value("audio", "sfx", 0.9)), 0.0, 1.0)
 		_muted = bool(c.get_value("audio", "muted", false))
-		_tutorial_done = bool(c.get_value("meta", "tutorial_done", false))
+		_tut_learned.clear()
+		for lid in String(c.get_value("tut", "learned", "")).split(",", false):
+			_tut_learned[lid] = true
 		_daily_last_day = int(c.get_value("daily", "last_day", -1))
 		_daily_streak = int(c.get_value("daily", "streak", 0))
 		_stat_runs = int(c.get_value("stats", "runs", 0))
@@ -779,7 +782,7 @@ func _save() -> void:
 	c.set_value("audio", "music", _music_vol)
 	c.set_value("audio", "sfx", _sfx_vol)
 	c.set_value("audio", "muted", _muted)
-	c.set_value("meta", "tutorial_done", _tutorial_done)
+	c.set_value("tut", "learned", ",".join(_tut_learned.keys()))
 	c.set_value("daily", "last_day", _daily_last_day)
 	c.set_value("daily", "streak", _daily_streak)
 	c.set_value("stats", "runs", _stat_runs)
@@ -793,6 +796,7 @@ func _save() -> void:
 func on_enemy_killed(count: int = 1) -> void:
 	if is_dead:
 		return
+	tut_learn("slash")
 	combo += count
 	var m := _combo_mult()
 	var g := int(round(float(count) * m * _soul_mult()))
@@ -964,6 +968,7 @@ func _spawn_burst_fx() -> void:
 func on_gate(safe: bool) -> void:
 	if is_dead:
 		return
+	tut_learn("gate")
 	if safe:
 		qi = minf(qi_max, qi + 25.0)
 		net = maxf(0.0, net - 0.15)
@@ -993,20 +998,22 @@ func _start_pressed() -> bool:
 		or Input.is_action_just_pressed("move_right") \
 		or Input.is_action_just_pressed("restart")
 
-## First-ever start teaches the controls before the run begins; the tutorial then
-## calls back into start_game() once tutorial_done is set.
-func mark_tutorial_done() -> void:
-	_tutorial_done = true
-	_save()
+## Contextual tutorial: the HUD shows a lesson's coach-mark while you play, until you
+## perform that action; then it is marked learned (persisted) and never shown again.
+func tut_learned(id: String) -> bool:
+	return _tut_learned.get(id, false)
 
-func is_tutorial_done() -> bool:
-	return _tutorial_done
+func tut_learn(id: String) -> void:
+	if not _tut_learned.has(id):
+		_tut_learned[id] = true
+		_save()
+
+func tut_reset() -> void:
+	_tut_learned.clear()
+	_save()
 
 func start_game() -> void:
 	if started:
-		return
-	if not _tutorial_done and _hud != null and _hud.has_method("begin_tutorial"):
-		_hud.begin_tutorial(true)
 		return
 	started = true
 	_stat_runs += 1

@@ -70,32 +70,25 @@ var _death_title: Label
 var _death_stats: Label
 var _paused: bool = false
 
-# ---- onboarding tutorial ----
-var _tut_root: Control
-var _tut_count: Label
-var _tut_title: Label
-var _tut_body: Label
-var _tut_cont: Button
-var _tut_skip: Button
-var _tut_active: bool = false
-var _tut_step: int = 0
-var _tut_then_start: bool = false
-var _tut_touch_start: Vector2 = Vector2.ZERO
-var _tut_touching: bool = false
-const _TUT_STEPS := [
-	{"type": "info", "title": "The Cultivator's Road",
-	 "body": "You walk the endless road of cultivation.\nEndure its trials, gather Qi, and ascend realm by realm.",
-	 "btn": "Continue"},
-	{"type": "gesture", "need": ["left", "right"], "title": "Change Lane",
-	 "body": "Swipe LEFT or RIGHT   ( ◀ ▶ / A · D )\nto step between the three lanes.\n\nTry it now."},
-	{"type": "gesture", "need": ["up"], "title": "Leap",
-	 "body": "Swipe UP   ( ▲ / Space )\nto leap over Stone Wards.\n\nTry it now."},
-	{"type": "gesture", "need": ["down"], "title": "Slide",
-	 "body": "Swipe DOWN   ( ▼ / S )\nto slide under Spirit Barriers.\n\nTry it now."},
-	{"type": "info", "title": "Ascend",
-	 "body": "New arts awaken as you ascend — Qi Leap, sword-qi, even flight. Your major realm is saved; a fall costs only this layer's progress.",
-	 "btn": "Begin Cultivation"},
-]
+# ---- contextual (ongoing) tutorial: coach-marks shown WHILE you play ----
+var _coach: Panel
+var _coach_label: Label
+var _coach_lesson: String = ""        # lesson currently on screen ("" = none)
+var _swipe                            # swipe detector (learn a gesture the moment you do it)
+var _howto_btn: Button
+# Each hint shows when its moment arrives and is retired for good once the player
+# performs it (learned-state persisted by game.gd). COACH_NEAR/FAR = the z-window
+# ahead of the player in which an approaching tagged hazard triggers its lesson.
+const COACH_NEAR := 6.0
+const COACH_FAR := 46.0
+const LESSONS := {
+	"lane":  "◀   Swipe to change lane   ▶",
+	"jump":  "▲   Swipe up to leap the ward",
+	"slide": "▼   Swipe down to slide under",
+	"orb":   "✦   Gather the Qi motes",
+	"gate":  "Pass the green gate, shun the red",
+	"slash": "Tap   to cut down the foe",
+}
 
 
 func _game():
@@ -116,7 +109,13 @@ func _ready() -> void:
 	_build_pause()
 	_build_settings()
 	_build_death()
-	_build_tutorial()
+	_build_coach()
+	_swipe = get_tree().get_first_node_in_group("swipe_input")
+	if _swipe != null:
+		_swipe.swiped_left.connect(func(): _tut_did("lane"))
+		_swipe.swiped_right.connect(func(): _tut_did("lane"))
+		_swipe.swiped_up.connect(func(): _tut_did("jump"))
+		_swipe.swiped_down.connect(func(): _tut_did("slide"))
 	call_deferred("_build_shop")
 	call_deferred("_build_journal")
 
@@ -543,10 +542,10 @@ func _build_settings() -> void:
 
 	var sp2 := Control.new(); sp2.size_flags_vertical = Control.SIZE_EXPAND_FILL; v.add_child(sp2)
 
-	var howto := _btn("How to Play", "ghost", 22)
-	howto.custom_minimum_size = Vector2(0, 54)
-	howto.pressed.connect(func(): _show_overlay(_settings_root, false); begin_tutorial(false))
-	v.add_child(howto)
+	_howto_btn = _btn("Replay Tips", "ghost", 22)
+	_howto_btn.custom_minimum_size = Vector2(0, 54)
+	_howto_btn.pressed.connect(_on_replay_tips)
+	v.add_child(_howto_btn)
 
 	_reset_btn = _btn("Reset Cultivation", "danger", 22)
 	_reset_btn.custom_minimum_size = Vector2(0, 54)
@@ -642,147 +641,121 @@ func _quit_to_menu() -> void:
 		g.restart()   # reloads the scene -> back to the title
 
 
-# ================================================================ onboarding tutorial
+# ================================================================ contextual tutorial
 func _sfx(n: String) -> void:
 	var s = get_tree().get_first_node_in_group("sound")
 	if s != null:
 		s.play(n)
 
 
-func _build_tutorial() -> void:
-	# STOP root so it owns input; we read swipes off its own gui_input (no dependency
-	# on the gameplay swipe detector), and poll keys in _process.
-	_tut_root = Control.new()
-	_tut_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_tut_root.mouse_filter = Control.MOUSE_FILTER_STOP
-	_tut_root.process_mode = Node.PROCESS_MODE_ALWAYS
-	_tut_root.gui_input.connect(_tut_on_gui)
-	var bg := ColorRect.new()
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.02, 0.03, 0.05, 0.90)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_tut_root.add_child(bg)
-	add_child(_tut_root)
-	var card := _card(_tut_root, 600, 470)
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE   # let practice swipes cross the card
-	var v := VBoxContainer.new()
-	v.set_anchors_preset(Control.PRESET_FULL_RECT)
-	v.offset_left = 32; v.offset_right = -32; v.offset_top = 28; v.offset_bottom = -26
-	v.add_theme_constant_override("separation", 14)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(v)
-	_tut_count = _label("", 16, ACCENT, HORIZONTAL_ALIGNMENT_CENTER)
-	v.add_child(_tut_count)
-	_tut_title = _label("", 32, TEXT, HORIZONTAL_ALIGNMENT_CENTER)
-	v.add_child(_tut_title)
-	_tut_body = _label("", 21, DIM, HORIZONTAL_ALIGNMENT_CENTER)
-	_tut_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tut_body.custom_minimum_size = Vector2(0, 150)
-	_tut_body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	v.add_child(_tut_body)
-	var sp := Control.new(); sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE; v.add_child(sp)
-	_tut_cont = _btn("Continue", "primary", 26)
-	_tut_cont.custom_minimum_size = Vector2(0, 58)
-	_tut_cont.pressed.connect(_tut_advance)
-	v.add_child(_tut_cont)
-	_tut_skip = _btn("Skip", "ghost", 20)
-	_tut_skip.custom_minimum_size = Vector2(0, 42)
-	_tut_skip.pressed.connect(_tut_skip_all)
-	v.add_child(_tut_skip)
-	_tut_root.visible = false
+## A small non-blocking coach-mark pill near the bottom of the screen.
+func _build_coach() -> void:
+	_coach = Panel.new()
+	_coach.add_theme_stylebox_override("panel", _sb(PANEL, 18, ACCENT, 1))
+	_coach.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_coach.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_coach.offset_left = -300; _coach.offset_right = 300
+	_coach.offset_top = -190; _coach.offset_bottom = -134
+	add_child(_coach)
+	_coach_label = _label("", 24, TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	_coach_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_coach_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_coach_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_coach.add_child(_coach_label)
+	_coach.visible = false
 
 
-## then_start=true: first-run flow (start the game when done). false: replay from Settings.
-func begin_tutorial(then_start: bool = true) -> void:
-	if _tut_active:
-		return
-	_tut_active = true
-	_tut_then_start = then_start
-	_tut_step = 0
-	_show_overlay(_tut_root, true)
-	_tut_render()
-
-
-func _tut_render() -> void:
-	var s = _TUT_STEPS[_tut_step]
-	_tut_count.text = "%d / %d" % [_tut_step + 1, _TUT_STEPS.size()]
-	_tut_title.text = String(s["title"])
-	_tut_body.text = String(s["body"])
-	var is_info: bool = s["type"] == "info"
-	_tut_cont.visible = is_info
-	if is_info:
-		_tut_cont.text = String(s.get("btn", "Continue"))
-	_tut_skip.visible = _tut_step < _TUT_STEPS.size() - 1
-
-
-func _tut_next() -> void:
-	if _tut_step >= _TUT_STEPS.size() - 1:
-		_tut_finish()
-	else:
-		_tut_step += 1
-		_tut_render()
-
-
-func _tut_advance() -> void:        # info-step "Continue/Begin" button
-	_sfx("orb")
-	_tut_next()
-
-
-func _tut_gesture(kind: String) -> void:
-	if not _tut_active:
-		return
-	var s = _TUT_STEPS[_tut_step]
-	if s["type"] != "gesture":
-		return
-	if kind in s["need"]:
-		_sfx("orb")
-		flash(ACCENT)
-		_tut_next()
-
-
-func _tut_skip_all() -> void:
-	_tut_finish()
-
-
-func _tut_finish() -> void:
-	_tut_active = false
-	_show_overlay(_tut_root, false)
+## Per-frame: pick the most relevant unlearned lesson and show/hide its hint.
+func _tut_update() -> void:
 	var g = _game()
-	if g != null and g.has_method("mark_tutorial_done"):
-		g.mark_tutorial_done()
-	if _tut_then_start and g != null:
-		g.start_game()
-
-
-## Read swipes directly off the overlay (works with emulate_touch_from_mouse too).
-func _tut_on_gui(event: InputEvent) -> void:
-	if not _tut_active:
+	if g == null or not g.started or g.is_dead or _paused or title_root.visible:
+		_coach_hide()
 		return
-	if event is InputEventScreenTouch:
-		if event.pressed:
-			_tut_touch_start = event.position
-			_tut_touching = true
-		elif _tut_touching:
-			_tut_touching = false
-			var d: Vector2 = event.position - _tut_touch_start
-			if absf(d.x) < 60.0 and absf(d.y) < 60.0:
-				return
-			if absf(d.x) > absf(d.y):
-				_tut_gesture("right" if d.x > 0.0 else "left")
-			else:
-				_tut_gesture("down" if d.y > 0.0 else "up")
+	_tut_poll_keys()
+	var id := _pick_lesson(g)
+	if id == "":
+		_coach_hide()
+	else:
+		_coach_show(id)
 
 
+## Nearest unlearned teachable hazard ahead, else the lane hint early in the run.
+func _pick_lesson(g) -> String:
+	if player == null:
+		return ""
+	var sp = get_tree().get_first_node_in_group("spawner")
+	var best := ""
+	var best_d := 1.0e9
+	if sp != null:
+		var pz: float = player.global_position.z
+		for ch in sp.get_children():
+			if not (ch is Node3D) or ch.get_meta("inactive", false):
+				continue
+			if not ch.has_meta("lesson"):
+				continue
+			var lid := String(ch.get_meta("lesson"))
+			if g.tut_learned(lid):
+				continue
+			if lid == "slash" and not g.has_ability("slash"):
+				continue   # can't fight back yet — dodge instead
+			var d: float = pz - (ch as Node3D).global_position.z   # >0 = ahead (forward is -Z)
+			if d > COACH_NEAR and d < COACH_FAR and d < best_d:
+				best_d = d
+				best = lid
+	if best != "":
+		return best
+	if not g.tut_learned("lane") and player.get_distance() < 140:
+		return "lane"
+	return ""
+
+
+func _coach_show(id: String) -> void:
+	if _coach == null:
+		return
+	if _coach_lesson == id and _coach.visible:
+		return
+	_coach_lesson = id
+	_coach_label.text = String(LESSONS.get(id, ""))
+	_coach.visible = true
+	_coach.modulate.a = 0.0
+	var tw := _coach.create_tween()
+	tw.tween_property(_coach, "modulate:a", 1.0, 0.2)
+
+
+func _coach_hide() -> void:
+	if _coach != null and _coach.visible:
+		_coach.visible = false
+	_coach_lesson = ""
+
+
+## A gesture was performed — retire its lesson for good (soft ding + hide).
+func _tut_did(id: String) -> void:
+	var g = _game()
+	if g == null or not g.started:
+		return
+	if not g.tut_learned(id):
+		g.tut_learn(id)
+		_sfx("orb")
+		if _coach_lesson == id:
+			_coach_hide()
+
+
+## Desktop: keyboard equivalents count as performing the gesture.
 func _tut_poll_keys() -> void:
-	if Input.is_action_just_pressed("move_left"):
-		_tut_gesture("left")
-	elif Input.is_action_just_pressed("move_right"):
-		_tut_gesture("right")
-	elif Input.is_action_just_pressed("jump"):
-		_tut_gesture("up")
-	elif Input.is_action_just_pressed("slide"):
-		_tut_gesture("down")
+	if Input.is_action_just_pressed("move_left") or Input.is_action_just_pressed("move_right"):
+		_tut_did("lane")
+	if Input.is_action_just_pressed("jump"):
+		_tut_did("jump")
+	if Input.is_action_just_pressed("slide"):
+		_tut_did("slide")
+
+
+## Replay Tips (Settings) — clear learned lessons so the coach-marks return.
+func _on_replay_tips() -> void:
+	if _game():
+		_game().tut_reset()
+	if _howto_btn != null:
+		_howto_btn.text = "Tips will show again"
 
 
 # ================================================================ death card
@@ -821,9 +794,7 @@ func _show_overlay(root: Control, v: bool) -> void:
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		var g = _game()
-		if _tut_active:
-			_tut_skip_all()
-		elif _settings_root != null and _settings_root.visible:
+		if _settings_root != null and _settings_root.visible:
 			_show_overlay(_settings_root, false)
 		elif _shop_root != null and _shop_root.visible:
 			_show_overlay(_shop_root, false)
@@ -945,8 +916,7 @@ func on_souls_changed(souls: int) -> void:
 
 
 func _process(_delta: float) -> void:
-	if _tut_active:
-		_tut_poll_keys()
+	_tut_update()
 	if player != null:
 		distance_label.text = "%d li" % player.get_distance()
 
