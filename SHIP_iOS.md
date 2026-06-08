@@ -15,9 +15,10 @@ templates, and Xcode only run there.
   `python3 tools/gen_icon.py`.
 - **Mobile renderer + ASTC** texture compression (`import_etc2_astc=true`).
 - **Portrait lock** (`display/window/handheld/orientation=1`).
-- **No splash screen** — boots straight into the game's title (`main_scene = game.tscn`,
-  boot image disabled). The iOS launch storyboard is a plain teal color (Apple requires
-  a launch screen; it shows for a beat during OS load, not a logo).
+- **Vallicade Games splash** — the iOS launch storyboard uses
+  `assets/Vallicade_Games_Splash_screen.png` (Scale-to-Fill), which flows into a 2s
+  in-game splash scene (`splash.tscn`, `main_scene`) that fades into the title. The
+  launch storyboard is baked at export time, so **re-export from Godot** after changing it.
 - **iOS export preset** (`export_presets.cfg`): bundle id
   `com.vellicade.tribulation`, version 1.0.0 / build 1, min iOS 13, iPhone & iPad,
   launch storyboard on, tracking disabled, and an `exclude_filter` that strips

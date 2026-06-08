@@ -115,3 +115,6 @@ Removing the boot image made Godot fall back to its default logo for the iOS lau
 
 [LAUNCH] Vallicade Games launch screen — 2026-06-08
 Use assets/Vallicade_Games_Splash_screen.png (new VALLICADE spelling) as the iOS launch image. storyboard custom_image@2x/@3x -> it, image_scale_mode=3 (Scale to Fill, covers screen with logo centered); storyboard + boot bg set to the splash bottom navy (0.02,0.04,0.13) so launch->boot blends. Removed the unused plain dark launch.png. Requires re-export from Godot (launch screen baked at export time). NOTE: studio is now VALLICADE (was VELLICADE); bundle id still com.vellicade.tribulation.
+
+[SPLASH] Re-added timed studio splash (Vallicade) — 2026-06-08
+main_scene -> scenes/splash.tscn: holds the Vallicade Games logo 2s (tap/key to skip), fades, then game.tscn. Uses assets/Vallicade_Games_Splash_screen.png with cover-fill + navy bg to match the iOS launch image, so launch screen -> held splash -> title is seamless. SHIP_iOS.md updated. Headless: splash loads, transitions to game, no errors.

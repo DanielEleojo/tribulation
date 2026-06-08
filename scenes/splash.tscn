@@ -1,0 +1,29 @@
+[gd_scene load_steps=3 format=3 uid="uid://btribsplash02"]
+
+[ext_resource type="Script" path="res://scripts/splash.gd" id="1_splash"]
+[ext_resource type="Texture2D" path="res://assets/Vallicade_Games_Splash_screen.png" id="2_img"]
+
+[node name="Splash" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_splash")
+
+[node name="BG" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.02, 0.04, 0.13, 1)
+
+[node name="Logo" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+texture = ExtResource("2_img")
+expand_mode = 1
+stretch_mode = 6
