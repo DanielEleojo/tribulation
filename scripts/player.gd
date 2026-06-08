@@ -96,6 +96,13 @@ var _anim_player: AnimationPlayer
 
 func _ready() -> void:
 	add_to_group("player")
+	# Pull the speed curve from the Balance autoload (falls back to the @export values).
+	base_speed = Balance.getf("player_base_speed", base_speed)
+	max_speed = Balance.getf("player_max_speed", max_speed)
+	speed_ramp_time = Balance.getf("player_speed_ramp_time", speed_ramp_time)
+	speed_creep = Balance.getf("player_speed_creep", speed_creep)
+	speed_creep_cap = Balance.getf("player_speed_creep_cap", speed_creep_cap)
+	run_speed = base_speed
 	start_z = global_position.z
 	_build_body()
 	# Wire touch swipes to the matching actions.

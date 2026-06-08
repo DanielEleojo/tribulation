@@ -19,6 +19,11 @@ boot_splash/bg_color=Color(0.09, 0.18, 0.28, 1)
 boot_splash/image="res://assets/splash.png"
 config/icon="res://assets/icon.png"
 
+[autoload]
+
+Balance="*res://scripts/balance.gd"
+Telemetry="*res://scripts/telemetry.gd"
+
 [display]
 
 window/size/viewport_width=720

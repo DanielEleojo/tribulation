@@ -107,6 +107,15 @@ func _ready() -> void:
 	randomize()
 	add_to_group("spawner")
 	game = get_tree().get_first_node_in_group("game")
+	# Pull cadence from the Balance autoload (falls back to the @export values).
+	start_interval = Balance.getf("spawn_start_interval", start_interval)
+	min_interval = Balance.getf("spawn_min_interval", min_interval)
+	ramp_time = Balance.getf("spawn_ramp_time", ramp_time)
+	hard_min_interval = Balance.getf("spawn_hard_min_interval", hard_min_interval)
+	endless_ramp = Balance.getf("spawn_endless_ramp", endless_ramp)
+	gate_interval = Balance.getf("spawn_gate_interval", gate_interval)
+	orb_interval = Balance.getf("spawn_orb_interval", orb_interval)
+	pill_interval = Balance.getf("spawn_pill_interval", pill_interval)
 	_timer = start_interval
 	_gate_timer = gate_interval
 	_orb_timer = orb_interval

@@ -37,11 +37,11 @@ func in_tribulation() -> bool:
 # the top realms demand a near-perfect run (plus shop upgrades) so Ascension is a
 # weeks-to-months summit, not a weekend. The endless difficulty creep is what caps a run,
 # so a big span = "you must survive a very long, ever-harder run to break through".
-const REALM_SPAN := [50, 120, 300, 750, 1800, 999999]
+var REALM_SPAN := [50, 120, 300, 750, 1800, 999999]   # overridden by Balance at _ready
 
 # Higher realms begin deeper into the difficulty curve (seconds of "head start" the
 # player+spawner skip). Keeps low realms gentle while making each ascent genuinely harder.
-const DIFFICULTY_PER_REALM := 12.0
+var DIFFICULTY_PER_REALM := 12.0
 var combo: int = 0                    # streak of kills/orbs (resets when hit); scales soul gain
 var _best: int = 0                    # best distance ("li") ever, persisted
 var _last_layer: int = 1
@@ -59,8 +59,8 @@ var _stat_tribs: int = 0              # lifetime Tribulations survived
 var _stat_deaths: int = 0             # lifetime deaths
 var _ach_unlocked: Array = []          # earned achievement ids
 
-const DAILY_BASE := 80                  # Qi for a day-1 claim (scales to x7 by streak)
-const ACH_REWARD := 150                 # Qi granted per achievement earned
+var DAILY_BASE := 80                     # Qi for a day-1 claim (scales to x7 by streak)
+var ACH_REWARD := 150                    # Qi granted per achievement earned
 const ACHIEVEMENTS := [
 	{"id": "r1",  "name": "Foundation Laid",    "desc": "Reach Foundation Establishment", "stat": "realm", "goal": 1},
 	{"id": "r2",  "name": "Golden Core Forged", "desc": "Reach Golden Core",              "stat": "realm", "goal": 2},
@@ -99,6 +99,7 @@ func claim_daily() -> Dictionary:
 	var reward := DAILY_BASE * mini(_daily_streak, 7)
 	total += reward                 # lifetime spendable Qi
 	_save()
+	Telemetry.event("daily", {"streak": _daily_streak, "reward": reward})
 	_check_achievements()
 	return {"reward": reward, "streak": _daily_streak}
 
@@ -130,6 +131,7 @@ func _check_achievements() -> void:
 		if _stat_value(String(a["stat"])) >= int(a["goal"]):
 			_ach_unlocked.append(id)
 			newly.append(a)
+			Telemetry.event("achievement", {"id": id})
 	if newly.is_empty():
 		return
 	total += ACH_REWARD * newly.size()
@@ -457,6 +459,7 @@ func _surmount_tribulation() -> void:
 	total += r
 	souls_changed.emit(souls)
 	_stat_tribs += 1
+	Telemetry.event("breakthrough", {"realm": realm})
 	_check_achievements()
 	if _hud != null:
 		_hud.set_tribulation(false, 0.0)
@@ -540,7 +543,19 @@ func _jump_for_tier(t: int) -> float:
 
 func _ready() -> void:
 	add_to_group("game")
+	_apply_balance()
 	_setup_world()
+
+## Pull tunable knobs from the Balance autoload (falls back to the literals above).
+func _apply_balance() -> void:
+	REALM_SPAN = Balance.get_arr("realm_span", REALM_SPAN)
+	DIFFICULTY_PER_REALM = Balance.getf("difficulty_per_realm", DIFFICULTY_PER_REALM)
+	DAILY_BASE = Balance.geti("daily_base", DAILY_BASE)
+	ACH_REWARD = Balance.geti("ach_reward", ACH_REWARD)
+	qi_max = Balance.getf("qi_max", qi_max)
+	qi_per_kill = Balance.getf("qi_per_kill", qi_per_kill)
+	net_close_rate = Balance.getf("net_close_rate", net_close_rate)
+	net_push_per_kill = Balance.getf("net_push_per_kill", net_push_per_kill)
 
 	var player := get_tree().get_first_node_in_group("player")
 	_player = player
@@ -682,6 +697,7 @@ func die() -> void:
 	var dist: int = _player.get_distance() if _player != null else 0
 	if dist > _best:
 		_best = dist
+	Telemetry.event("death", {"realm": realm, "li": dist, "layer": minor_level(), "progress": run_progress})
 	run_progress = 0              # qi deviation — lose the layer climb, keep the major realm
 	if _tribulation:             # felled during the Tribulation — breakthrough fails
 		_tribulation = false
@@ -994,6 +1010,7 @@ func start_game() -> void:
 		return
 	started = true
 	_stat_runs += 1
+	Telemetry.event("run_start", {"realm": realm})
 	_sfx("start")
 	_roll_trials()
 	var off := float(realm) * DIFFICULTY_PER_REALM   # higher realms start harder
