@@ -89,3 +89,11 @@ Dusted off rough edges and made the project release-ready (iOS export happens on
 
 [T1] Onboarding tutorial — 2026-06-07
 First-ever start runs a 5-step coached overlay (intro -> change lane -> leap -> slide -> ascend) before the run begins; teaches only the always-available verbs (the rest are announced at breakthroughs). Gestures detected off the overlay's own gui_input (swipe) + key polling (A/D/Space/S); Skip + Esc bail out. Persisted via [meta]tutorial_done so it shows once; replayable from Settings -> How to Play. game.start_game() gates the first run into begin_tutorial then calls back. Headless-verified: first launch triggers it, advances, finishes -> starts run + persists; relaunch skips it.
+
+[T2] Retention meta — 2026-06-07
+Daily reward + lifetime stats + achievements.
+- Daily Qi: consecutive-day streak (UTC day-number), reward = 80 x min(streak,7); claim button on the menu (claimed state shows streak); blocked until next day. Persisted [daily].
+- Lifetime stats: runs/foes/tribulations/deaths counters wired at start/kill/surmount/die; saved [stats].
+- Achievements: 12 milestones (realms, tribulation, foe tallies, distance, lifetime Qi, runs); auto-unlock via _check_achievements at each event, +150 Qi each + banner; persisted [ach].
+- Cultivation Journal overlay (menu: Cultivation/Journal/Settings row): lifetime stats + scrollable achievement list (earned gold ✓ / locked).
+Headless-verified: claim grants+streaks+blocks re-claim, achievements unlock+reward+persist, journal renders 12, clean boot.

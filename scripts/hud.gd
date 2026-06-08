@@ -51,6 +51,10 @@ var _pause_btn: Button
 var _menu_box: VBoxContainer
 var _menu_realm: Label
 var _menu_best: Label
+var _daily_btn: Button
+var _journal_root: Control
+var _journal_stats: Label
+var _journal_list: VBoxContainer
 var _shop_root: Control
 var _shop_balance: Label
 var _shop_buttons: Dictionary = {}
@@ -114,6 +118,7 @@ func _ready() -> void:
 	_build_death()
 	_build_tutorial()
 	call_deferred("_build_shop")
+	call_deferred("_build_journal")
 
 
 # ================================================================ style helpers
@@ -356,18 +361,39 @@ func _build_menu() -> void:
 	begin.pressed.connect(_on_begin)
 	_menu_box.add_child(begin)
 
+	_daily_btn = _btn("", "primary", 24)
+	_daily_btn.custom_minimum_size = Vector2(440, 54)
+	_daily_btn.pressed.connect(_on_daily)
+	_menu_box.add_child(_daily_btn)
+
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 16)
+	row.add_theme_constant_override("separation", 12)
 	_menu_box.add_child(row)
-	var cult := _btn("Cultivation", "ghost", 26)
-	cult.custom_minimum_size = Vector2(212, 56)
+	var cult := _btn("Cultivation", "ghost", 22)
+	cult.custom_minimum_size = Vector2(140, 56)
 	cult.pressed.connect(func(): _show_overlay(_shop_root, true); _refresh_shop())
 	row.add_child(cult)
-	var sett := _btn("Settings", "ghost", 26)
-	sett.custom_minimum_size = Vector2(212, 56)
+	var jour := _btn("Journal", "ghost", 22)
+	jour.custom_minimum_size = Vector2(140, 56)
+	jour.pressed.connect(func(): _show_overlay(_journal_root, true); _refresh_journal())
+	row.add_child(jour)
+	var sett := _btn("Settings", "ghost", 22)
+	sett.custom_minimum_size = Vector2(140, 56)
 	sett.pressed.connect(func(): _show_overlay(_settings_root, true); _refresh_settings())
 	row.add_child(sett)
+
+
+func _on_daily() -> void:
+	var g = _game()
+	if g == null or not g.has_method("claim_daily"):
+		return
+	var r = g.claim_daily()
+	if r.is_empty():
+		return
+	_sfx("breakthrough")
+	show_banner("Daily Qi  +%d   ·   Day %d streak" % [int(r["reward"]), int(r["streak"])])
+	_refresh_menu()
 
 
 func _on_begin() -> void:
@@ -432,6 +458,57 @@ func _on_buy(id: String) -> void:
 	var g = _game()
 	if g != null and g.buy_upgrade(id):
 		_refresh_shop()
+
+
+# ================================================================ cultivation journal
+func _build_journal() -> void:
+	var g = _game()
+	if g == null or not ("ACHIEVEMENTS" in g):
+		return
+	_journal_root = _full_overlay(0.84)
+	add_child(_journal_root)
+	var card := _card(_journal_root, 620, 780)
+	var v := VBoxContainer.new()
+	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = 28; v.offset_right = -28; v.offset_top = 28; v.offset_bottom = -26
+	v.add_theme_constant_override("separation", 12)
+	card.add_child(v)
+	v.add_child(_label("Cultivation Journal", 32, TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	_journal_stats = _label("", 18, ACCENT, HORIZONTAL_ALIGNMENT_CENTER)
+	_journal_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_journal_stats)
+	v.add_child(_label("— Achievements —", 18, DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(scroll)
+	_journal_list = VBoxContainer.new()
+	_journal_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_journal_list.custom_minimum_size = Vector2(540, 0)
+	_journal_list.add_theme_constant_override("separation", 8)
+	scroll.add_child(_journal_list)
+	var back := _btn("Back", "ghost", 26)
+	back.custom_minimum_size = Vector2(0, 56)
+	back.pressed.connect(func(): _show_overlay(_journal_root, false))
+	v.add_child(back)
+	_show_overlay(_journal_root, false)
+
+
+func _refresh_journal() -> void:
+	var g = _game()
+	if g == null or _journal_root == null:
+		return
+	var s = g.get_stats()
+	_journal_stats.text = "Realm: %s\nBest: %d li     ·     Runs: %d\nFoes slain: %d     ·     Tribulations: %d\nLifetime Qi: %d" % [
+		String(s["realm_name"]), int(s["best"]), int(s["runs"]), int(s["foes"]), int(s["tribs"]), int(s["total"])]
+	for ch in _journal_list.get_children():
+		ch.queue_free()
+	for a in g.ACHIEVEMENTS:
+		var got: bool = g.is_ach_unlocked(String(a["id"]))
+		var mark := "✓  " if got else "○  "
+		var line := _label("%s%s — %s" % [mark, String(a["name"]), String(a["desc"])], 17, GOLD if got else DIM)
+		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_journal_list.add_child(line)
 
 
 # ================================================================ settings
@@ -750,6 +827,8 @@ func _input(event: InputEvent) -> void:
 			_show_overlay(_settings_root, false)
 		elif _shop_root != null and _shop_root.visible:
 			_show_overlay(_shop_root, false)
+		elif _journal_root != null and _journal_root.visible:
+			_show_overlay(_journal_root, false)
 		elif g != null and g.started and not g.is_dead:
 			_toggle_pause()
 		get_viewport().set_input_as_handled()
@@ -768,6 +847,15 @@ func _refresh_menu() -> void:
 		_menu_realm.text = _realm_text
 	if _menu_best != null:
 		_menu_best.text = ("Best:  %d li" % _best_li) if _best_li > 0 else "A long road awaits"
+	if _daily_btn != null:
+		var g = _game()
+		if g != null and g.has_method("daily_available") and g.daily_available():
+			_daily_btn.text = "✦  Claim Daily Qi"
+			_daily_btn.disabled = false
+		else:
+			var st: int = g.get_daily_streak() if (g != null and g.has_method("get_daily_streak")) else 0
+			_daily_btn.text = ("Daily Qi claimed  ·  Day %d" % st) if st > 0 else "Daily Qi claimed"
+			_daily_btn.disabled = true
 
 
 var _realm_text: String = ""

@@ -59,6 +59,85 @@ var _stat_tribs: int = 0              # lifetime Tribulations survived
 var _stat_deaths: int = 0             # lifetime deaths
 var _ach_unlocked: Array = []          # earned achievement ids
 
+const DAILY_BASE := 80                  # Qi for a day-1 claim (scales to x7 by streak)
+const ACH_REWARD := 150                 # Qi granted per achievement earned
+const ACHIEVEMENTS := [
+	{"id": "r1",  "name": "Foundation Laid",    "desc": "Reach Foundation Establishment", "stat": "realm", "goal": 1},
+	{"id": "r2",  "name": "Golden Core Forged", "desc": "Reach Golden Core",              "stat": "realm", "goal": 2},
+	{"id": "r3",  "name": "Nascent Soul Born",  "desc": "Reach Nascent Soul",             "stat": "realm", "goal": 3},
+	{"id": "r4",  "name": "Spirit Severed",     "desc": "Reach Spirit Severing",          "stat": "realm", "goal": 4},
+	{"id": "r5",  "name": "Ascendant",          "desc": "Reach Ascension",                "stat": "realm", "goal": 5},
+	{"id": "trib","name": "Heaven Defied",      "desc": "Survive a Heavenly Tribulation",  "stat": "tribs", "goal": 1},
+	{"id": "slay100",  "name": "Blade Tally I",  "desc": "Slay 100 foes (lifetime)",       "stat": "foes",  "goal": 100},
+	{"id": "slay1000", "name": "Blade Tally II", "desc": "Slay 1000 foes (lifetime)",      "stat": "foes",  "goal": 1000},
+	{"id": "li3000",   "name": "Long Strider",   "desc": "Flee 3000 li in one life",       "stat": "best",  "goal": 3000},
+	{"id": "li8000",   "name": "Untiring",       "desc": "Flee 8000 li in one life",       "stat": "best",  "goal": 8000},
+	{"id": "qi20k",    "name": "Spirit Hoard",   "desc": "Earn 20,000 lifetime Qi",        "stat": "total", "goal": 20000},
+	{"id": "devoted",  "name": "Devoted",        "desc": "Walk the road 25 times",         "stat": "runs",  "goal": 25},
+]
+
+# --- daily reward (consecutive-day streak) ---
+func _today() -> int:
+	return int(Time.get_unix_time_from_system() / 86400.0)   # UTC day number
+
+func daily_available() -> bool:
+	return _today() > _daily_last_day
+
+func get_daily_streak() -> int:
+	return _daily_streak
+
+## Claim today's daily Qi (no-op if already claimed). Returns {reward, streak} or {}.
+func claim_daily() -> Dictionary:
+	if not daily_available():
+		return {}
+	var d := _today()
+	if _daily_last_day >= 0 and d - _daily_last_day == 1:
+		_daily_streak += 1          # consecutive day -> streak grows
+	else:
+		_daily_streak = 1           # first claim or a gap -> reset
+	_daily_last_day = d
+	var reward := DAILY_BASE * mini(_daily_streak, 7)
+	total += reward                 # lifetime spendable Qi
+	_save()
+	_check_achievements()
+	return {"reward": reward, "streak": _daily_streak}
+
+# --- lifetime stats + achievements ---
+func get_stats() -> Dictionary:
+	return {"realm_name": String(_realms[realm]["name"]), "best": _best, "foes": _stat_foes,
+		"tribs": _stat_tribs, "total": total, "runs": _stat_runs, "deaths": _stat_deaths}
+
+func is_ach_unlocked(id: String) -> bool:
+	return id in _ach_unlocked
+
+func _stat_value(stat: String) -> int:
+	match stat:
+		"realm": return realm
+		"foes": return _stat_foes
+		"best": return _best
+		"tribs": return _stat_tribs
+		"total": return total
+		"runs": return _stat_runs
+	return 0
+
+## Unlock any newly-earned achievements; reward Qi + banner. Cheap to call often.
+func _check_achievements() -> void:
+	var newly: Array = []
+	for a in ACHIEVEMENTS:
+		var id := String(a["id"])
+		if id in _ach_unlocked:
+			continue
+		if _stat_value(String(a["stat"])) >= int(a["goal"]):
+			_ach_unlocked.append(id)
+			newly.append(a)
+	if newly.is_empty():
+		return
+	total += ACH_REWARD * newly.size()
+	_save()
+	if _hud != null:
+		var extra := "" if newly.size() == 1 else "   +%d more" % (newly.size() - 1)
+		_hud.show_banner("Achievement · %s  (+%d Qi)%s" % [String(newly[0]["name"]), ACH_REWARD * newly.size(), extra])
+
 # --- Audio settings (0..1 linear), persisted in [audio]; applied to audio buses ---
 var _music_vol: float = 0.8
 var _sfx_vol: float = 0.9
@@ -377,6 +456,8 @@ func _surmount_tribulation() -> void:
 	souls += r
 	total += r
 	souls_changed.emit(souls)
+	_stat_tribs += 1
+	_check_achievements()
 	if _hud != null:
 		_hud.set_tribulation(false, 0.0)
 
@@ -597,6 +678,7 @@ func die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	_stat_deaths += 1
 	var dist: int = _player.get_distance() if _player != null else 0
 	if dist > _best:
 		_best = dist
@@ -609,6 +691,7 @@ func die() -> void:
 	_save()                       # persist realm + lifetime stones + best
 	if _hud != null:
 		_hud.set_best(_best)
+	_check_achievements()   # best-li / lifetime milestones
 	_sfx("death")
 	_shake(0.9)
 	_hitstop(0.12)
@@ -706,6 +789,8 @@ func on_enemy_killed(count: int = 1) -> void:
 	combo_changed.emit(combo, m)
 	_trial_add("slay", float(count))
 	_trial_max("combo", float(combo))
+	_stat_foes += count
+	_check_achievements()
 	_update_cultivation()
 	_sfx("kill")
 	_shake(0.12)
@@ -908,6 +993,7 @@ func start_game() -> void:
 		_hud.begin_tutorial(true)
 		return
 	started = true
+	_stat_runs += 1
 	_sfx("start")
 	_roll_trials()
 	var off := float(realm) * DIFFICULTY_PER_REALM   # higher realms start harder
@@ -920,6 +1006,7 @@ func start_game() -> void:
 		sp.begin_run(off)
 	if _hud != null:
 		_hud.show_title(false)
+	_check_achievements()   # "Devoted" (runs milestone)
 
 func _on_tap() -> void:
 	if not started:
