@@ -58,6 +58,51 @@ var _orb_timer: float = 0.0
 var _pill_timer: float = 0.0
 var _spawn_index: int = 0
 
+# Object pools — reuse spawned nodes instead of alloc/free each frame (fewer GC hitches
+# at the dense end of the curve). Pooled nodes stay parented but hidden + inactive,
+# tagged via the "pkind" meta; _cleanup skips anything flagged "inactive".
+var _pool: Dictionary = {}            # kind -> Array of inactive nodes
+var _dbg_created: Dictionary = {}     # kind -> lifetime nodes built (instrumentation)
+var _dbg_reused: Dictionary = {}      # kind -> lifetime nodes reused from pool
+
+## Take an inactive node of this kind from the pool, or null if none free.
+func _acquire(kind: String):
+	var arr: Array = _pool.get(kind, [])
+	while not arr.is_empty():
+		var n = arr.pop_back()
+		if is_instance_valid(n):
+			n.set_meta("inactive", false)
+			_dbg_reused[kind] = _dbg_reused.get(kind, 0) + 1
+			return n
+	return null
+
+## Park a node back in its pool: hide it, stop it sensing, shed per-kind state.
+func _release(kind: String, n: Node) -> void:
+	n.set_meta("inactive", true)
+	if n is Node3D:
+		(n as Node3D).visible = false
+	if n is Area3D:
+		(n as Area3D).monitoring = false
+	if kind == "orb":
+		n.remove_from_group("orb")
+	elif kind == "haz":
+		var kids := n.get_children()
+		for i in range(kids.size() - 1, 0, -1):   # keep child 0 (the CollisionShape)
+			kids[i].free()
+	if not _pool.has(kind):
+		_pool[kind] = []
+	_pool[kind].append(n)
+
+## Retire a live node: pool it if poolable (pkind meta), else free it.
+func _retire(n: Node) -> void:
+	if not is_instance_valid(n):
+		return
+	var k: String = String(n.get_meta("pkind", ""))
+	if k != "":
+		_release(k, n)
+	else:
+		n.queue_free()
+
 func _ready() -> void:
 	randomize()
 	add_to_group("spawner")
@@ -139,14 +184,12 @@ func _spawn_barrier(is_block: bool, z: float) -> void:
 		# Full-width: lane-switching can't save you, the action is forced.
 		var obs := _make_barrier(is_block, FULL_WIDTH)
 		obs.position = Vector3(0.0, 0.0, z)
-		add_child(obs)
 	else:
 		# Single lane: dodge to another lane, or perform the action.
 		var lane: int = randi() % 3
 		var w: float = BLOCK_LANE_WIDTH if is_block else BAR_LANE_WIDTH
 		var obs := _make_barrier(is_block, w)
 		obs.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
-		add_child(obs)
 
 func _spawn_gate() -> void:
 	var safe_lane: int = randi() % 3
@@ -161,7 +204,6 @@ func _spawn_enemy_row(z: float) -> void:
 	var lane: int = randi() % 3
 	var e := _make_enemy()
 	e.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
-	add_child(e)
 
 ## A trail of Spirit Orbs down one lane — run through them for souls + Qi (builds combo).
 func _spawn_orb_trail() -> void:
@@ -169,30 +211,47 @@ func _spawn_orb_trail() -> void:
 	var x: float = float(lane - 1) * LANE_WIDTH
 	var z0: float = player.global_position.z - SPAWN_AHEAD * 0.85
 	for i in range(ORB_TRAIL):
-		var orb := Area3D.new()
-		var mesh := MeshInstance3D.new()
-		var sph := SphereMesh.new()
-		sph.radius = 0.35
-		sph.height = 0.7
-		mesh.mesh = sph
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = ORB_COLOR
-		mat.emission_enabled = true
-		mat.emission = ORB_COLOR
-		mat.emission_energy_multiplier = 2.0
-		mesh.material_override = mat
-		mesh.position = Vector3(0.0, 1.0, 0.0)
-		var col := CollisionShape3D.new()
-		var sh := SphereShape3D.new()
-		sh.radius = 0.6
-		col.shape = sh
-		col.position = Vector3(0.0, 1.0, 0.0)
-		orb.add_child(mesh)
-		orb.add_child(col)
-		orb.add_to_group("orb")
-		orb.body_entered.connect(_on_orb_hit.bind(orb))
+		var orb := _obtain_orb()
 		orb.position = Vector3(x, 0.0, z0 - float(i) * ORB_GAP)
+
+
+func _build_orb() -> Area3D:
+	var orb := Area3D.new()
+	orb.set_meta("pkind", "orb")
+	var mesh := MeshInstance3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = 0.35
+	sph.height = 0.7
+	mesh.mesh = sph
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = ORB_COLOR
+	mat.emission_enabled = true
+	mat.emission = ORB_COLOR
+	mat.emission_energy_multiplier = 2.0
+	mesh.material_override = mat
+	mesh.position = Vector3(0.0, 1.0, 0.0)
+	var col := CollisionShape3D.new()
+	var sh := SphereShape3D.new()
+	sh.radius = 0.6
+	col.shape = sh
+	col.position = Vector3(0.0, 1.0, 0.0)
+	orb.add_child(mesh)
+	orb.add_child(col)
+	orb.body_entered.connect(_on_orb_hit.bind(orb))
+	_dbg_created["orb"] = _dbg_created.get("orb", 0) + 1
+	return orb
+
+
+func _obtain_orb() -> Area3D:
+	var orb: Area3D = _acquire("orb")
+	if orb == null:
+		orb = _build_orb()
+	if orb.get_parent() == null:
 		add_child(orb)
+	orb.add_to_group("orb")
+	orb.visible = true
+	orb.monitoring = true
+	return orb
 
 ## Drop a single pill/talisman (a glowing gem) in a lane; pick-up activates its art.
 func _spawn_pill() -> void:
@@ -201,16 +260,24 @@ func _spawn_pill() -> void:
 	if game != null and "POWERUPS" in game and game.POWERUPS.has(id):
 		col = game.POWERUPS[id]["color"]
 	var lane: int = randi() % 3
+	var pill := _obtain_pill()
+	pill.set_meta("pid", id)
+	var mat := (pill.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D
+	mat.albedo_color = col
+	mat.emission = col
+	pill.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, player.global_position.z - SPAWN_AHEAD)
+
+
+func _build_pill() -> Area3D:
 	var pill := Area3D.new()
+	pill.set_meta("pkind", "pill")
 	var mesh := MeshInstance3D.new()
 	var sph := SphereMesh.new()
 	sph.radius = 0.45
 	sph.height = 0.9
 	mesh.mesh = sph
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = col
 	mat.emission_enabled = true
-	mat.emission = col
 	mat.emission_energy_multiplier = 2.6
 	mesh.material_override = mat
 	mesh.position = Vector3(0.0, 1.2, 0.0)
@@ -221,19 +288,31 @@ func _spawn_pill() -> void:
 	cs.position = Vector3(0.0, 1.2, 0.0)
 	pill.add_child(mesh)
 	pill.add_child(cs)
-	pill.body_entered.connect(_on_pickup.bind(pill, id))
-	pill.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, player.global_position.z - SPAWN_AHEAD)
-	add_child(pill)
+	pill.body_entered.connect(_on_pickup.bind(pill))
+	_dbg_created["pill"] = _dbg_created.get("pill", 0) + 1
+	return pill
 
-func _on_pickup(body: Node, pill: Area3D, id: String) -> void:
+
+func _obtain_pill() -> Area3D:
+	var pill: Area3D = _acquire("pill")
+	if pill == null:
+		pill = _build_pill()
+	if pill.get_parent() == null:
+		add_child(pill)
+	pill.visible = true
+	pill.monitoring = true
+	return pill
+
+
+func _on_pickup(body: Node, pill: Area3D) -> void:
 	if body.is_in_group("player") and game != null and is_instance_valid(pill):
-		game.activate_powerup(id)
-		pill.queue_free()
+		game.activate_powerup(String(pill.get_meta("pid", "")))
+		call_deferred("_retire", pill)   # deferred: safe to toggle state outside the signal
 
 func _on_orb_hit(body: Node, orb: Area3D) -> void:
 	if body.is_in_group("player") and game != null and is_instance_valid(orb):
 		game.on_orb_collected()
-		orb.queue_free()
+		call_deferred("_retire", orb)
 
 # Plane-coded base hues so the player reads the required dodge at a glance.
 const HUE_LOW := Color(1.0, 0.5, 0.12)    # amber — ground sword-qi (JUMP)
@@ -351,7 +430,6 @@ func _spawn_lightning(z: float) -> void:
 		var bolt := _make_area(size, size.y * 0.5, false)   # full-height column, lethal on contact
 		bolt.position = Vector3(float(lane - 1) * LANE_WIDTH, 0.0, z)
 		_add_glow(bolt, Vector3(0.45, 7.0, 0.45), Vector3(0.0, size.y * 0.5, 0.0), Color(0.75, 0.88, 1.0), Color(1.0, 0.95, 0.7), energy * 1.6)
-		add_child(bolt)
 
 ## A floating sword-formation hazard at flight altitude — dodge by lane + climb/dive.
 func _spawn_aerial(z: float) -> void:
@@ -365,7 +443,6 @@ func _spawn_aerial(z: float) -> void:
 	var area := _make_area(size, 0.0, false)
 	area.position = Vector3(x, y, z)
 	_add_glow(area, size, Vector3.ZERO, HUE_HIGH, accent, energy)
-	add_child(area)
 
 func _find_anim(root: Node) -> AnimationPlayer:
 	var f := root.find_children("*", "AnimationPlayer", true, false)
@@ -418,18 +495,35 @@ func _add_glow(parent: Node3D, size: Vector3, pos: Vector3, hue: Color, accent: 
 	m.position = pos
 	parent.add_child(m)
 
+## Collision-only trigger; callers add the visual meshes. Non-enemy shells are pooled
+## (their box-collision + signal are reused; visuals are rebuilt each spawn). Enemies
+## are not pooled — they're freed externally by slash / Qi Burst.
 func _make_area(size: Vector3, center_y: float, is_enemy: bool) -> Area3D:
-	# Collision-only trigger; callers add the visual meshes.
-	var area := Area3D.new()
-	var col := CollisionShape3D.new()
-	var bshape := BoxShape3D.new()
-	bshape.size = size
-	col.shape = bshape
+	var area: Area3D = null
+	if not is_enemy:
+		area = _acquire("haz")
+	if area == null:
+		area = _new_area_shell(not is_enemy)
+	var col := area.get_child(0) as CollisionShape3D
+	(col.shape as BoxShape3D).size = size
 	col.position = Vector3(0.0, center_y, 0.0)
-	area.add_child(col)
 	if is_enemy:
 		area.add_to_group("enemy")
+	if area.get_parent() == null:
+		add_child(area)
+	area.visible = true
+	area.monitoring = true
+	return area
+
+func _new_area_shell(pooled: bool) -> Area3D:
+	var area := Area3D.new()
+	var col := CollisionShape3D.new()
+	col.shape = BoxShape3D.new()
+	area.add_child(col)
 	area.body_entered.connect(_on_hazard_body_entered.bind(area))
+	if pooled:
+		area.set_meta("pkind", "haz")
+		_dbg_created["haz"] = _dbg_created.get("haz", 0) + 1
 	return area
 
 func _add_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color, emis: Color, emis_on: bool) -> void:
@@ -452,12 +546,14 @@ func _on_hazard_body_entered(body: Node, area: Area3D) -> void:
 	# Sword-Qi Dash plows straight through hazards/foes instead of being felled.
 	if game.has_method("is_powerup_active") and game.is_powerup_active("dash"):
 		if is_instance_valid(area):
-			area.queue_free()
+			call_deferred("_retire", area)
 		return
 	game.player_hit()
 
 func _cleanup() -> void:
 	var kill_z: float = player.global_position.z + DESPAWN_BEHIND
 	for child in get_children():
+		if child.get_meta("inactive", false):
+			continue                       # parked in a pool — not in play
 		if child.position.z > kill_z:
-			child.queue_free()
+			_retire(child)
