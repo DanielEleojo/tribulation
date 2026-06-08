@@ -112,3 +112,6 @@ main_scene now boots straight into game.tscn (the title). Disabled the engine bo
 
 [LAUNCH] Fix iOS "Godot Engine" launch screen — 2026-06-08
 Removing the boot image made Godot fall back to its default logo for the iOS launch storyboard. Added assets/launch.png (plain dark 1242x2688, matches menu bg) and pointed storyboard/custom_image@2x/@3x at it; set storyboard custom_bg_color + boot_splash/bg_color to the same dark (0.03,0.045,0.06) so iOS launch -> Godot boot -> menu is one seamless dark with no logo. Requires a RE-EXPORT from Godot (launch storyboard is baked at export time, not in the pck).
+
+[LAUNCH] Vallicade Games launch screen — 2026-06-08
+Use assets/Vallicade_Games_Splash_screen.png (new VALLICADE spelling) as the iOS launch image. storyboard custom_image@2x/@3x -> it, image_scale_mode=3 (Scale to Fill, covers screen with logo centered); storyboard + boot bg set to the splash bottom navy (0.02,0.04,0.13) so launch->boot blends. Removed the unused plain dark launch.png. Requires re-export from Godot (launch screen baked at export time). NOTE: studio is now VALLICADE (was VELLICADE); bundle id still com.vellicade.tribulation.

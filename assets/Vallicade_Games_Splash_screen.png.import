@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://hii2m5x0bvj6"
-path="res://.godot/imported/launch.png-8231ff2bdb11b7c51ec948e23dca64b6.ctex"
+uid="uid://cwxug5ohud4lw"
+path="res://.godot/imported/Vallicade_Games_Splash_screen.png-7dcb9faa31364bfa3a2c8b94755e8802.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/launch.png"
-dest_files=["res://.godot/imported/launch.png-8231ff2bdb11b7c51ec948e23dca64b6.ctex"]
+source_file="res://assets/Vallicade_Games_Splash_screen.png"
+dest_files=["res://.godot/imported/Vallicade_Games_Splash_screen.png-7dcb9faa31364bfa3a2c8b94755e8802.ctex"]
 
 [params]
 
