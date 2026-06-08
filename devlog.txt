@@ -109,3 +109,6 @@ Replaced the pre-run modal tutorial with in-play coach-marks. A small non-blocki
 
 [SPLASH] Removed splash screen completely — 2026-06-08
 main_scene now boots straight into game.tscn (the title). Disabled the engine boot image (boot_splash/show_image=false; dropped boot_splash/image). Deleted scenes/splash.tscn, scripts/splash.gd(.uid), assets/splash.png(.import) — all now-unused. iOS launch storyboard left as a plain teal color (Apple requires a launch screen; it is not a logo). SHIP_iOS.md updated. Headless: boots into game title via main_scene, no orphaned refs, no errors.
+
+[LAUNCH] Fix iOS "Godot Engine" launch screen — 2026-06-08
+Removing the boot image made Godot fall back to its default logo for the iOS launch storyboard. Added assets/launch.png (plain dark 1242x2688, matches menu bg) and pointed storyboard/custom_image@2x/@3x at it; set storyboard custom_bg_color + boot_splash/bg_color to the same dark (0.03,0.045,0.06) so iOS launch -> Godot boot -> menu is one seamless dark with no logo. Requires a RE-EXPORT from Godot (launch storyboard is baked at export time, not in the pck).

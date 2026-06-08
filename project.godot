@@ -15,8 +15,8 @@ config/description="The Cultivator's Road — an endless-runner pilgrimage up th
 config/version="1.0.0"
 run/main_scene="res://scenes/game.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
+boot_splash/bg_color=Color(0.03, 0.045, 0.06, 1)
 boot_splash/show_image=false
-boot_splash/bg_color=Color(0.09, 0.18, 0.28, 1)
 config/icon="res://assets/icon.png"
 
 [autoload]
