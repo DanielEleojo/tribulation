@@ -13,10 +13,10 @@ config_version=5
 config/name="Tribulation"
 config/description="The Cultivator's Road — an endless-runner pilgrimage up the long, bitter road of cultivation."
 config/version="1.0.0"
-run/main_scene="res://scenes/splash.tscn"
+run/main_scene="res://scenes/game.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
+boot_splash/show_image=false
 boot_splash/bg_color=Color(0.09, 0.18, 0.28, 1)
-boot_splash/image="res://assets/splash.png"
 config/icon="res://assets/icon.png"
 
 [autoload]

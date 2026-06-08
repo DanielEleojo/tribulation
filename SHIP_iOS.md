@@ -15,8 +15,9 @@ templates, and Xcode only run there.
   `python3 tools/gen_icon.py`.
 - **Mobile renderer + ASTC** texture compression (`import_etc2_astc=true`).
 - **Portrait lock** (`display/window/handheld/orientation=1`).
-- **Boot splash** = `assets/splash.png` (Vellicade) on teal bg; 2s studio splash
-  scene then the game.
+- **No splash screen** — boots straight into the game's title (`main_scene = game.tscn`,
+  boot image disabled). The iOS launch storyboard is a plain teal color (Apple requires
+  a launch screen; it shows for a beat during OS load, not a logo).
 - **iOS export preset** (`export_presets.cfg`): bundle id
   `com.vellicade.tribulation`, version 1.0.0 / build 1, min iOS 13, iPhone & iPad,
   launch storyboard on, tracking disabled, and an `exclude_filter` that strips
