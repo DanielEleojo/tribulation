@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://btribsplash02"]
+[gd_scene format=3 uid="uid://btribsplash02"]
 
 [ext_resource type="Script" path="res://scripts/splash.gd" id="1_splash"]
 [ext_resource type="Texture2D" path="res://assets/Vallicade_Games_Splash_screen.png" id="2_img"]
