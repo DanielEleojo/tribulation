@@ -1,0 +1,122 @@
+using UnityEngine;
+using UnityEngine.Rendering;
+
+// Ambient atmosphere: sparse drifting spirit-motes + low ground-fog wisps.
+// Both are code-built ParticleSystems parented to the camera in LOCAL sim space, so they
+// drift gently around the view regardless of run speed (world-space would streak like snow).
+// Attach to the Main Camera (Bootstrap does this). Restraint is the brief — keep counts low.
+public class Atmosphere : MonoBehaviour
+{
+    void Start()
+    {
+        var glow = InkArt.SoftGlow(64).texture;
+        BuildMotes(glow);
+        BuildFog(glow);
+    }
+
+    // Faint jade qi-motes hanging in the air.
+    void BuildMotes(Texture2D glow)
+    {
+        var go = new GameObject("SpiritMotes");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = new Vector3(0f, 0f, -10f); // out in front of the camera
+
+        var ps = go.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.simulationSpace = ParticleSystemSimulationSpace.Local;
+        main.startLifetime = 6f;
+        main.startSpeed = 0.18f;
+        main.startSize = new ParticleSystem.MinMaxCurve(0.1f, 0.24f);
+        main.startColor = new Color(0.6f, 1f, 0.85f, 0.7f);
+        main.maxParticles = 90;
+        main.gravityModifier = 0f;
+
+        var em = ps.emission; em.rateOverTime = 16f;
+        var sh = ps.shape;
+        sh.shapeType = ParticleSystemShapeType.Box;
+        sh.scale = new Vector3(20f, 11f, 18f);
+        sh.randomDirectionAmount = 1f; // drift every which way, gently
+
+        var vol = ps.velocityOverLifetime;
+        vol.enabled = true;
+        vol.y = new ParticleSystem.MinMaxCurve(0.08f); // faint upward rise
+
+        // Twinkle: fade in then out so motes don't pop.
+        var col = ps.colorOverLifetime; col.enabled = true;
+        var g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.4f),
+                    new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
+        col.color = g;
+
+        Apply(ps, ParticleMat(glow, additive: true), 200);
+        ps.Play();
+    }
+
+    // Low, slow mist rolling near the road surface — adds depth layering at the camera.
+    void BuildFog(Texture2D glow)
+    {
+        var go = new GameObject("GroundFog");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = new Vector3(0f, -4f, -9f); // down at road level, ahead
+
+        var ps = go.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.simulationSpace = ParticleSystemSimulationSpace.Local;
+        main.startLifetime = 9f;
+        main.startSpeed = 0.25f;
+        main.startSize = new ParticleSystem.MinMaxCurve(5f, 9f);
+        main.startColor = new Color(0.45f, 0.5f, 0.65f, 0.06f); // cool, very faint — hazes, doesn't bubble
+        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        main.maxParticles = 30;
+        main.gravityModifier = 0f;
+
+        var em = ps.emission; em.rateOverTime = 5f;
+        var sh = ps.shape;
+        sh.shapeType = ParticleSystemShapeType.Box;
+        sh.scale = new Vector3(22f, 1f, 20f);
+
+        var vol = ps.velocityOverLifetime; vol.enabled = true;
+        vol.x = new ParticleSystem.MinMaxCurve(-0.3f, 0.3f);
+
+        var rot = ps.rotationOverLifetime; rot.enabled = true;
+        rot.z = new ParticleSystem.MinMaxCurve(-0.15f, 0.15f); // slow churn
+
+        var col = ps.colorOverLifetime; col.enabled = true;
+        var g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.5f), new GradientAlphaKey(0f, 1f) });
+        col.color = g;
+
+        Apply(ps, ParticleMat(glow, additive: false), 100);
+        ps.Play();
+    }
+
+    static void Apply(ParticleSystem ps, Material mat, int sortOffset)
+    {
+        var r = ps.GetComponent<ParticleSystemRenderer>();
+        r.material = mat;
+        r.renderMode = ParticleSystemRenderMode.Billboard;
+        r.sortingOrder = sortOffset;
+        r.shadowCastingMode = ShadowCastingMode.Off;
+        r.receiveShadows = false;
+    }
+
+    // Unlit transparent particle material; explicit blend so it's reliable in URP.
+    static Material ParticleMat(Texture2D tex, bool additive)
+    {
+        var sh = Shader.Find("Universal Render Pipeline/Particles/Unlit") ?? Shader.Find("Sprites/Default");
+        var m = new Material(sh);
+        m.SetTexture("_BaseMap", tex);
+        m.mainTexture = tex;
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.SetFloat("_Surface", 1f);
+        m.SetFloat("_ZWrite", 0f);
+        m.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+        m.SetInt("_DstBlend", additive ? (int)BlendMode.One : (int)BlendMode.OneMinusSrcAlpha);
+        m.renderQueue = (int)RenderQueue.Transparent;
+        return m;
+    }
+}
