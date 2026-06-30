@@ -1,0 +1,20 @@
+{
+    "name": "Tribulation.Tests.EditMode",
+    "rootNamespace": "Tribulation.Tests.EditMode",
+    "references": [
+        "Tribulation.Core"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

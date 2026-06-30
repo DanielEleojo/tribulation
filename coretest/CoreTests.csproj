@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Standalone harness: runs the PURE-C# Tribulation.Core logic + its EditMode tests
+       from the terminal, no Unity needed. Links the real source files (no copies) so
+       there is one source of truth — Unity and dotnet compile the same .cs. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../tribulation-unity/Assets/Scripts/Core/*.cs" />
+    <Compile Include="../tribulation-unity/Assets/Tests/EditMode/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" /> <!-- match Unity's NUnit 3 classic Assert API -->
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+</Project>

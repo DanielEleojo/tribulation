@@ -1,0 +1,86 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+// Port of ground.gd. Infinite runway by RECYCLING tiles along Z (forward = -Z).
+// Each tile is a 3-lane stone path (top at y=0) with glowing lane-divider lines.
+// Tiles are built from primitives in code so there's nothing to wire in the editor.
+// (Tracer-bullet simplification of the Godot version's shoulders/rungs/edge frame.)
+public class Ground : MonoBehaviour
+{
+    const float TILE_LENGTH = 20f;
+    const int TILE_COUNT = 10;
+    const float RECYCLE_BEHIND = 25f;
+    const float LANE_WIDTH = 2.5f;
+    const float PATH_WIDTH = LANE_WIDTH * 3f;
+
+    Transform _player;
+    readonly List<Transform> _tiles = new List<Transform>();
+    Material _pathMat, _lineMat;
+
+    void Start()
+    {
+        _pathMat = SolidMat(new Color(0.13f, 0.12f, 0.10f), false);
+        _lineMat = SolidMat(new Color(0.55f, 0.60f, 0.40f), true);
+        for (int i = 0; i < TILE_COUNT; i++)
+        {
+            Transform t = MakeTile();
+            t.position = new Vector3(0f, 0f, -i * TILE_LENGTH);
+            _tiles.Add(t);
+        }
+    }
+
+    Transform MakeTile()
+    {
+        var tile = new GameObject("Tile").transform;
+        tile.SetParent(transform, false);
+
+        // Stone runway (top at y=0): a 1-thick slab centered at y=-0.5.
+        var path = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        path.name = "Path";
+        path.transform.SetParent(tile, false);
+        path.transform.localPosition = new Vector3(0f, -0.5f, 0f);
+        path.transform.localScale = new Vector3(PATH_WIDTH, 1f, TILE_LENGTH);
+        path.GetComponent<Renderer>().sharedMaterial = _pathMat;
+
+        // Two glowing lane dividers (no collider needed — strip them).
+        foreach (float sx in new[] { -LANE_WIDTH * 0.5f, LANE_WIDTH * 0.5f })
+        {
+            var line = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            line.transform.SetParent(tile, false);
+            line.transform.localPosition = new Vector3(sx, 0.01f, 0f);
+            line.transform.localScale = new Vector3(0.1f, 0.02f, TILE_LENGTH);
+            line.GetComponent<Renderer>().sharedMaterial = _lineMat;
+            Destroy(line.GetComponent<Collider>());
+        }
+        return tile;
+    }
+
+    void Update()
+    {
+        if (_player == null) { var p = FindObjectOfType<PlayerRunner>(); if (p == null) return; _player = p.transform; }
+        float behindZ = _player.position.z + RECYCLE_BEHIND;
+        foreach (Transform t in _tiles)
+            if (t.position.z > behindZ)
+            {
+                Vector3 pos = t.position;
+                pos.z = FrontmostZ() - TILE_LENGTH;
+                t.position = pos;
+            }
+    }
+
+    float FrontmostZ()
+    {
+        float m = Mathf.Infinity;
+        foreach (Transform t in _tiles) m = Mathf.Min(m, t.position.z);
+        return m;
+    }
+
+    // URP/Lit material helper. ponytail: Shader.Find at runtime instead of a serialized asset.
+    static Material SolidMat(Color c, bool emissive)
+    {
+        var sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+        var m = new Material(sh) { color = c };
+        if (emissive) { m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", c * 1.6f); }
+        return m;
+    }
+}

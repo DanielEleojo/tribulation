@@ -183,13 +183,14 @@ public class Spawner : MonoBehaviour
             return;
         }
 
-        HazardKind kind = _sched.NextKind();
+        int realm = Game.I?.Core?.Realm ?? 0;
+        HazardStep step = _sched.NextStep(realm);
 
-        switch (kind)
+        switch (step.Kind)
         {
-            case HazardKind.Block: SpawnBlock(z); break;
-            case HazardKind.Bar:   SpawnBar(z);   break;
-            case HazardKind.Enemy: SpawnEnemy(z); break;
+            case HazardKind.Block: SpawnBlock(z, step.Lane, step.FullWidth); break;
+            case HazardKind.Bar:   SpawnBar(z,   step.Lane, step.FullWidth); break;
+            case HazardKind.Enemy: SpawnEnemy(z, step.Lane);                 break;
         }
     }
 
@@ -208,17 +209,16 @@ public class Spawner : MonoBehaviour
     }
 
     // Block: ground-level box. Cleared by JUMP (arc over top).
-    // Full-width (50%) forces the jump; single-lane (50%) allows dodge OR jump.
+    // Lane and fullWidth come from the authored HazardStep (no local RNG for kind/lane).
     //
     // Geometry clearance: BLOCK_HEIGHT = 1.0 → top of block at Y=1.0.
     // PlayerRunner STAND_HEIGHT=2 → CharacterController bottom at Y=0, top at Y=2.
     // jumpVelocity=17, gravity=48 → peak ≈ 17²/(2*48) ≈ 3.0m above ground.
     // The player's feet clear a 1.0m block easily at peak. ✓
-    void SpawnBlock(float z)
+    void SpawnBlock(float z, int lane, bool fullWidth)
     {
-        bool fullWidth = Random.value < 0.5f;
         float w = fullWidth ? FULL_WIDTH : BLOCK_LANE_WIDTH;
-        float x = fullWidth ? 0f : LaneX(Random.Range(0, 3));
+        float x = fullWidth ? 0f : LaneX(lane);
         // Y center: block sits on the ground — bottom at Y=0, center at BLOCK_HEIGHT*0.5.
         float cy = BLOCK_HEIGHT * 0.5f;
         var go = Acquire(HazardKind.Block, new Vector3(w, BLOCK_HEIGHT, BLOCK_DEPTH), cy);
@@ -229,14 +229,14 @@ public class Spawner : MonoBehaviour
     }
 
     // Bar: overhead beam. Cleared by SLIDE (crouch under).
+    // Lane and fullWidth come from the authored HazardStep (no local RNG for kind/lane).
     // Bottom of beam at BAR_BOTTOM_Y=1.2. Player SLIDE_HEIGHT=1.0 → CharacterController
     // top at Y=1.0 < 1.2 → clears the beam bottom. Standing (STAND_HEIGHT=2) → top at
     // Y=2.0 > 1.2 → collides. The clearance comes from geometry + CC height. ✓
-    void SpawnBar(float z)
+    void SpawnBar(float z, int lane, bool fullWidth)
     {
-        bool fullWidth = Random.value < 0.5f;
         float w = fullWidth ? FULL_WIDTH : BAR_LANE_WIDTH;
-        float x = fullWidth ? 0f : LaneX(Random.Range(0, 3));
+        float x = fullWidth ? 0f : LaneX(lane);
         // Center Y: BAR_BOTTOM_Y + BAR_HEIGHT*0.5
         float cy = BAR_BOTTOM_Y + BAR_HEIGHT * 0.5f;
         var go = Acquire(HazardKind.Bar, new Vector3(w, BAR_HEIGHT, BAR_DEPTH), cy);
@@ -247,14 +247,14 @@ public class Spawner : MonoBehaviour
     }
 
     // Enemy: tall figure in one lane. Cleared by LANE change only (or slash at realm>=2).
+    // Lane comes from the authored HazardStep (no local RNG for lane selection).
     // ENEMY_SIZE.y = 2.6 → taller than jump arc peak AND taller than standing player (2.0).
     // Can't jump over (peak ~3m, but enemy is 2.6m tall and centered at Y=1.3, so top at
     // Y=2.6 which the player's CC at Y=2 would still hit mid-arc) — must dodge lane. ✓
     // Can't slide under: bottom at Y=0, fully covers SLIDE_HEIGHT=1.0. ✓
     // Foe component marks it as slashable once realm>=2.
-    void SpawnEnemy(float z)
+    void SpawnEnemy(float z, int lane)
     {
-        int lane = Random.Range(0, 3);
         float x = LaneX(lane);
         float cy = ENEMY_SIZE.y * 0.5f;
         var go = Acquire(HazardKind.Enemy, ENEMY_SIZE, cy);

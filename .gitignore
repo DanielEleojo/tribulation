@@ -18,3 +18,38 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# ── Unity (tribulation-unity port) ───────────────────────────────────────────
+# Regenerable engine caches / generated project files — never commit.
+tribulation-unity/[Ll]ibrary/
+tribulation-unity/[Tt]emp/
+tribulation-unity/[Oo]bj/
+tribulation-unity/[Bb]uild/
+tribulation-unity/[Bb]uilds/
+tribulation-unity/[Ll]ogs/
+tribulation-unity/[Mm]emoryCaptures/
+tribulation-unity/[Uu]serSettings/
+tribulation-unity/.vscode/
+tribulation-unity/*.csproj
+tribulation-unity/*.sln
+tribulation-unity/*.unityproj
+tribulation-unity/Assets/Screenshots/
+
+# coretest harness build output
+coretest/bin/
+coretest/obj/
+
+# Vendored Asset Store packs — multi-GB, re-downloadable, not for git.
+# The game loads its runtime deps from Assets/Resources/ (copies), not these raw packs.
+tribulation-unity/Assets/KoreanTraditionalMartialArts/
+tribulation-unity/Assets/KoreanTraditionalMartialArts.meta
+tribulation-unity/Assets/Buyongji_JuhabluComplex/
+tribulation-unity/Assets/Buyongji_JuhabluComplex.meta
+tribulation-unity/Assets/DonhwamunComplex/
+tribulation-unity/Assets/DonhwamunComplex.meta
+tribulation-unity/Assets/NatureStarterKit2/
+tribulation-unity/Assets/NatureStarterKit2.meta
+tribulation-unity/Assets/Fantasy Forest Environment Free Sample/
+tribulation-unity/Assets/Fantasy Forest Environment Free Sample.meta
+tribulation-unity/Assets/Martial Art Animations Sample/
+tribulation-unity/Assets/Martial Art Animations Sample.meta

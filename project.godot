@@ -29,8 +29,8 @@ Shot="*res://scripts/screenshotter.gd"
 
 window/size/viewport_width=720
 window/size/viewport_height=1280
-window/size/window_width_override=1242
-window/size/window_height_override=2688
+window/size/window_width_override=1024
+window/size/window_height_override=1366
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=1

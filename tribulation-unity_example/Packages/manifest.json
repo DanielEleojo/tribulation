@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "17.0.3",
+    "com.unity.cloud.gltfast": "6.9.0",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0"
+  },
+  "_note": "glTFast imports the .glb player/enemy/prop models. URP is the chosen pipeline. Let the Editor resolve exact patch versions for your Unity LTS; these are floor targets. Input uses legacy UnityEngine.Input for the tracer bullet — set Player Settings > Active Input Handling = Both (or Input Manager) so it works without an .inputactions asset."
+}

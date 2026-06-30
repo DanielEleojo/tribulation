@@ -1,0 +1,29 @@
+{
+	"_comment": "Tunable balance knobs. Edit + relaunch to re-tune without a recompile. Any key omitted falls back to the code defaults in scripts/balance.gd. See BALANCE.md for the model.",
+
+	"realm_span": [50, 120, 300, 750, 1800, 999999],
+	"difficulty_per_realm": 12.0,
+
+	"player_base_speed": 12.0,
+	"player_max_speed": 22.0,
+	"player_speed_ramp_time": 90.0,
+	"player_speed_creep": 0.07,
+	"player_speed_creep_cap": 16.0,
+
+	"spawn_start_interval": 1.4,
+	"spawn_min_interval": 0.7,
+	"spawn_ramp_time": 60.0,
+	"spawn_hard_min_interval": 0.42,
+	"spawn_endless_ramp": 200.0,
+	"spawn_gate_interval": 11.0,
+	"spawn_orb_interval": 2.4,
+	"spawn_pill_interval": 9.0,
+
+	"qi_max": 100.0,
+	"qi_per_kill": 20.0,
+	"net_close_rate": 0.025,
+	"net_push_per_kill": 0.12,
+
+	"daily_base": 80,
+	"ach_reward": 150
+}
