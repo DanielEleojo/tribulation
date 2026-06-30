@@ -6,7 +6,9 @@
 // CONTRACT:
 //   • Prefab path : Resources/Char/Solider_Fist  (Humanoid, already has Animator + AC_Fist)
 //   • States      : Anim_Fist_Run, Anim_Fist_Attack1, Anim_Fist_Die,
-//                   Anim_Fist_Idle1, Anim_Fist_Defense  (drive via CrossFade only)
+//                   Anim_Fist_Idle1, Anim_Fist_Defense,
+//                   Anim_Fist_Jump (Idle2 stand-in), Anim_Fist_Fall (Damage stand-in)
+//                   (drive via CrossFade only)
 //   • CharacterController: height 2, center y=1, feet at y=0 on Player root.
 
 using UnityEngine;
@@ -19,6 +21,8 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
     const string STATE_ATTACK  = "Anim_Fist_Attack1";
     const string STATE_DIE     = "Anim_Fist_Die";
     const string STATE_DEFENSE = "Anim_Fist_Defense";
+    const string STATE_JUMP    = "Anim_Fist_Jump";   // stand-in: Idle2 (braced pose)
+    const string STATE_FALL    = "Anim_Fist_Fall";   // stand-in: Damage (off-balance recoil)
 
     // Target character height in world units; matches CharacterController height.
     const float TARGET_HEIGHT = 1.9f;
@@ -256,9 +260,12 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
         {
             desired = STATE_DEFENSE;
         }
+        else if (!_runner.Grounded)
+        {
+            desired = _runner.Vy > 0.5f ? STATE_JUMP : STATE_FALL;  // ascending vs descending
+        }
         else
         {
-            // Run for everything else including airborne (no jump clip in v1).
             desired = STATE_RUN;
         }
 
