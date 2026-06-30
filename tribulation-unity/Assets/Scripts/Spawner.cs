@@ -267,7 +267,9 @@ public class Spawner : MonoBehaviour
         float cy = BLOCK_HEIGHT * 0.5f;
         var go = Acquire(HazardKind.Block, new Vector3(w, BLOCK_HEIGHT, BLOCK_DEPTH), cy);
         go.transform.position = new Vector3(x, cy, z);
+        // Apply sets the cube MeshRenderer material; EnsureBlockVisual hides it and shows crescent.
         Apply(go, _matBlock);
+        EnsureBlockVisual(go, w, BLOCK_HEIGHT, BLOCK_DEPTH);
         Track(go, HazardKind.Block);
         TelegraphSystem.I?.Attach(go.transform, HazardKind.Block, w);
     }
@@ -285,7 +287,9 @@ public class Spawner : MonoBehaviour
         float cy = BAR_BOTTOM_Y + BAR_HEIGHT * 0.5f;
         var go = Acquire(HazardKind.Bar, new Vector3(w, BAR_HEIGHT, BAR_DEPTH), cy);
         go.transform.position = new Vector3(x, cy, z);
+        // Apply sets the cube MeshRenderer material; EnsureBarVisual hides it and shows slash blade.
         Apply(go, _matBar);
+        EnsureBarVisual(go, w, BAR_HEIGHT, BAR_DEPTH);
         Track(go, HazardKind.Bar);
         TelegraphSystem.I?.Attach(go.transform, HazardKind.Bar, w);
     }
@@ -616,65 +620,332 @@ public class Spawner : MonoBehaviour
         foreach (var col in soldier.GetComponentsInChildren<Collider>())
             Object.Destroy(col);
 
-        // Measure the soldier's skinned mesh height and normalize to ~2.2 units.
-        // In the holder's unit space the cube spans y = -0.5 .. +0.5 (local).
-        // We want the soldier standing tall at ~2.2 units so it fills that visual space.
-        var smrs = soldier.GetComponentsInChildren<SkinnedMeshRenderer>();
-        if (smrs != null && smrs.Length > 0)
-        {
-            Bounds combined = smrs[0].bounds;
-            for (int i = 1; i < smrs.Length; i++)
-                combined.Encapsulate(smrs[i].bounds);
-
-            float currentHeight = combined.size.y;
-            if (currentHeight > 0.001f)
-            {
-                float targetHeight = 2.2f;
-                float uniformScale = targetHeight / currentHeight;
-                soldier.transform.localScale = Vector3.one * uniformScale;
-            }
-        }
-
-        // Position soldier so its feet sit at the bottom of the collider box.
-        // In the holder's unit space the cube bottom is at local y = -0.5.
-        // Re-measure bounds after scaling to find the foot offset.
-        var smrs2 = soldier.GetComponentsInChildren<SkinnedMeshRenderer>();
-        if (smrs2 != null && smrs2.Length > 0)
-        {
-            // We need world-space bounds relative to the holder; soldier is a child of holder.
-            // soldier.transform.localPosition is still (0,0,0) at this point.
-            // Gather bounds in holder-local space by reading SkinnedMeshRenderer.bounds
-            // (world space), then converting to holder-local.
-            Bounds b2 = smrs2[0].bounds;
-            for (int i = 1; i < smrs2.Length; i++)
-                b2.Encapsulate(smrs2[i].bounds);
-
-            // b2.min.y is the world-space foot position (holder has no world-space rotation).
-            // The holder-local y = -0.5 corresponds to world y = holderWorldY - 0.5
-            //   (holder.localScale is ~1 in world since go absorbs the non-uniform scale
-            //    and the holder cancels it back to unit scale; but holder.transform.position
-            //    equals go.transform.position in world space).
-            // We want soldier feet (b2.min.y) to land at holderWorld y - 0.5.
-            float holderWorldY = holder.transform.position.y;
-            float targetFeetWorldY = holderWorldY - 0.5f;
-            float footDeltaY = targetFeetWorldY - b2.min.y;
-            // Convert world delta to soldier local (soldier is child of holder, unit scale).
-            soldier.transform.localPosition = new Vector3(0f, footDeltaY, 0f);
-        }
-
-        // Face the soldier toward the oncoming player.
-        // Player runs toward -Z and approaches from +Z, so the enemy should face +Z.
-        // Default prefab forward is +Z; if it ends up facing away, flip 180 on Y.
-        soldier.transform.localRotation = Quaternion.identity; // face +Z, toward the oncoming player
-
-        // Wire up the looping attack animation.
+        // Wire up animation before measuring bounds so the skeleton is in a known pose.
+        // Force updateWhenOffscreen so SMR bounds are always computed (even off-camera).
         var anim = soldier.GetComponentInChildren<Animator>();
+        foreach (var smr in soldier.GetComponentsInChildren<SkinnedMeshRenderer>())
+            smr.updateWhenOffscreen = true;
         if (anim != null)
         {
             anim.applyRootMotion = false;
             if (attackCtrl != null)
                 anim.runtimeAnimatorController = attackCtrl;
         }
+
+        // Measure the soldier's skinned mesh bounds with soldier at localPos (0,0,0).
+        // The T-pose bounds are valid immediately after Instantiate (Unity bakes the bind pose).
+        // We do NOT call anim.Update here because bounds are already valid from the bind pose,
+        // and moving the position after measuring is a single reliable delta. Two-pass approaches
+        // fail because SkinnedMeshRenderer.bounds updates synchronously with transform changes.
+        var smrs = soldier.GetComponentsInChildren<SkinnedMeshRenderer>();
+        if (smrs != null && smrs.Length > 0)
+        {
+            // Step 1: measure at localPos=(0,0,0) to get raw T-pose bounds.
+            Bounds b = smrs[0].bounds;
+            for (int i = 1; i < smrs.Length; i++) b.Encapsulate(smrs[i].bounds);
+
+            // Step 2: scale to targetHeight.
+            float currentH = b.size.y;
+            float uniformScale = currentH > 0.001f ? 2.2f / currentH : 1f;
+            soldier.transform.localScale = Vector3.one * uniformScale;
+
+            // Step 3: re-measure bounds AFTER scaling (scale changes world bounds immediately).
+            b = smrs[0].bounds;
+            for (int i = 1; i < smrs.Length; i++) b.Encapsulate(smrs[i].bounds);
+
+            // Step 4: move soldier so feet land at the world-space bottom of the collider box.
+            // go.lossyScale.y = ENEMY_SIZE.y = 2.6; go center at Y=1.3; box bottom at Y=0.
+            // holder.lossyScale ≈ (1,1,1) so world delta = soldier local delta.
+            float targetFeetWorldY = go.transform.position.y - go.transform.lossyScale.y * 0.5f;
+            float footDeltaY = targetFeetWorldY - b.min.y;
+            soldier.transform.localPosition = new Vector3(0f, footDeltaY, 0f);
+        }
+
+        // Face the soldier toward the oncoming player (+Z = toward camera).
+        soldier.transform.localRotation = Quaternion.identity;
+    }
+
+    // ── Procedural hazard visuals (issue #25) ───────────────────────────────
+    // Replace the primitive-cube visuals with attack-shaped meshes while keeping
+    // colliders, sizes, and telegraph timing byte-for-byte identical.
+    // Meshes are built once (static cache) and shared across all pooled instances.
+
+    static Mesh _crescentMesh;
+    static Mesh _slashMesh;
+
+    // BuildCrescentMesh: a ground-sweep qi-crescent lying in the X-Z plane.
+    // Spans ~1 unit X, shallow Y (~0.35 thick), curved leading edge bowing toward -Z.
+    // Triangle strip between outer arc (radius R) and inner arc (radius r), 16 segments.
+    // Visible from +Z looking toward -Z (player approaching from +Z).
+    static Mesh BuildCrescentMesh()
+    {
+        const int   segs   = 16;
+        const float R      = 0.55f;  // outer radius
+        const float r      = 0.25f;  // inner radius
+        const float thick  = 0.30f;  // Y thickness (top-to-bottom of blade)
+        const float tilt   = 0.12f;  // slight upward bow at ends (lip)
+
+        // Arc sweeps from -70° to +70° (in X-Z plane, bowing toward -Z).
+        const float halfAng = 70f * Mathf.Deg2Rad;
+
+        int vCount = segs + 1;
+        // Top face (y = +thick*0.5) and bottom face (y = -thick*0.5), each with inner+outer ring.
+        // Total: 4 rings × (segs+1) verts.
+        int totalVerts = 4 * vCount;
+        var verts  = new Vector3[totalVerts];
+        var norms  = new Vector3[totalVerts];
+        var uvs    = new Vector2[totalVerts];
+
+        // Ring indices (rows of segs+1):
+        // 0 = top outer, 1 = top inner, 2 = bottom outer, 3 = bottom inner
+        for (int i = 0; i <= segs; i++)
+        {
+            float t   = (float)i / segs;            // 0..1
+            float ang = Mathf.Lerp(-halfAng, halfAng, t);
+            float x   = Mathf.Sin(ang);             // -sin(70°)..+sin(70°) ≈ -0.94..+0.94
+            float zOuter = -Mathf.Cos(ang) * R;     // bow toward -Z (negative = toward player)
+            float zInner = -Mathf.Cos(ang) * r;
+
+            // Lip: ends curve upward slightly so it reads as a blade edge, not a plank.
+            float lipY = tilt * (1f - Mathf.Abs(2f * t - 1f)); // 0 at ends, tilt at center
+
+            float yTop = +thick * 0.5f + lipY;
+            float yBot = -thick * 0.5f;
+
+            int topOuter  = 0 * vCount + i;
+            int topInner  = 1 * vCount + i;
+            int botOuter  = 2 * vCount + i;
+            int botInner  = 3 * vCount + i;
+
+            verts[topOuter] = new Vector3(x * R, yTop, zOuter);
+            verts[topInner] = new Vector3(x * r, yTop, zInner);
+            verts[botOuter] = new Vector3(x * R, yBot, zOuter);
+            verts[botInner] = new Vector3(x * r, yBot, zInner);
+
+            norms[topOuter] = Vector3.up;
+            norms[topInner] = Vector3.up;
+            norms[botOuter] = Vector3.down;
+            norms[botInner] = Vector3.down;
+
+            float u = t;
+            uvs[topOuter] = new Vector2(u, 1);
+            uvs[topInner] = new Vector2(u, 0);
+            uvs[botOuter] = new Vector2(u, 1);
+            uvs[botInner] = new Vector2(u, 0);
+        }
+
+        // Build tris: top face (outer→inner strip), bottom face (inner→outer strip),
+        // outer rim (side), inner rim (side), left cap, right cap.
+        var tris = new System.Collections.Generic.List<int>();
+
+        // Helper: quad from (a,b,c,d) in correct winding order
+        // For top face (facing up): a=topOuter[i], b=topInner[i], c=topOuter[i+1], d=topInner[i+1]
+        // winding: a,b,c  then b,d,c  (Unity CCW when viewed from outside)
+        void AddQuad(int a, int b, int c, int d)
+        {
+            tris.Add(a); tris.Add(c); tris.Add(b);
+            tris.Add(b); tris.Add(c); tris.Add(d);
+        }
+
+        for (int i = 0; i < segs; i++)
+        {
+            int to0 = 0 * vCount + i, to1 = 0 * vCount + i + 1;
+            int ti0 = 1 * vCount + i, ti1 = 1 * vCount + i + 1;
+            int bo0 = 2 * vCount + i, bo1 = 2 * vCount + i + 1;
+            int bi0 = 3 * vCount + i, bi1 = 3 * vCount + i + 1;
+
+            // Top face (faces up — normal +Y already set)
+            AddQuad(to0, ti0, to1, ti1);
+            // Bottom face (faces down — winding reversed)
+            AddQuad(bi0, bo0, bi1, bo1);
+            // Outer rim (faces outward)
+            AddQuad(bo0, to0, bo1, to1);
+            // Inner rim (faces inward, winding reversed)
+            AddQuad(ti0, bi0, ti1, bi1);
+        }
+
+        // Left cap (i=0) and right cap (i=segs)
+        // Left cap: topOuter[0], topInner[0], botOuter[0], botInner[0]
+        {
+            int to = 0*vCount, ti = 1*vCount, bo = 2*vCount, bi = 3*vCount;
+            tris.Add(to); tris.Add(bi); tris.Add(ti);
+            tris.Add(to); tris.Add(bo); tris.Add(bi);
+        }
+        // Right cap: topOuter[segs], topInner[segs], botOuter[segs], botInner[segs]
+        {
+            int to = 0*vCount+segs, ti = 1*vCount+segs, bo = 2*vCount+segs, bi = 3*vCount+segs;
+            tris.Add(ti); tris.Add(bi); tris.Add(to);
+            tris.Add(bi); tris.Add(bo); tris.Add(to);
+        }
+
+        var mesh = new Mesh();
+        mesh.name = "CrescentMesh";
+        mesh.vertices  = verts;
+        mesh.normals   = norms;
+        mesh.uv        = uvs;
+        mesh.triangles = tris.ToArray();
+        mesh.RecalculateBounds();
+        mesh.RecalculateNormals(); // override the manual normals for proper lighting
+        return mesh;
+    }
+
+    // BuildSlashMesh: a high horizontal slash blade spanning ~1 unit X.
+    // Thin in Y (~0.33 total), tapered (wider in middle, pointed tips), diagonal cant.
+    // 4 verts per cross-section (top-front, top-back, bot-front, bot-back), 14 segments.
+    // Visible from +Z looking toward -Z (player approaching from +Z).
+    static Mesh BuildSlashMesh()
+    {
+        const int   segs  = 14;
+        const float halfX = 0.52f;   // half-length in X
+        const float maxTY = 0.18f;   // max top-edge Y at center (blade crown)
+        const float maxBY = -0.15f;  // max bot-edge Y at center (cutting edge)
+        const float cant  = 0.08f;   // diagonal tilt: +X end higher, -X end lower
+        const float depth = 0.18f;   // Z thickness (blade cross-section)
+
+        // Ring layout (rows of segs+1): 0=top-front, 1=top-back, 2=bot-front, 3=bot-back
+        int vCount     = segs + 1;
+        int totalVerts = 4 * vCount;
+        var verts = new Vector3[totalVerts];
+        var uvs   = new Vector2[totalVerts];
+
+        for (int i = 0; i <= segs; i++)
+        {
+            float t     = (float)i / segs;
+            float x     = Mathf.Lerp(-halfX, halfX, t);
+            float taper = Mathf.Sin(t * Mathf.PI); // 0 at tips, 1 at center
+            float topY  = maxTY * taper + cant * (t - 0.5f);
+            float botY  = maxBY * taper + cant * (t - 0.5f);
+            float zF    = -depth * 0.5f;
+            float zB    = +depth * 0.5f;
+
+            verts[0*vCount+i] = new Vector3(x, topY, zF); // top-front
+            verts[1*vCount+i] = new Vector3(x, topY, zB); // top-back
+            verts[2*vCount+i] = new Vector3(x, botY, zF); // bot-front
+            verts[3*vCount+i] = new Vector3(x, botY, zB); // bot-back
+
+            uvs[0*vCount+i] = new Vector2(t, 1);
+            uvs[1*vCount+i] = new Vector2(t, 1);
+            uvs[2*vCount+i] = new Vector2(t, 0);
+            uvs[3*vCount+i] = new Vector2(t, 0);
+        }
+
+        var tris = new System.Collections.Generic.List<int>();
+
+        for (int i = 0; i < segs; i++)
+        {
+            int tf0=0*vCount+i, tf1=0*vCount+i+1;
+            int tb0=1*vCount+i, tb1=1*vCount+i+1;
+            int bf0=2*vCount+i, bf1=2*vCount+i+1;
+            int bb0=3*vCount+i, bb1=3*vCount+i+1;
+
+            // Front face (–Z, player-facing): CCW from –Z
+            tris.Add(tf0); tris.Add(tf1); tris.Add(bf0);
+            tris.Add(bf0); tris.Add(tf1); tris.Add(bf1);
+            // Back face (+Z): winding flipped
+            tris.Add(tb1); tris.Add(tb0); tris.Add(bb1);
+            tris.Add(bb1); tris.Add(tb0); tris.Add(bb0);
+            // Top spine
+            tris.Add(tf0); tris.Add(tb0); tris.Add(tf1);
+            tris.Add(tf1); tris.Add(tb0); tris.Add(tb1);
+            // Bottom cutting edge
+            tris.Add(bf1); tris.Add(bb0); tris.Add(bf0);
+            tris.Add(bf1); tris.Add(bb1); tris.Add(bb0);
+        }
+        // Left cap
+        {
+            int tf=0*vCount, tb=1*vCount, bf=2*vCount, bb=3*vCount;
+            tris.Add(tf); tris.Add(bf); tris.Add(tb);
+            tris.Add(tb); tris.Add(bf); tris.Add(bb);
+        }
+        // Right cap
+        {
+            int tf=0*vCount+segs, tb=1*vCount+segs, bf=2*vCount+segs, bb=3*vCount+segs;
+            tris.Add(tf); tris.Add(tb); tris.Add(bf);
+            tris.Add(tb); tris.Add(bb); tris.Add(bf);
+        }
+
+        var mesh = new Mesh();
+        mesh.name      = "SlashMesh";
+        mesh.vertices  = verts;
+        mesh.uv        = uvs;
+        mesh.triangles = tris.ToArray();
+        mesh.RecalculateBounds();
+        mesh.RecalculateNormals();
+        return mesh;
+    }
+
+    // EnsureBlockVisual: hide the cube's MeshRenderer; show a qi-crescent child mesh.
+    // Pool-safe: holder creation guarded; re-hide MeshRenderer every spawn to survive reuse.
+    // ONLY called from SpawnBlock — NOT from SpawnLightning or SpawnAerial which share
+    // HazardKind.Block but should keep their own plain appearances.
+    void EnsureBlockVisual(GameObject go, float w, float h, float d)
+    {
+        // Always re-hide the cube renderer (pool reuse may have re-shown it).
+        var cubeMR = go.GetComponent<MeshRenderer>();
+        if (cubeMR != null) cubeMR.enabled = false;
+
+        // Idempotent: if holder already exists, we're done (mesh and mat already wired).
+        if (go.transform.Find("BlockVisualHolder") != null) return;
+
+        // Scale-cancel holder: go.localScale = (w, h, d); invert so holder children live
+        // in unit space and the crescent mesh is not non-uniformly stretched.
+        var holder = new GameObject("BlockVisualHolder");
+        holder.transform.SetParent(go.transform, false);
+        holder.transform.localPosition = Vector3.zero;
+        holder.transform.localRotation = Quaternion.identity;
+        holder.transform.localScale = new Vector3(1f / w, 1f / h, 1f / d);
+
+        // Build (or reuse) the cached crescent mesh.
+        if (_crescentMesh == null) _crescentMesh = BuildCrescentMesh();
+
+        // Visual child: MeshFilter + MeshRenderer with the block glow material.
+        var visual = new GameObject("CrescentVisual");
+        visual.transform.SetParent(holder.transform, false);
+        // Position crescent near the bottom of the block so it reads as a floor sweep.
+        // In holder (unit) space, block bottom is at local y = -0.5; offset up a little.
+        visual.transform.localPosition = new Vector3(0f, -0.3f, 0f);
+        // Scale the crescent to span the full width (holder inverts the box scale,
+        // so we scale back by w to fill the lane width in world space).
+        visual.transform.localScale = new Vector3(w, h, d);
+        // Slight tilt: rotate the arc so the sweep bow faces the player (-Z direction).
+        visual.transform.localRotation = Quaternion.identity;
+
+        var mf = visual.AddComponent<MeshFilter>();
+        mf.sharedMesh = _crescentMesh;
+        var mr = visual.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = _matBlock;
+    }
+
+    // EnsureBarVisual: hide the cube's MeshRenderer; show a horizontal slash blade child mesh.
+    // Pool-safe: same idiom as EnsureBlockVisual.
+    void EnsureBarVisual(GameObject go, float w, float h, float d)
+    {
+        // Always re-hide the cube renderer.
+        var cubeMR = go.GetComponent<MeshRenderer>();
+        if (cubeMR != null) cubeMR.enabled = false;
+
+        if (go.transform.Find("BarVisualHolder") != null) return;
+
+        var holder = new GameObject("BarVisualHolder");
+        holder.transform.SetParent(go.transform, false);
+        holder.transform.localPosition = Vector3.zero;
+        holder.transform.localRotation = Quaternion.identity;
+        holder.transform.localScale = new Vector3(1f / w, 1f / h, 1f / d);
+
+        if (_slashMesh == null) _slashMesh = BuildSlashMesh();
+
+        var visual = new GameObject("SlashVisual");
+        visual.transform.SetParent(holder.transform, false);
+        // Center the blade in the bar volume.
+        visual.transform.localPosition = Vector3.zero;
+        // Scale to fill the bar's world-space extent.
+        visual.transform.localScale = new Vector3(w, h, d);
+        visual.transform.localRotation = Quaternion.identity;
+
+        var mf = visual.AddComponent<MeshFilter>();
+        mf.sharedMesh = _slashMesh;
+        var mr = visual.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = _matBar;
     }
 
     /// <summary>
