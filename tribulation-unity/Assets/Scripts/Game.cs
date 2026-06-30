@@ -55,6 +55,10 @@ public class Game : MonoBehaviour
         // ponytail: trial banner + HUD trial list — Batch 2 (HudOverlay)
         // ponytail: QiChanged / NetChanged / SoulsChanged / ComboChanged → HUD deferred (later issue)
 
+        // Telemetry: wire achievement + daily events (local JSONL only — no data leaves device)
+        Core.AchievementUnlocked += id => Telemetry.Event("achievement", $"\"id\":\"{id}\"");
+        Core.DailyClaimed        += (s, r) => Telemetry.Event("daily", $"\"streak\":{s},\"reward\":{r}");
+
         // Load saved state; run begins when the player taps "Begin Cultivation" (MainMenu).
         LoadSave();
 

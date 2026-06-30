@@ -32,5 +32,12 @@ namespace Tribulation.Core
 
         // Upgrade levels (index-parallel to GameCore.Upgrades list)
         public System.Collections.Generic.List<int> upgradeLevels = new System.Collections.Generic.List<int>();
+
+        // Daily reward persistence
+        public int dailyLastDay  = -1;
+        public int dailyStreak   = 0;
+
+        // Achievement unlock list (ids of unlocked achievements)
+        public System.Collections.Generic.List<string> achUnlocked = new System.Collections.Generic.List<string>();
     }
 }

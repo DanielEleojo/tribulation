@@ -8,7 +8,7 @@
 // note: load-order — if Game.Start's LoadSave runs after this, realm/best may show
 //           defaults for one display; refresh on Show() is enough.
 // ponytail: shop/journal/settings slices TODO (ghost buttons disabled here)
-// ponytail: daily TODO (Daily button omitted — no daily system surfaced yet)
+// note: daily reward is surfaced in the Journal panel (MenuScreens.cs — issue #13)
 
 using UnityEngine;
 using UnityEngine.UI;

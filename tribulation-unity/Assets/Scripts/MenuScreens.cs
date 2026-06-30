@@ -50,6 +50,10 @@ public class MenuScreens : MonoBehaviour
     // ── Journal live refs ─────────────────────────────────────────────────────
     Text _journalStatsText;
     Text _journalTechText;
+    Text _journalAchText;
+    // Daily claim button (lives in the journal panel)
+    Button _dailyBtn;
+    Text   _dailyBtnLabel;
 
     // ── Settings live refs ────────────────────────────────────────────────────
     Slider _musicSlider;
@@ -402,6 +406,77 @@ public class MenuScreens : MonoBehaviour
             preferredHeight: 200f, flexibleHeight: 1f);
         _journalTechText.horizontalOverflow = HorizontalWrapMode.Wrap;
         _journalTechText.verticalOverflow   = VerticalWrapMode.Overflow;
+
+        // ── Achievements sub-header ──────────────────────────────────────────
+        var achHdr = AddTextRow(content, "AchHeader", font, 28, C_CINNABAR,
+            TextAnchor.MiddleLeft, FontStyle.Bold, preferredHeight: 44);
+        achHdr.text = "Achievements";
+        AddDivider(content, "AchDivider");
+
+        // Achievements list — wrapping, flexible height
+        _journalAchText = AddTextRow(content, "AchList", font, 20, C_TEXT_DIM,
+            TextAnchor.UpperLeft, FontStyle.Normal,
+            preferredHeight: 200f, flexibleHeight: 1f);
+        _journalAchText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        _journalAchText.verticalOverflow   = VerticalWrapMode.Overflow;
+
+        // ── Daily reward button ──────────────────────────────────────────────
+        {
+            var dailyGO = new GameObject("DailyBtn", typeof(RectTransform));
+            dailyGO.transform.SetParent(content.transform, false);
+            var dlLE = dailyGO.AddComponent<LayoutElement>();
+            dlLE.preferredHeight = 60f;
+            dlLE.minHeight       = 60f;
+
+            var dlImg = dailyGO.AddComponent<Image>();
+            dlImg.sprite        = InkArt.RoundedPanel(400, 60, 12, 2);
+            dlImg.type          = Image.Type.Simple;
+            dlImg.color         = Color.white;
+            dlImg.raycastTarget = true;
+
+            _dailyBtn = dailyGO.AddComponent<Button>();
+            _dailyBtn.interactable  = false;
+            _dailyBtn.targetGraphic = dlImg;
+            {
+                var cb = _dailyBtn.colors;
+                cb.normalColor      = Color.white;
+                cb.highlightedColor = new Color(0.94f, 0.94f, 0.94f, 1f);
+                cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
+                cb.disabledColor    = new Color(1f, 1f, 1f, 0.45f);
+                cb.colorMultiplier  = 1f;
+                _dailyBtn.colors = cb;
+            }
+
+            var dlLabelGO = new GameObject("Label", typeof(RectTransform));
+            dlLabelGO.transform.SetParent(dailyGO.transform, false);
+            var dlLRT = dlLabelGO.GetComponent<RectTransform>();
+            dlLRT.anchorMin = Vector2.zero;
+            dlLRT.anchorMax = Vector2.one;
+            dlLRT.offsetMin = Vector2.zero;
+            dlLRT.offsetMax = Vector2.zero;
+            _dailyBtnLabel = dlLabelGO.AddComponent<Text>();
+            _dailyBtnLabel.font            = font;
+            _dailyBtnLabel.fontSize        = 24;
+            _dailyBtnLabel.color           = C_INK;
+            _dailyBtnLabel.alignment       = TextAnchor.MiddleCenter;
+            _dailyBtnLabel.fontStyle       = FontStyle.Bold;
+            _dailyBtnLabel.supportRichText = false;
+            _dailyBtnLabel.raycastTarget   = false;
+            _dailyBtnLabel.text            = "Daily Qi";
+
+            _dailyBtn.onClick.AddListener(() =>
+            {
+                var c = Game.I?.Core;
+                if (c == null) return;
+                int today = (int)(System.DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 86400L);
+                int reward = c.ClaimDaily(today);
+                if (reward > 0)
+                {
+                    Game.I.SaveProgress();
+                    RefreshJournal();
+                }
+            });
+        }
 
         // Spacer + Back
         AddSpacer(content, "JournalSpacer");
@@ -765,14 +840,59 @@ public class MenuScreens : MonoBehaviour
             if (tele == null)
             {
                 _journalTechText.text = "None discovered yet — survive to learn your enemies' techniques.";
-                return;
             }
-
-            var seen = new List<string>(tele.SeenTechniques);
-            if (seen.Count == 0)
-                _journalTechText.text = "None discovered yet — survive to learn your enemies' techniques.";
             else
-                _journalTechText.text = string.Join("\n", seen);
+            {
+                var seen = new List<string>(tele.SeenTechniques);
+                if (seen.Count == 0)
+                    _journalTechText.text = "None discovered yet — survive to learn your enemies' techniques.";
+                else
+                    _journalTechText.text = string.Join("\n", seen);
+            }
+        }
+
+        // ── Achievements ─────────────────────────────────────────────────────
+        if (_journalAchText != null)
+        {
+            if (core == null)
+            {
+                _journalAchText.text = "No data.";
+            }
+            else
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach (var a in core.Achievements)
+                {
+                    bool unlocked = core.IsAchUnlocked(a.Id);
+                    sb.AppendLine(unlocked
+                        ? "✔ " + a.Name
+                        : "✧ " + a.Name + " — " + a.Desc);
+                }
+                _journalAchText.text = sb.ToString().TrimEnd();
+            }
+        }
+
+        // ── Daily button ──────────────────────────────────────────────────────
+        if (_dailyBtn != null && _dailyBtnLabel != null)
+        {
+            int today = (int)(System.DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 86400L);
+            bool available = core != null && core.DailyAvailable(today);
+            _dailyBtn.interactable = available;
+            if (core == null)
+            {
+                _dailyBtnLabel.text = "Daily Qi";
+            }
+            else if (available)
+            {
+                int streak   = core.DailyStreak;
+                int nextStreak = streak + 1;
+                int preview  = 80 * System.Math.Min(nextStreak, 7);
+                _dailyBtnLabel.text = $"Claim Daily Qi ({preview} stones)";
+            }
+            else
+            {
+                _dailyBtnLabel.text = $"Daily claimed — Streak {core.DailyStreak}";
+            }
         }
     }
 
