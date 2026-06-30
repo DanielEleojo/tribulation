@@ -22,7 +22,7 @@ public class Ground : MonoBehaviour
     void Start()
     {
         _pathMat = StoneMat();
-        _lineMat = SolidMat(new Color(0.55f, 0.60f, 0.40f), true);
+        _lineMat = SolidMat(new Color(0.35f, 0.32f, 0.22f), false);
         for (int i = 0; i < TILE_COUNT; i++)
         {
             Transform t = MakeTile();
@@ -57,7 +57,7 @@ public class Ground : MonoBehaviour
         var pr = path.GetComponent<Renderer>();
         pr.sharedMaterial = _pathMat;
         // Tile the stone ~2.5m per repeat (cube UVs span one face): width 7.5→3 reps, length 20→8 reps.
-        pr.sharedMaterial.mainTextureScale = new Vector2(3f, 8f);
+        pr.sharedMaterial.mainTextureScale = new Vector2(2f, 6f);
 
         // Two glowing lane dividers (no collider needed — strip them).
         foreach (float sx in new[] { -LANE_WIDTH * 0.5f, LANE_WIDTH * 0.5f })
@@ -105,11 +105,11 @@ public class Ground : MonoBehaviour
         {
             m.EnableKeyword("_NORMALMAP");
             m.SetTexture("_BumpMap", nrm);
-            m.SetTextureScale("_BumpMap", new Vector2(3f, 8f));
+            m.SetTextureScale("_BumpMap", new Vector2(2f, 6f));
             nrm.wrapMode = TextureWrapMode.Repeat;
         }
-        m.SetColor("_BaseColor", new Color(0.55f, 0.55f, 0.62f)); // dim cool tint, keeps the dusk mood
-        m.SetFloat("_Smoothness", 0.45f);                          // wet sheen
+        m.SetColor("_BaseColor", new Color(0.22f, 0.22f, 0.28f)); // dark ink-stone tint, recedes into fog
+        m.SetFloat("_Smoothness", 0.42f);                          // wet sheen
         m.SetFloat("_Metallic", 0f);
         return m;
     }

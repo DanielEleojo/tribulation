@@ -76,8 +76,8 @@ public class Bootstrap : MonoBehaviour
         var qi = qiGo.AddComponent<Light>();
         qi.type = LightType.Point;
         qi.color = new Color(0.45f, 0.95f, 0.75f);
-        qi.range = 5.5f;
-        qi.intensity = 2.6f;
+        qi.range = 3.8f;      // tighter pool so it doesn't wash out the hero's own grounding shadow
+        qi.intensity = 1.4f;  // dimmer: jade glow still reads, contact shadow survives
         qi.shadows = LightShadows.None;
 
         player.AddComponent<RiggedCharacter>(); // rigged martial-artist (falls back to InkCultivator if prefab missing)
@@ -103,8 +103,10 @@ public class Bootstrap : MonoBehaviour
         var l = go.AddComponent<Light>();
         l.type = LightType.Directional;
         l.color = new Color(1f, 0.72f, 0.55f);
-        l.intensity = 1.0f;
-        go.transform.rotation = Quaternion.Euler(18f, -25f, 0f);
+        l.intensity = 1.1f;
+        l.shadows = LightShadows.Soft;
+        l.shadowStrength = 0.6f;
+        go.transform.rotation = Quaternion.Euler(38f, 150f, 0f);  // from upper-right-behind → shadow falls forward toward camera, clearly grounds character
 
         // Cool rim/back light: shines from ahead-above toward the camera (+Z), so it catches
         // the BACK edges of the player (he faces -Z) and the trees — silhouette separation at dusk.
@@ -161,9 +163,10 @@ public class Bootstrap : MonoBehaviour
             vol.profile = profile;
 
             // Bloom — makes glowing hazards and the qi-core actually halo.
+            // Raised threshold + lowered intensity keeps shape on gate/hazards instead of blowing out.
             var bloom = profile.Add<Bloom>(true);
-            bloom.intensity.Override(0.9f);
-            bloom.threshold.Override(0.85f);
+            bloom.intensity.Override(0.55f);
+            bloom.threshold.Override(1.05f);
             bloom.scatter.Override(0.6f);
 
             // Subtle warm cinematic grade.

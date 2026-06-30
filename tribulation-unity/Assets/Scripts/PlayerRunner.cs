@@ -321,10 +321,12 @@ public class PlayerRunner : MonoBehaviour
         if (killed > 0)
         {
             if (SoundManager.I != null) SoundManager.I.Play("kill");
-            // Feel: hitstop + scale-pop + FOV kick make the kill land.
+            // Feel: hitstop + scale-pop + FOV kick + light trauma on kill.
             Feel.Hitstop(0.05f);
             FeelPop(0.30f);
-            Cam()?.AddFovKick(4f);
+            var cam = Cam();
+            cam?.AddFovKick(6f);    // bumped 4→6 for a snappier kill punch
+            cam?.AddTrauma(0.18f);  // light shake so the kill registers in the camera
             // Blood-Sprint: add speed boost per kill (#8).
             _surv.OnKills(killed);
             Game.I.OnEnemyKilled(killed);

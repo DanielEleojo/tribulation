@@ -19,18 +19,19 @@ public class GateLandmark : MonoBehaviour
 
     // --- Light-shaft constants (Part B — focal beacon effect) ----------------
     // A fake-volumetric beam + halo centred in the gate opening.
-    // Tweak these to taste; all sizing is relative to GATE_H where sensible.
-    static readonly Color SHAFT_COLOR      = new Color(1.00f, 0.92f, 0.70f, 0.80f); // warm gold-white beam
-    static readonly Color HALO_COLOR       = new Color(1.00f, 0.88f, 0.60f, 0.50f); // softer halo for bloom
-    const float SHAFT_WIDTH    = 4.2f;   // world-unit width of each beam quad
-    const float SHAFT_HEIGHT   = 20f;    // world-unit height of the beam — tall enough to read as a beacon at 130m
-    // Vertical centre of the beam: put it in the opening (a bit above lintel mid-point)
-    // localPos.y = GATE_H * SHAFT_Y_FACTOR
-    const float SHAFT_Y_FACTOR = 0.70f;
+    // Values tuned so the beam reads as a focused shaft of light in the doorway,
+    // NOT a glowing slab that drowns the gate silhouette.
+    static readonly Color SHAFT_COLOR      = new Color(1.00f, 0.92f, 0.70f, 0.28f); // warm gold-white beam — dim enough that gate architecture dominates
+    static readonly Color HALO_COLOR       = new Color(1.00f, 0.88f, 0.60f, 0.22f); // softer halo — just a glow in the opening, not a wall
+    const float SHAFT_WIDTH    = 1.6f;   // narrow — reads as shaft between pillars, not a covering slab
+    const float SHAFT_HEIGHT   = 10f;    // confined to the doorway opening — doesn't extend above the lintel
+    // Vertical centre of the beam: put it in the opening (between ground and lintel)
+    // localPos.y = GATE_H * SHAFT_Y_FACTOR — lintel is at GATE_H*0.88, so 0.38 centres the beam in the opening
+    const float SHAFT_Y_FACTOR = 0.38f;  // centred in the doorway opening (below lintel)
     const float SHAFT_Z_OFFSET = 0.5f;   // slight +Z push so it sits in front of the pillars
-    const float HALO_SIZE      = 8f;     // uniform scale of the round glow halo quad
+    const float HALO_SIZE      = 3.5f;   // small — pool of warm light on the ground/opening, not above the roof
     // Halo sits at the opening centre (roughly mid-pillar height)
-    const float HALO_Y_FACTOR  = 0.50f;
+    const float HALO_Y_FACTOR  = 0.35f;
 
     // --- Runtime state -------------------------------------------------------
     Transform _player;
@@ -149,9 +150,17 @@ public class GateLandmark : MonoBehaviour
         }
 
         var mat = new Material(shader);
-        var tint = new Color(0.16f, 0.15f, 0.18f, 1f);   // dark purple-grey, matches fog palette
+        // Slightly warmer tint than pure fog-grey so the edges read as a deliberate landmark.
+        // Still very dark and moody — just enough to separate from the background at 100m+.
+        var tint = new Color(0.22f, 0.19f, 0.24f, 1f);   // dark warm-purple, a touch lighter/warmer than pure fog
         mat.color = tint;
         if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
+        // Faint warm emission so the gate silhouette reads against the dusky sky at distance.
+        // Kept very low (0.06) — barely visible but enough to trace the architecture outline.
+        mat.EnableKeyword("_EMISSION");
+        var emitColor = new Color(0.06f, 0.04f, 0.08f);  // dim warm-purple glow
+        mat.SetColor("_EmissionColor", emitColor);
+        if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", emitColor);
         return mat;
     }
 
