@@ -1,0 +1,22 @@
+# Unity generated / local — never commit
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]serSettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+.vs/
+.idea/
+
+# Generated solution / project files
+*.csproj
+*.sln
+*.slnx
+*.user
+*.unityproj
+*.booproj
+*.pidb
+*.suo

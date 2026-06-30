@@ -23,13 +23,14 @@ config/icon="res://assets/icon.png"
 
 Balance="*res://scripts/balance.gd"
 Telemetry="*res://scripts/telemetry.gd"
+Shot="*res://scripts/screenshotter.gd"
 
 [display]
 
 window/size/viewport_width=720
 window/size/viewport_height=1280
-window/size/window_width_override=405
-window/size/window_height_override=720
+window/size/window_width_override=1242
+window/size/window_height_override=2688
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=1
