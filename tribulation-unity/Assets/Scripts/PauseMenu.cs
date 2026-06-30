@@ -35,6 +35,9 @@ public class PauseMenu : MonoBehaviour
 
     bool _paused;
 
+    /// <summary>True while the game is paused (Time.timeScale=0 and panel visible).</summary>
+    public bool IsPaused => _paused;
+
     // ════════════════════════════════════════════════════════════════════════
     // Lifecycle
     // ════════════════════════════════════════════════════════════════════════

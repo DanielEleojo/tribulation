@@ -100,8 +100,14 @@ public class Spawner : MonoBehaviour
     // Cached PlayerRunner reference (for IsFlying check).
     PlayerRunner _playerRunner;
 
+    // Lightning bolt: tall glowing white-blue column (Heavenly Tribulation, issue #7)
+    static readonly Color LIGHTNING_COLOR = new Color(0.75f, 0.88f, 1.0f); // white-blue
+    const float BOLT_W  = 0.7f;
+    const float BOLT_H  = 7.0f;
+    const float BOLT_D  = 0.7f;
+
     // Shared materials (one per kind, created once)
-    Material _matBlock, _matBar, _matEnemy, _matOrb, _matPill, _matAerial;
+    Material _matBlock, _matBar, _matEnemy, _matOrb, _matPill, _matAerial, _matLightning;
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
     void Start()
@@ -112,12 +118,13 @@ public class Spawner : MonoBehaviour
         _pillTimer = Balance.D.spawn_pill_interval;
         _gateTimer = Balance.D.spawn_gate_interval;
 
-        _matBlock  = MakeGlowMat(BLOCK_COLOR);
-        _matBar    = MakeGlowMat(BAR_COLOR);
-        _matEnemy  = MakeMat(ENEMY_COLOR); // fallback only; mesh hidden when soldier loads
-        _matOrb    = MakeOrbMat(ORB_COLOR); // warm-glow (1.4× emission) — distinct from 1.8× hazard glow
-        _matPill   = MakeMat(PILL_COLOR);
-        _matAerial = MakeMat(AERIAL_COLOR);
+        _matBlock     = MakeGlowMat(BLOCK_COLOR);
+        _matBar       = MakeGlowMat(BAR_COLOR);
+        _matEnemy     = MakeMat(ENEMY_COLOR); // fallback only; mesh hidden when soldier loads
+        _matOrb       = MakeOrbMat(ORB_COLOR); // warm-glow (1.4× emission) — distinct from 1.8× hazard glow
+        _matPill      = MakeMat(PILL_COLOR);
+        _matAerial    = MakeMat(AERIAL_COLOR);
+        _matLightning = MakeGlowMat(LIGHTNING_COLOR); // white-blue hot glow for tribulation bolts
     }
 
     void Update()
@@ -175,6 +182,20 @@ public class Spawner : MonoBehaviour
     {
         float z = _player.position.z - SPAWN_AHEAD;
 
+        // ── Lightning (Heavenly Tribulation) — Godot branch order: checked FIRST ──
+        // During active tribulation, replaces all normal spawns.
+        // At Ascension (realm≥5), also fires probabilistically (55% chance).
+        // Mirrors spawner.gd: if game.in_tribulation() → _spawn_lightning(z) and return.
+        var core = Game.I?.Core;
+        if (core != null && SpawnScheduler.ShouldStrikeLightning(
+                core.InTribulation,
+                core.HasAbility("tribulation"),
+                Random.value))
+        {
+            SpawnLightning(z);
+            return;
+        }
+
         // While flying, swap in aerial hazards instead of the ground trinity.
         // Mirrors spawner.gd _spawn_aerial branch. ponytail: full parity deferred.
         if (_playerRunner != null && _playerRunner.IsFlying)
@@ -191,6 +212,29 @@ public class Spawner : MonoBehaviour
             case HazardKind.Block: SpawnBlock(z, step.Lane, step.FullWidth); break;
             case HazardKind.Bar:   SpawnBar(z,   step.Lane, step.FullWidth); break;
             case HazardKind.Enemy: SpawnEnemy(z, step.Lane);                 break;
+        }
+    }
+
+    // Lightning (Heavenly Tribulation, issue #7).
+    // Picks one random safe lane; spawns a lethal tall bolt column in EACH of the other two.
+    // Mirrors spawner.gd _spawn_lightning(z): safe = randi()%3, bolt in every lane != safe.
+    // Bolt geometry: (0.7, 7.0, 0.7), centerY = 7.0*0.5 = 3.5 — full-height lethal column.
+    // Collision/death: Hazard component + trigger → PlayerRunner.OnTriggerEnter → TryAbsorbHit.
+    // Pool-safe: uses existing Acquire/Apply/Track with HazardKind.Block (no new kind needed).
+    void SpawnLightning(float z)
+    {
+        int safe    = Random.Range(0, 3);
+        float cy    = BOLT_H * 0.5f; // center Y = 3.5
+        var   size  = new Vector3(BOLT_W, BOLT_H, BOLT_D);
+
+        foreach (int lane in SpawnScheduler.StrikeLanes(safe))
+        {
+            float x = LaneX(lane);
+            var go  = Acquire(HazardKind.Block, size, cy);
+            go.transform.position = new Vector3(x, cy, z);
+            Apply(go, _matLightning);
+            Track(go, HazardKind.Block);
+            // Telegraph omitted: tribulation is already a screen-shaking alarmed state.
         }
     }
 
@@ -632,6 +676,12 @@ public class Spawner : MonoBehaviour
                 anim.runtimeAnimatorController = attackCtrl;
         }
     }
+
+    /// <summary>
+    /// Read-only view of all currently live hazard objects and their kinds.
+    /// Used by CoachMarks to determine which lessons to surface.
+    /// </summary>
+    public System.Collections.Generic.IReadOnlyList<(GameObject go, HazardKind kind)> LiveHazards => _live;
 
     // Called by Game.BeginRun() to seed difficulty elapsed for the current realm.
     public void BeginRun(float off) { _elapsed = off; }

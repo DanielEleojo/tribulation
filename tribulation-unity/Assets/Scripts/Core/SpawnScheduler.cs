@@ -177,6 +177,37 @@ namespace Tribulation.Core
             return chosen ?? Patterns[0];
         }
 
+        // ── Lightning hazard helpers (issue #7) ─────────────────────────────
+        // Pure / static / no RNG — fully deterministic, harness-testable.
+
+        /// <summary>
+        /// Mirrors spawner.gd lightning routing (Godot branch order):
+        ///   1. inTribulation → always strike.
+        ///   2. hasTribulationAbility (realm≥5) + rand01 &lt; 0.55 → strike at Ascension.
+        ///   3. else → no lightning.
+        /// rand01 is injected (typically Random.value / System.Random) so tests are deterministic.
+        /// </summary>
+        public static bool ShouldStrikeLightning(bool inTribulation, bool hasTribulationAbility, double rand01)
+        {
+            if (inTribulation) return true;
+            if (hasTribulationAbility && rand01 < 0.55) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Returns the two lethal-bolt lanes (not the safe lane).
+        /// safeLane must be 0, 1, or 2.
+        /// </summary>
+        public static int[] StrikeLanes(int safeLane)
+        {
+            // Fast path: enumerate {0,1,2} minus safeLane in order.
+            var result = new int[2];
+            int idx = 0;
+            for (int lane = 0; lane < 3; lane++)
+                if (lane != safeLane) result[idx++] = lane;
+            return result;
+        }
+
         static float Lerp(float a, float b, float t) => a + (b - a) * t;
         static float Clamp01(float v) => v < 0f ? 0f : v > 1f ? 1f : v;
     }

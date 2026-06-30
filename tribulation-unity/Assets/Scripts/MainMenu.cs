@@ -38,6 +38,9 @@ public class MainMenu : MonoBehaviour
     // ── Root ─────────────────────────────────────────────────────────────────
     GameObject _menuRoot;   // SetActive(false) to hide everything
 
+    /// <summary>True while the main menu is visible (not yet in an active run).</summary>
+    public bool IsVisible => _menuRoot != null && _menuRoot.activeSelf;
+
     // ── Text refs for live data ──────────────────────────────────────────────
     Text _realmLine;
     Text _bestLine;

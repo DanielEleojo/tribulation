@@ -32,6 +32,7 @@ public class Bootstrap : MonoBehaviour
         gameObject.AddComponent<MainMenu>();   // title screen shown at launch (UI-5)
         gameObject.AddComponent<MenuScreens>(); // shop / journal / settings overlay panels
         gameObject.AddComponent<PauseMenu>();  // in-run pause screen (sortingOrder 23)
+        gameObject.AddComponent<CoachMarks>(); // coach-mark tutorial overlay (issue #10, sortingOrder 12)
         gameObject.AddComponent<SoundManager>(); // audio SFX hub (#18)
         gameObject.AddComponent<Music>();        // music shaping (#18)
         new GameObject("Ground").AddComponent<Ground>();

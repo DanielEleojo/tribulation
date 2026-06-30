@@ -188,6 +188,9 @@ namespace Tribulation.Core
         /// <summary>Forward speed multiplier for the current realm (game.gd _realms[realm].speed).</summary>
         public float SpeedMult      => RealmSpeedMult    [Math.Min(Realm, RealmSpeedMult.Length     - 1)];
 
+        // ── Tutorial (coach-mark lessons) ────────────────────────────────────
+        public TutorialState Tutorial { get; } = new TutorialState();
+
         // ── Trials (Cultivation Vows) ─────────────────────────────────────────
         // Ported from game.gd _trial templates + _roll_trials / _trial_add / _trial_max.
 
@@ -604,7 +607,8 @@ namespace Tribulation.Core
                 musicVol      = MusicVol,
                 sfxVol        = SfxVol,
                 muted         = Muted,
-                upgradeLevels = upList,
+                upgradeLevels  = upList,
+                learnedLessons = new System.Collections.Generic.List<string>(Tutorial.LearnedLessons),
             };
         }
 
@@ -634,6 +638,9 @@ namespace Tribulation.Core
                 for (int i = 0; i < _upLevels.Length && i < d.upgradeLevels.Count; i++)
                     _upLevels[i] = Clamp(d.upgradeLevels[i], 0, _upgradeDefs[i].MaxLevel);
             }
+
+            // Restore learned coach-mark lessons
+            Tutorial.LoadLearned(d.learnedLessons);
         }
 
         // ── Minor-layer helper (exposed for HUD / debug overlay) ─────────────

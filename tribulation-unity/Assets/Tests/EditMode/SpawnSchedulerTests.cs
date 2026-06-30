@@ -252,4 +252,99 @@ namespace Tribulation.Tests.EditMode
             Assert.IsTrue(s.FullWidth);
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Slice 3 — Lightning hazard helpers (issue #7, Heavenly Tribulation)
+    // ─────────────────────────────────────────────────────────────────────────
+    [TestFixture]
+    public class SpawnSchedulerLightningTests
+    {
+        // ── ShouldStrikeLightning ────────────────────────────────────────────
+
+        [Test]
+        public void ShouldStrike_WhenInTribulation_RegardlessOfAbilityOrRand()
+        {
+            // During active tribulation, always strike (ability and rand don't matter).
+            Assert.IsTrue(SpawnScheduler.ShouldStrikeLightning(true, false, 0.99),
+                "inTribulation=true, no ability, high rand → must strike");
+            Assert.IsTrue(SpawnScheduler.ShouldStrikeLightning(true, true, 0.99),
+                "inTribulation=true, ability, high rand → must strike");
+            Assert.IsTrue(SpawnScheduler.ShouldStrikeLightning(true, false, 0.0),
+                "inTribulation=true, no ability, rand=0 → must strike");
+        }
+
+        [Test]
+        public void ShouldNotStrike_WhenNotTribulation_AndNoAbility()
+        {
+            Assert.IsFalse(SpawnScheduler.ShouldStrikeLightning(false, false, 0.0),
+                "not trib, no ability, rand=0 → no lightning");
+            Assert.IsFalse(SpawnScheduler.ShouldStrikeLightning(false, false, 0.3),
+                "not trib, no ability, rand=0.3 → no lightning");
+        }
+
+        [Test]
+        public void ShouldStrike_AtAscension_WhenRandBelowThreshold()
+        {
+            // hasTribulationAbility (realm≥5) + rand < 0.55 → strike.
+            Assert.IsTrue(SpawnScheduler.ShouldStrikeLightning(false, true, 0.0),
+                "ability + rand=0.0 → below 0.55 threshold → strike");
+            Assert.IsTrue(SpawnScheduler.ShouldStrikeLightning(false, true, 0.54),
+                "ability + rand=0.54 → just below 0.55 → strike");
+        }
+
+        [Test]
+        public void ShouldNotStrike_AtAscension_WhenRandAtOrAboveThreshold()
+        {
+            Assert.IsFalse(SpawnScheduler.ShouldStrikeLightning(false, true, 0.55),
+                "ability + rand=0.55 → at threshold → no strike");
+            Assert.IsFalse(SpawnScheduler.ShouldStrikeLightning(false, true, 0.9),
+                "ability + rand=0.9 → above threshold → no strike");
+        }
+
+        // ── StrikeLanes ──────────────────────────────────────────────────────
+
+        [Test]
+        public void StrikeLanes_AlwaysLengthTwo()
+        {
+            for (int safe = 0; safe < 3; safe++)
+                Assert.AreEqual(2, SpawnScheduler.StrikeLanes(safe).Length,
+                    $"safe={safe}: must return exactly 2 strike lanes");
+        }
+
+        [Test]
+        public void StrikeLanes_NeverContainsSafeLane()
+        {
+            for (int safe = 0; safe < 3; safe++)
+            {
+                var lanes = SpawnScheduler.StrikeLanes(safe);
+                foreach (var lane in lanes)
+                    Assert.AreNotEqual(safe, lane,
+                        $"safe={safe}: strike lane {lane} must not equal safe lane");
+            }
+        }
+
+        [Test]
+        public void StrikeLanes_Safe0_Returns1And2()
+        {
+            var lanes = SpawnScheduler.StrikeLanes(0);
+            Assert.AreEqual(1, lanes[0], "safe=0: first strike lane must be 1");
+            Assert.AreEqual(2, lanes[1], "safe=0: second strike lane must be 2");
+        }
+
+        [Test]
+        public void StrikeLanes_Safe1_Returns0And2()
+        {
+            var lanes = SpawnScheduler.StrikeLanes(1);
+            Assert.AreEqual(0, lanes[0], "safe=1: first strike lane must be 0");
+            Assert.AreEqual(2, lanes[1], "safe=1: second strike lane must be 2");
+        }
+
+        [Test]
+        public void StrikeLanes_Safe2_Returns0And1()
+        {
+            var lanes = SpawnScheduler.StrikeLanes(2);
+            Assert.AreEqual(0, lanes[0], "safe=2: first strike lane must be 0");
+            Assert.AreEqual(1, lanes[1], "safe=2: second strike lane must be 1");
+        }
+    }
 }

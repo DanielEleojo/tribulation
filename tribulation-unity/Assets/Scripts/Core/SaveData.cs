@@ -27,6 +27,9 @@ namespace Tribulation.Core
         // Technique first-encounter persistence
         public System.Collections.Generic.List<string> seenTechniques = new System.Collections.Generic.List<string>();
 
+        // Coach-mark tutorial: lessons the player has permanently learned
+        public System.Collections.Generic.List<string> learnedLessons = new System.Collections.Generic.List<string>();
+
         // Upgrade levels (index-parallel to GameCore.Upgrades list)
         public System.Collections.Generic.List<int> upgradeLevels = new System.Collections.Generic.List<int>();
     }
