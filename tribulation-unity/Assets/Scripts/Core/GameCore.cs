@@ -475,6 +475,24 @@ namespace Tribulation.Core
         public void RecordDistance(int li) { if (li > BestLi) BestLi = li; }
 
         /// <summary>
+        /// Wipe all cultivation progress: realm, lifetime stones, spent, best distance,
+        /// run progress, and all upgrade levels are zeroed.
+        /// Lifetime play-stats (StatRuns/StatFoes/StatTribs/StatDeaths) and
+        /// Tutorial.LearnedLessons are intentionally preserved — matches Godot reset_cultivation().
+        /// The caller (MonoBehaviour) is responsible for persisting (SaveProgress) and restarting.
+        /// </summary>
+        public void ResetCultivation()
+        {
+            Realm       = 0;
+            TotalStones = 0;
+            _spent      = 0;
+            BestLi      = 0;
+            RunProgress = 0;
+            for (int i = 0; i < _upLevels.Length; i++)
+                _upLevels[i] = 0;
+        }
+
+        /// <summary>
         /// Explicit death (also called internally when net >= 1.0).
         /// </summary>
         public void Die(int distanceLi = 0)

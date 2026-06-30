@@ -1489,4 +1489,118 @@ namespace Tribulation.Tests.EditMode
                 "stone_sense level≥1 should yield more TotalStones per kill");
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Slice 10 — ResetCultivation (issue #11 accept criterion: confirm-gated reset)
+    // RED : GameCore.ResetCultivation() does not exist yet.
+    // GREEN: zeroes realm/stones/spent/best/runProgress/all upgrade levels;
+    //        leaves lifetime stats (statRuns/statFoes/statTribs/statDeaths) intact;
+    //        leaves learnedLessons intact;
+    //        ToSave→LoadSave round-trip persists the zeroed values.
+    // ─────────────────────────────────────────────────────────────────────────
+    [TestFixture]
+    public class ResetCultivationTests
+    {
+        static BalanceData ResetBalance() => new BalanceData
+        {
+            realm_span        = new[] { 999999, 999999, 999999, 999999, 999999, 999999 },
+            qi_max            = 999f,
+            qi_per_kill       = 0f,
+            net_push_per_kill = 0f,
+            net_close_rate    = 0f,
+            net_burst_relief  = 0f,
+        };
+
+        GameCore BuildAdvancedCore()
+        {
+            var core = new GameCore(ResetBalance());
+            // Load a save that has realm 2, stones, spent, bestLi, lifetime stats, and a learned lesson.
+            // statRuns=9 so that after StartRun() (which increments by 1) it becomes 10.
+            var save = new SaveData
+            {
+                realm         = 2,
+                totalStones   = 500,
+                spent         = 100,
+                bestLi        = 1234,
+                statRuns      = 9,
+                statFoes      = 77,
+                statTribs     = 3,
+                statDeaths    = 7,
+                upgradeLevels = new System.Collections.Generic.List<int> { 2, 1, 3, 1 },
+                learnedLessons = new System.Collections.Generic.List<string> { "slash", "jump" },
+            };
+            core.LoadSave(save);
+            // StartRun increments StatRuns to 10, and sets RunProgress>0 via kills below.
+            core.StartRun();
+            return core;
+        }
+
+        [Test]
+        public void ResetCultivation_ZeroesRealmAndStones()
+        {
+            var core = BuildAdvancedCore();
+            core.ResetCultivation();
+
+            Assert.AreEqual(0, core.Realm,        "Realm should be 0 after reset");
+            Assert.AreEqual(0, core.TotalStones,  "TotalStones should be 0 after reset");
+            Assert.AreEqual(0, core.SpendableStones, "SpendableStones should be 0 after reset");
+            Assert.AreEqual(0, core.BestLi,       "BestLi should be 0 after reset");
+            Assert.AreEqual(0, core.RunProgress,  "RunProgress should be 0 after reset");
+        }
+
+        [Test]
+        public void ResetCultivation_ZeroesAllUpgradeLevels()
+        {
+            var core = BuildAdvancedCore();
+            core.ResetCultivation();
+
+            for (int i = 0; i < core.Upgrades.Count; i++)
+                Assert.AreEqual(0, core.UpgradeLevel(i),
+                    "UpgradeLevel[" + i + "] should be 0 after reset");
+        }
+
+        [Test]
+        public void ResetCultivation_PreservesLifetimeStats()
+        {
+            var core = BuildAdvancedCore();
+            core.ResetCultivation();
+
+            Assert.AreEqual(10, core.StatRuns,   "StatRuns must survive reset");
+            Assert.AreEqual(77, core.StatFoes,   "StatFoes must survive reset");
+            Assert.AreEqual(3,  core.StatTribs,  "StatTribs must survive reset");
+            Assert.AreEqual(7,  core.StatDeaths, "StatDeaths must survive reset");
+        }
+
+        [Test]
+        public void ResetCultivation_PreservesLearnedLessons()
+        {
+            var core = BuildAdvancedCore();
+            core.ResetCultivation();
+
+            Assert.IsTrue(core.Tutorial.IsLearned("slash"), "slash lesson must survive reset");
+            Assert.IsTrue(core.Tutorial.IsLearned("jump"),  "jump lesson must survive reset");
+        }
+
+        [Test]
+        public void ResetCultivation_SaveRoundTripPersistsZeroes()
+        {
+            var core = BuildAdvancedCore();
+            core.ResetCultivation();
+
+            // Simulate the MonoBehaviour: ToSave → LoadSave
+            var saved = core.ToSave();
+            var fresh = new GameCore(ResetBalance());
+            fresh.LoadSave(saved);
+
+            Assert.AreEqual(0, fresh.Realm,       "Saved realm should be 0");
+            Assert.AreEqual(0, fresh.TotalStones, "Saved totalStones should be 0");
+            Assert.AreEqual(0, fresh.BestLi,      "Saved bestLi should be 0");
+            Assert.AreEqual(0, fresh.RunProgress, "RunProgress not persisted — should be 0");
+            for (int i = 0; i < fresh.Upgrades.Count; i++)
+                Assert.AreEqual(0, fresh.UpgradeLevel(i),
+                    "Saved upgradeLevel[" + i + "] should be 0");
+            // Lifetime stats survive the round-trip too.
+            Assert.AreEqual(10, fresh.StatRuns,  "StatRuns must round-trip through save");
+        }
+    }
 }
