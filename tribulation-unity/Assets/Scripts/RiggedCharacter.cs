@@ -29,6 +29,11 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
     // How long to hold the death pose before freezing the animator.
     const float DEATH_FREEZE_DELAY = 1.2f;
 
+    // ── Explicit fallback flag ────────────────────────────────────────────────
+    // Set true (in Inspector or via Bootstrap) to skip the rigged setup and use
+    // InkCultivator instead. Auto-fallback (prefab missing / exception) still applies.
+    [SerializeField] public bool forceFallback = false;
+
     // ── Cached references ─────────────────────────────────────────────────────
     PlayerRunner _runner;
     Animator     _animator;
@@ -75,6 +80,15 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
                 return;
             }
 
+            // ── Explicit fallback override ────────────────────────────────────
+            if (forceFallback)
+            {
+                Debug.Log("[RiggedCharacter] forceFallback=true — using InkCultivator.");
+                gameObject.AddComponent<InkCultivator>();
+                enabled = false;
+                return;
+            }
+
             // ── Load prefab ───────────────────────────────────────────────────
             var prefab = Resources.Load<GameObject>("Char/Solider_Fist");
             if (prefab == null)
@@ -115,53 +129,46 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
             if (rc != null) _animator.runtimeAnimatorController = rc;
 
             // ── Normalize scale + grounding ───────────────────────────────────
-            // Force Unity to push the skinned mesh into world-space so bounds are valid.
+            // Reset to identity scale first.
             instance.transform.localScale = Vector3.one;
+            instance.transform.localPosition = Vector3.zero;
 
-            // We must activate the object for bounds to be computed on SkinnedMeshRenderers.
-            // It is already active (Instantiate activates by default).
+            // Force all SkinnedMeshRenderers to update off-screen so bounds are valid.
             var renderers = instance.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            foreach (var smr in renderers) smr.updateWhenOffscreen = true;
+
+            // CRITICAL: evaluate the animator's current pose before sampling bounds.
+            // Without this, bounds reflect the T-pose (or no pose), which is wildly
+            // wrong for this model (T-pose tall axis is local-Z, not world-Y).
+            _animator.Update(0f);
+
             if (renderers != null && renderers.Length > 0)
             {
-                // Encapsulate all renderer bounds (world space).
+                // Encapsulate all renderer bounds (world space, after pose evaluation).
                 Bounds combined = renderers[0].bounds;
                 for (int i = 1; i < renderers.Length; i++)
                     combined.Encapsulate(renderers[i].bounds);
 
                 float modelHeight = combined.size.y;
-                if (modelHeight > 0.001f)
+                if (modelHeight > 0.01f)
                 {
-                    // Scale uniformly so height == TARGET_HEIGHT.
+                    // Uniform scale so the posed height == TARGET_HEIGHT.
                     float scale = TARGET_HEIGHT / modelHeight;
                     instance.transform.localScale = new Vector3(scale, scale, scale);
 
-                    // Re-sample bounds after scaling (bounds in world space; convert feet to local).
-                    // After scaling, bounds.min.y is the lowest point in world space.
-                    // We want the feet to sit at Player root y=0.
-                    // The instance's world position.y is 0 (same as player root).
-                    // New feet world y = combined.min.y * scale (bounds scale with transform).
-                    // Offset so feet land at y=0: localPosition.y = -combined.min.y * scale
-                    // But combined.min.y was measured before rescaling, so:
-                    //   new_feet_world_y = combined.min.y * scale
-                    // We want feet at world y=0, so:
-                    //   instance.world_y + new_feet_offset = 0
-                    //   localPosition.y = -combined.min.y * scale (since parent is player root at y~0.2 in world, but we work in local)
-                    // More precisely: after setting localScale, the world bounds.min.y will be
-                    //   playerRoot.position.y + (combined.min.y - playerRoot.position.y) * scale ...
-                    // Simplest robust approach: sample bounds again post-scale.
-                    // Force a pose update by calling Update on the animator — not reliable without a frame.
-                    // Instead, use the pre-scale ratio directly:
-                    //   local feet offset = combined.min.y (local space of instance before scale, but we set scale=1 first so world==local for instance).
-                    // Because localScale was Vector3.one before, combined.min.y is in world space == instance local space offset from player root.
-                    // After applying 'scale', feet local-Y = combined.min.y * scale (relative to player root).
-                    // To place feet at localY=0: shift instance down by that amount.
-                    float feetOffsetBeforeScale = combined.min.y - transform.position.y; // local to player root at scale=1
-                    float feetAfterScale = feetOffsetBeforeScale * scale;
-                    instance.transform.localPosition = new Vector3(0f, -feetAfterScale, 0f);
+                    // After scaling, world bounds.min.y shifts.
+                    // pre-scale feet offset from player root (world): combined.min.y - transform.position.y
+                    // post-scale feet world y = transform.position.y + feetLocalOffset * scale
+                    // We want post-scale feet at transform.position.y (i.e. ground / root y).
+                    // So: localPosition.y = -feetLocalOffset * scale
+                    float feetLocalOffset = combined.min.y - transform.position.y;
+                    instance.transform.localPosition = new Vector3(0f, -feetLocalOffset * scale, 0f);
+
+                    Debug.Log($"[RiggedCharacter] Posed bounds height={modelHeight:F4}, scale={scale:F4}, feetLocal={feetLocalOffset:F4}, localY={instance.transform.localPosition.y:F4}");
                 }
                 else
                 {
-                    Debug.LogWarning("[RiggedCharacter] SkinnedMesh bounds height is zero — skipping scale normalization.");
+                    Debug.LogWarning("[RiggedCharacter] SkinnedMesh bounds height is near-zero after pose — skipping scale normalization.");
                 }
             }
             else
