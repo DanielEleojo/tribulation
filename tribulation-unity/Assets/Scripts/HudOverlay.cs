@@ -13,7 +13,8 @@
 //   Mid       — Qi-ready flare (serif + SoftGlow halo)
 //   Center    — Breakthrough banner (serif + outline, 2s then fade)
 //
-// ponytail: shield pips, tribulation countdown, powerup timers — data not yet surfaced
+// shield pips (PlayerRunner.I.Shields), tribulation countdown (GameCore.TribTimeLeft),
+// and powerup timers (GameCore.PowerupTimeLeft) are now wired — Issue #9 complete.
 // ponytail: full Screen.safeArea rect (top/bottom notch) — currently just 80px top pad
 
 using System.Collections;
@@ -61,6 +62,11 @@ public class HudOverlay : MonoBehaviour
     // Seal-ring (procedural)
     Image  _sealRingOuter;   // ring image (rotates)
     Image  _sealFill;        // radial-fill inner disk that shrinks from 1→0 as net rises
+
+    // ── New HUD elements (Issue #9 gap-fill) ────────────────────────────────────
+    Text _shieldText;   // "Iron Body  ◆◆" — hidden when n==0
+    Text _tribText;     // "⚡ HEAVENLY TRIBULATION ⚡\nEndure  Ns" — centred top, gold
+    Text _powerupText;  // "Soul-Attraction Talisman 8s   Sword-Qi Dash 3s" — hidden when none
 
     // Death card root + stats text
     GameObject _deathRoot;
@@ -304,6 +310,11 @@ public class HudOverlay : MonoBehaviour
         // ── Cultivation Vows / Trials panel (below realm block, top-left) ──────
         BuildTrialPanel(canvasGO, font);
 
+        // ── Issue #9: shield pips, tribulation countdown, powerup timers ────────
+        BuildShieldPips(canvasGO, font);
+        BuildTribText(canvasGO, font);
+        BuildPowerupText(canvasGO, font);
+
         // ── Death card (drawn last so it sits on top of all live HUD) ─────────
         BuildDeathCard(canvasGO, font); // passes InkArt.Serif() — full reskin is PART 2
     }
@@ -358,6 +369,65 @@ public class HudOverlay : MonoBehaviour
 
         // Start hidden; Update() shows it when a run has active trials
         _trialRoot.SetActive(false);
+    }
+
+    // ── Shield pips (Issue #9) ───────────────────────────────────────────────
+    // Positioned top-left below the realm block (realm block bottom: y=-(80+100)=-180;
+    // trial panel top: -195; pips sit under the realm block at -190 on the right side
+    // of the realm block, so they don't overlap the trial panel header).
+    // Faithful to hud.gd set_shields: "Iron Body  " + "◆".repeat(n), hidden when n==0.
+    void BuildShieldPips(GameObject canvasGO, Font font)
+    {
+        // Anchored top-left, just below the realm block (y=-185 leaves 5px gap after -180).
+        var go = MakeAnchoredRect(canvasGO, "ShieldPips",
+            new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(20f, -185f),
+            new Vector2(320f, 32f));
+
+        _shieldText = MakeText(go, "ShieldText", font, 18,
+            new Color(0.85f, 0.88f, 1.0f),  // hud.gd Color(0.85, 0.88, 1.0)
+            TextAnchor.MiddleLeft,
+            new Vector2(0f, 1f), new Vector2(0f, 1f),
+            Vector2.zero, new Vector2(320f, 32f));
+        _shieldText.gameObject.SetActive(false); // hidden until shields > 0
+    }
+
+    // ── Tribulation countdown (Issue #9) ─────────────────────────────────────
+    // Centre-top, gold, two lines, visible only while InTribulation.
+    // Faithful to hud.gd set_tribulation / "⚡ HEAVENLY TRIBULATION ⚡\nEndure  Ns".
+    void BuildTribText(GameObject canvasGO, Font font)
+    {
+        var go = MakeAnchoredRect(canvasGO, "TribBlock",
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0f, -300f),
+            new Vector2(700f, 90f));
+
+        _tribText = MakeText(go, "TribText", font, 32, C_GOLD,
+            TextAnchor.MiddleCenter,
+            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(700f, 90f));
+        _tribText.fontStyle = FontStyle.Bold;
+        InkArt.AddOutline(_tribText, 0.9f);
+        _tribText.lineSpacing = 1.2f;
+        _tribText.gameObject.SetActive(false);
+    }
+
+    // ── Powerup timers (Issue #9) ─────────────────────────────────────────────
+    // Centre-top below the combo flare. Faithful to hud.gd _refresh_powerups:
+    // chips "<Name> <ceil(t)>s" joined by "   "; hidden when none active.
+    void BuildPowerupText(GameObject canvasGO, Font font)
+    {
+        var go = MakeAnchoredRect(canvasGO, "PowerupBlock",
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0f, -410f),
+            new Vector2(680f, 36f));
+
+        _powerupText = MakeText(go, "PowerupText", font, 20,
+            new Color(0.60f, 0.95f, 1.00f), // hud.gd _pu_label color
+            TextAnchor.MiddleCenter,
+            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(680f, 36f));
+        _powerupText.gameObject.SetActive(false);
     }
 
     void BuildDeathCard(GameObject canvasGO, Font font)
@@ -721,6 +791,11 @@ public class HudOverlay : MonoBehaviour
 
         // Cultivation Vows — poll Trials list each frame
         UpdateTrialPanel();
+
+        // Issue #9: shield pips, tribulation countdown, powerup timers
+        UpdateShieldPips();
+        UpdateTribText();
+        UpdatePowerupText();
     }
 
     void UpdateTrialPanel()
@@ -758,6 +833,75 @@ public class HudOverlay : MonoBehaviour
 
             // Done state: gold color; active: jade
             _trialRows[i].color = t.Done ? C_GOLD : C_JADE;
+        }
+    }
+
+    // ── Shield pips update (Issue #9) ────────────────────────────────────────
+    // Faithful to hud.gd set_shields: "Iron Body  " + "◆".repeat(n), hidden when n==0.
+    void UpdateShieldPips()
+    {
+        if (_shieldText == null) return;
+        int n = PlayerRunner.I?.Shields ?? 0;
+        if (n > 0)
+        {
+            _shieldText.text = "Iron Body  " + new string('◆', n);
+            _shieldText.gameObject.SetActive(true);
+        }
+        else
+        {
+            _shieldText.gameObject.SetActive(false);
+        }
+    }
+
+    // ── Tribulation countdown update (Issue #9) ───────────────────────────────
+    // Faithful to hud.gd set_tribulation: visible only while active;
+    // text "⚡ HEAVENLY TRIBULATION ⚡\nEndure  Ns".
+    void UpdateTribText()
+    {
+        if (_tribText == null) return;
+        var core = Game.I?.Core;
+        if (core == null) return;
+        bool active = core.InTribulation;
+        _tribText.gameObject.SetActive(active);
+        if (active)
+            _tribText.text = "⚡ HEAVENLY TRIBULATION ⚡\nEndure  " + Mathf.CeilToInt(core.TribTimeLeft) + "s";
+    }
+
+    // ── Powerup timers update (Issue #9) ─────────────────────────────────────
+    // Faithful to hud.gd _refresh_powerups: chips "<Name> <ceil(t)>s" joined by "   ".
+    // Display names from POWERUPS dict: magnet→"Soul-Attraction Talisman",
+    // double→"Soul-Doubling Pill", dash→"Sword-Qi Dash".
+    static readonly (string id, string name)[] _timedPowerups =
+    {
+        ("magnet", "Soul-Attraction Talisman"),
+        ("double", "Soul-Doubling Pill"),
+        ("dash",   "Sword-Qi Dash"),
+    };
+
+    void UpdatePowerupText()
+    {
+        if (_powerupText == null) return;
+        var core = Game.I?.Core;
+        if (core == null) return;
+
+        System.Text.StringBuilder sb = null;
+        foreach (var (id, name) in _timedPowerups)
+        {
+            float t = core.PowerupTimeLeft(id);
+            if (t <= 0f) continue;
+            if (sb == null) sb = new System.Text.StringBuilder();
+            else sb.Append("   ");
+            sb.Append(name).Append(' ').Append(Mathf.CeilToInt(t)).Append('s');
+        }
+
+        if (sb != null && sb.Length > 0)
+        {
+            _powerupText.text = sb.ToString();
+            _powerupText.gameObject.SetActive(true);
+        }
+        else
+        {
+            _powerupText.gameObject.SetActive(false);
         }
     }
 

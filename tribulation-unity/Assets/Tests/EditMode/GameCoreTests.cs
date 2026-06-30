@@ -1819,4 +1819,178 @@ namespace Tribulation.Tests.EditMode
             Assert.IsFalse(core.IsAchUnlocked("r1"), "no achievements should be unlocked");
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // HUD Readout — Issue #9 getters: TribTimeLeft + PowerupTimeLeft
+    // These are the pure-core getters surfaced so HudOverlay can read them
+    // without reaching into private fields.
+    // ─────────────────────────────────────────────────────────────────────────
+    [TestFixture]
+    public class HudReadoutTests
+    {
+        // Tiny realm_span so we can trigger tribulation in a unit test with few kills.
+        static BalanceData TribBalance() => new BalanceData
+        {
+            realm_span        = new[] { 5, 10, 20, 40, 80, 999999 },
+            qi_max            = 999f,
+            qi_per_kill       = 1f,
+            net_push_per_kill = 0f,
+            net_close_rate    = 0f,    // freeze net so it can't kill before trib ends
+            net_burst_relief  = 0f,
+        };
+
+        static BalanceData NoKillBalance() => new BalanceData
+        {
+            realm_span        = new[] { 999999, 999999, 999999, 999999, 999999, 999999 },
+            qi_max            = 999f,
+            qi_per_kill       = 0f,
+            net_push_per_kill = 0f,
+            net_close_rate    = 0f,
+            net_burst_relief  = 0f,
+        };
+
+        // ── TribTimeLeft ─────────────────────────────────────────────────────
+
+        [Test]
+        public void TribTimeLeft_IsZero_WhenNotInTribulation()
+        {
+            var core = new GameCore(TribBalance());
+            core.StartRun();
+            Assert.IsFalse(core.InTribulation, "sanity: not in tribulation on fresh run");
+            Assert.AreEqual(0f, core.TribTimeLeft, 0.001f,
+                "TribTimeLeft must be 0 when InTribulation is false");
+        }
+
+        [Test]
+        public void TribTimeLeft_EqualsApproxTribDuration_WhenJustEntered()
+        {
+            // Trigger tribulation by reaching realm_span[0]=5 kills.
+            var core = new GameCore(TribBalance());
+            core.StartRun();
+            for (int i = 0; i < 5; i++)
+                core.OnEnemyKilled(1);
+            Assert.IsTrue(core.InTribulation, "should have entered tribulation");
+            // TribTimeLeft should be close to TRIB_DURATION=12 immediately after entry.
+            Assert.AreEqual(12f, core.TribTimeLeft, 0.5f,
+                "TribTimeLeft should be ~12s (TRIB_DURATION) just after tribulation starts");
+        }
+
+        [Test]
+        public void TribTimeLeft_DecreasesAfterTick()
+        {
+            var core = new GameCore(TribBalance());
+            core.StartRun();
+            for (int i = 0; i < 5; i++)
+                core.OnEnemyKilled(1);
+            Assert.IsTrue(core.InTribulation);
+            float before = core.TribTimeLeft;
+            core.Tick(2f);
+            float after = core.TribTimeLeft;
+            Assert.Less(after, before, "TribTimeLeft must decrease after Tick");
+            Assert.AreEqual(before - 2f, after, 0.05f, "TribTimeLeft should decrease by ~delta");
+        }
+
+        [Test]
+        public void TribTimeLeft_IsZero_AfterTribulationExpires()
+        {
+            var core = new GameCore(TribBalance());
+            core.StartRun();
+            for (int i = 0; i < 5; i++)
+                core.OnEnemyKilled(1);
+            Assert.IsTrue(core.InTribulation);
+            core.Tick(12.1f); // tick past TRIB_DURATION
+            Assert.IsFalse(core.InTribulation, "tribulation should have ended");
+            Assert.AreEqual(0f, core.TribTimeLeft, 0.001f,
+                "TribTimeLeft must be 0 once tribulation ends");
+        }
+
+        [Test]
+        public void TribTimeLeft_NeverNegative()
+        {
+            // Even if we call the getter while InTribulation with _tribT near 0,
+            // TribTimeLeft must clamp to 0, not go negative.
+            var core = new GameCore(TribBalance());
+            core.StartRun();
+            for (int i = 0; i < 5; i++)
+                core.OnEnemyKilled(1);
+            // Tick to just before expiry — timer should be tiny but >= 0.
+            core.Tick(11.99f);
+            Assert.GreaterOrEqual(core.TribTimeLeft, 0f, "TribTimeLeft must never be negative");
+        }
+
+        // ── PowerupTimeLeft ──────────────────────────────────────────────────
+
+        [Test]
+        public void PowerupTimeLeft_IsZero_BeforeActivation()
+        {
+            var core = new GameCore(NoKillBalance());
+            core.StartRun();
+            Assert.AreEqual(0f, core.PowerupTimeLeft("magnet"), 0.001f,
+                "magnet time must be 0 before activation");
+        }
+
+        [Test]
+        public void PowerupTimeLeft_EqualsDuration_AfterActivation_Magnet()
+        {
+            // magnet dur = 8s
+            var core = new GameCore(NoKillBalance());
+            core.StartRun();
+            core.ActivatePowerup("magnet");
+            Assert.AreEqual(8f, core.PowerupTimeLeft("magnet"), 0.05f,
+                "magnet time should be ~8s immediately after activation");
+        }
+
+        [Test]
+        public void PowerupTimeLeft_Decreases_AfterTick_Magnet()
+        {
+            var core = new GameCore(NoKillBalance());
+            core.StartRun();
+            core.ActivatePowerup("magnet");
+            core.Tick(1f);
+            Assert.AreEqual(7f, core.PowerupTimeLeft("magnet"), 0.05f,
+                "magnet time should be ~7s after Tick(1)");
+        }
+
+        [Test]
+        public void PowerupTimeLeft_IsZero_AfterExpiry_Magnet()
+        {
+            var core = new GameCore(NoKillBalance());
+            core.StartRun();
+            core.ActivatePowerup("magnet");
+            core.Tick(8.1f); // past 8s duration
+            Assert.AreEqual(0f, core.PowerupTimeLeft("magnet"), 0.001f,
+                "magnet time must be 0 after expiry");
+        }
+
+        [Test]
+        public void PowerupTimeLeft_EqualsDuration_AfterActivation_Dash()
+        {
+            // dash dur = 3s
+            var core = new GameCore(NoKillBalance());
+            core.StartRun();
+            core.ActivatePowerup("dash");
+            Assert.AreEqual(3f, core.PowerupTimeLeft("dash"), 0.05f,
+                "dash time should be ~3s immediately after activation");
+        }
+
+        [Test]
+        public void PowerupTimeLeft_IsZero_AfterExpiry_Dash()
+        {
+            var core = new GameCore(NoKillBalance());
+            core.StartRun();
+            core.ActivatePowerup("dash");
+            core.Tick(3.1f);
+            Assert.AreEqual(0f, core.PowerupTimeLeft("dash"), 0.001f,
+                "dash time must be 0 after its 3s duration");
+        }
+
+        [Test]
+        public void PowerupTimeLeft_IsZero_ForUnknownId()
+        {
+            var core = new GameCore(NoKillBalance());
+            core.StartRun();
+            Assert.AreEqual(0f, core.PowerupTimeLeft("nonexistent"), 0.001f,
+                "unknown powerup id must return 0");
+        }
+    }
 }

@@ -77,8 +77,17 @@ public class PlayerRunner : MonoBehaviour
     /// <summary>Fired when a slash actually executes (gates passed, cooldown reset).</summary>
     public event System.Action Slashed;
 
+    // ── Singleton (mirrors Game.I / HudOverlay.I / PauseMenu.I pattern) ─────────
+    public static PlayerRunner I { get; private set; }
+
+    /// <summary>Current Iron-Body shield count (from Survivability). 0 at realms below Nascent Soul.</summary>
+    public int Shields    => _surv.Shields;
+    /// <summary>Maximum Iron-Body shield slots for the current realm.</summary>
+    public int MaxShields => _surv.MaxShields;
+
     void Awake()
     {
+        I = this;
         _cc = GetComponent<CharacterController>();
         var b = Balance.D;
         _baseSpeed = b.player_base_speed; _maxSpeed = b.player_max_speed; _rampTime = b.player_speed_ramp_time;

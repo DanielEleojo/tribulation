@@ -101,6 +101,9 @@ namespace Tribulation.Core
         float        _tribT;
         const float  TRIB_DURATION = 12f;
 
+        /// <summary>Seconds remaining in the current Heavenly Tribulation (0 when not active). Mirrors game.gd _trib_t.</summary>
+        public float TribTimeLeft => InTribulation ? Math.Max(0f, _tribT) : 0f;
+
         // Audio settings (persisted)
         public float MusicVol  { get; private set; } = 0.8f;
         public float SfxVol    { get; private set; } = 0.9f;
@@ -631,6 +634,9 @@ namespace Tribulation.Core
         /// Returns true while a timed powerup is running (game.gd is_powerup_active).
         /// </summary>
         public bool IsPowerupActive(string id) => _powerups.ContainsKey(id);
+
+        /// <summary>Seconds remaining for a timed powerup (0 when inactive or unknown id). Mirrors game.gd _powerups[id].</summary>
+        public float PowerupTimeLeft(string id) => _powerups.TryGetValue(id, out float t) ? Math.Max(0f, t) : 0f;
 
         // ── Slash reach predicate (pure, testable) ────────────────────────────
 
