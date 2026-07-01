@@ -55,12 +55,42 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
     float     _pop;
     public void Pop(float strength) { _pop = Mathf.Max(_pop, strength); }
 
+    // ── Procedural slide pose ─────────────────────────────────────────────────
+    // The Fist clip set has no slide/crouch clip, so we fake a feet-first slide by
+    // reclining the model back + dropping it low while IsSliding. Reads as a slide
+    // regardless of the underlying clip.
+    Vector3    _modelBasePos;
+    Quaternion _modelBaseRot = Quaternion.identity;
+    float      _slideBlend;                 // 0 = standing, 1 = full slide recline
+    const float SLIDE_PITCH      = -74f;    // degrees reclined back about local X
+    const float SLIDE_DROP       = 0.28f;   // world units the body drops
+    const float SLIDE_BLEND_TIME = 0.10f;   // seconds to blend in/out
+
     void LateUpdate()
     {
-        if (_model == null || _pop <= 0.0001f) return;
-        _pop = Mathf.Lerp(_pop, 0f, Mathf.Clamp01(11f * Time.deltaTime));
-        if (_pop < 0.001f) { _pop = 0f; _model.localScale = _modelBaseScale; return; }
-        _model.localScale = _modelBaseScale * (1f + _pop);
+        if (_model == null) return;
+
+        // Blend the slide recline in/out from the runner's slide state.
+        float slideTarget = (_runner != null && _runner.IsSliding && !_runner.IsDead) ? 1f : 0f;
+        _slideBlend = Mathf.MoveTowards(_slideBlend, slideTarget,
+                                        Time.deltaTime / Mathf.Max(0.0001f, SLIDE_BLEND_TIME));
+
+        // Decay the feel pop (scale) independently.
+        if (_pop > 0.0001f) _pop = Mathf.Lerp(_pop, 0f, Mathf.Clamp01(11f * Time.deltaTime));
+        if (_pop < 0.001f)  _pop = 0f;
+
+        // Nothing active → hold the grounded base pose (cheap early-out).
+        if (_slideBlend <= 0.0001f && _pop <= 0.0001f)
+        {
+            _model.localScale    = _modelBaseScale;
+            _model.localRotation = _modelBaseRot;
+            _model.localPosition = _modelBasePos;
+            return;
+        }
+
+        _model.localScale    = _modelBaseScale * (1f + _pop);
+        _model.localRotation = _modelBaseRot * Quaternion.Euler(SLIDE_PITCH * _slideBlend, 0f, 0f);
+        _model.localPosition = _modelBasePos + Vector3.down * (SLIDE_DROP * _slideBlend);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -180,8 +210,10 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
                 Debug.LogWarning("[RiggedCharacter] No SkinnedMeshRenderers found — skipping scale normalization.");
             }
 
-            // Capture the final fitted scale as the base the feel-pop multiplies around.
+            // Capture the final fitted scale/pose as the base the feel-pop + slide modulate around.
             _modelBaseScale = instance.transform.localScale;
+            _modelBasePos   = instance.transform.localPosition;
+            _modelBaseRot   = instance.transform.localRotation;
 
             // ── Start in Run state ────────────────────────────────────────────
             CrossTo(STATE_RUN, 0f);
