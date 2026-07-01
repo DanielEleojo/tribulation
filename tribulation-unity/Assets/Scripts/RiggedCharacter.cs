@@ -133,6 +133,17 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
                 return;
             }
 
+            // A prefab whose source model files (FBX/materials) aren't in the project
+            // still loads, but every SkinnedMeshRenderer has a null sharedMesh — it
+            // would render nothing. Detect that and fall back to the procedural figure.
+            if (!HasUsableSkinnedMesh(prefab))
+            {
+                Debug.LogWarning("[RiggedCharacter] Char/Solider_Fist prefab has no usable meshes (source model files missing from project) — falling back to InkCultivator.");
+                gameObject.AddComponent<InkCultivator>();
+                enabled = false;
+                return;
+            }
+
             // ── Instantiate as child at identity local pose ───────────────────
             // 180° Y-rotation: the model's forward is +Z; the player runs toward -Z,
             // so we need the model to face -Z (toward the camera / run direction).
@@ -335,5 +346,12 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
         if (_animator == null) return;
         _animator.CrossFade(state, blend);
         _cur = state;
+    }
+
+    static bool HasUsableSkinnedMesh(GameObject prefab)
+    {
+        foreach (var smr in prefab.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            if (smr.sharedMesh != null) return true;
+        return false;
     }
 }

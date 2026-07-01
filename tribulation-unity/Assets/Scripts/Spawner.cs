@@ -587,8 +587,16 @@ public class Spawner : MonoBehaviour
         var soldierPrefab = Resources.Load<GameObject>("Char/Solider_Ssanggeom");
         var attackCtrl    = Resources.Load<RuntimeAnimatorController>("Anim/EnemyAttack");
 
-        if (soldierPrefab == null)
+        // A prefab whose source model files aren't in the project still loads, but every
+        // SkinnedMeshRenderer has a null sharedMesh — instantiating it would hide the cube
+        // and render nothing, leaving an invisible enemy. Treat it the same as missing.
+        if (soldierPrefab == null || !HasUsableSkinnedMesh(soldierPrefab))
         {
+            if (soldierPrefab != null && !_warnedBrokenSoldier)
+            {
+                _warnedBrokenSoldier = true;
+                Debug.LogWarning("[Spawner] Char/Solider_Ssanggeom prefab has no usable meshes (source model files missing from project) — using cube enemy visuals.");
+            }
             // Fallback: keep the cube's MeshRenderer visible with _matEnemy.
             Apply(go, _matEnemy);
             return;
@@ -664,6 +672,15 @@ public class Spawner : MonoBehaviour
 
         // Face the soldier toward the oncoming player (+Z = toward camera).
         soldier.transform.localRotation = Quaternion.identity;
+    }
+
+    static bool _warnedBrokenSoldier;
+
+    static bool HasUsableSkinnedMesh(GameObject prefab)
+    {
+        foreach (var smr in prefab.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            if (smr.sharedMesh != null) return true;
+        return false;
     }
 
     // ── Procedural hazard visuals (issue #25) ───────────────────────────────
