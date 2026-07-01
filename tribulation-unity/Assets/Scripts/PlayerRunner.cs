@@ -316,12 +316,19 @@ public class PlayerRunner : MonoBehaviour
         int killed = 0;
         foreach (var foe in foes)
         {
-            if (foe == null || !foe.gameObject.activeSelf) continue;
+            // Skip null, inactive GameObjects, or disabled Foe (already dying).
+            if (foe == null || !foe.gameObject.activeSelf || !foe.enabled) continue;
             float ahead   = transform.position.z - foe.transform.position.z;
             float lateral = Mathf.Abs(foe.transform.position.x - transform.position.x);
             if (Tribulation.Core.GameCore.InSlashReach(ahead, lateral, range, tol))
             {
-                foe.gameObject.SetActive(false); // return-to-pool handled by Spawner.Cull()
+                // Trigger death anim + delayed despawn if EnemyBehavior present,
+                // else fall back to immediate deactivation.
+                var eb = foe.GetComponent<EnemyBehavior>();
+                if (eb != null)
+                    eb.Kill();
+                else
+                    foe.gameObject.SetActive(false); // fallback: return-to-pool immediately
                 Feel.Spark(foe.transform.position + Vector3.up * 1f);
                 killed++;
             }

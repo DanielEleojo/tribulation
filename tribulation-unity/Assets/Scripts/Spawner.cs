@@ -630,13 +630,14 @@ public class Spawner : MonoBehaviour
             anim.applyRootMotion = false;
             if (attackCtrl != null)
                 anim.runtimeAnimatorController = attackCtrl;
+            // Tick the animator once so the skeleton settles into the controller's default
+            // state (Run) before we sample bounds — ensures accurate foot grounding even
+            // though the default state changed from Attack to Run (issue #15 Task D).
+            anim.Update(0f);
         }
 
         // Measure the soldier's skinned mesh bounds with soldier at localPos (0,0,0).
-        // The T-pose bounds are valid immediately after Instantiate (Unity bakes the bind pose).
-        // We do NOT call anim.Update here because bounds are already valid from the bind pose,
-        // and moving the position after measuring is a single reliable delta. Two-pass approaches
-        // fail because SkinnedMeshRenderer.bounds updates synchronously with transform changes.
+        // anim.Update(0f) above has baked the Run pose into the SMRs so bounds are accurate.
         var smrs = soldier.GetComponentsInChildren<SkinnedMeshRenderer>();
         if (smrs != null && smrs.Length > 0)
         {

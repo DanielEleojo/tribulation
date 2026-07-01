@@ -19,6 +19,7 @@ public class EnemyBehavior : MonoBehaviour
     const float LUNGE_TRIGGER   = 16f;   // gap at which the LUNGER snaps its target lane
     const float LUNGE_TIME      = 0.35f; // seconds to lerp from spawn lane X to target X
     const float LUNGE_LATERAL   = 18f;   // max lateral speed (units/s) used as SmoothDamp maxSpeed
+    const float DIE_ANIM_SECS   = 1.1f;  // despawn delay after Kill() — matches Die clip length
 
     // ── Mode enum ────────────────────────────────────────────────────────────────
     enum Mode { Charger, Lunger }
@@ -33,6 +34,11 @@ public class EnemyBehavior : MonoBehaviour
     float _lungeElapsed;    // how many seconds into the lateral lerp
     float _lateVelX;        // SmoothDamp velocity ref for lateral movement
 
+    // ── Death state ──────────────────────────────────────────────────────────────
+    bool  _dying;
+    float _dieTimer;
+    Animator _anim;
+
     // ── Activate (called fresh on every spawn/pool-reuse) ────────────────────────
     /// <summary>
     /// Called by Spawner.SpawnEnemy after the enemy position is set.
@@ -46,8 +52,24 @@ public class EnemyBehavior : MonoBehaviour
         _lungeElapsed   = 0f;
         _lateVelX       = 0f;
 
+        // Reset death state.
+        _dying    = false;
+        _dieTimer = 0f;
+
         _player  = player;
         _spawnX  = transform.position.x;
+
+        // Re-enable collider in case a prior life disabled it.
+        var col = GetComponent<BoxCollider>();
+        if (col != null) col.enabled = true;
+
+        // Re-enable Foe marker so TrySlash can find this enemy again.
+        var foe = GetComponent<Foe>();
+        if (foe != null) foe.enabled = true;
+
+        // Cache animator and return to Run state (avoids death-pose on pool reuse).
+        _anim = GetComponentInChildren<Animator>();
+        if (_anim != null) _anim.CrossFade("Run", 0.1f);
 
         // Mode selection:
         //   realm < 2  → always CHARGER
@@ -63,9 +85,41 @@ public class EnemyBehavior : MonoBehaviour
         }
     }
 
+    // ── Kill (called by PlayerRunner.TrySlash) ───────────────────────────────────
+    /// <summary>
+    /// Begins the death sequence: disables the collider + Foe, plays Die anim,
+    /// then SetActive(false) after DIE_ANIM_SECS to return to pool.
+    /// </summary>
+    public void Kill()
+    {
+        if (_dying) return;
+        _dying    = true;
+        _dieTimer = DIE_ANIM_SECS;
+
+        // Disable collider immediately — can't hit player or be re-slashed.
+        var col = GetComponent<BoxCollider>();
+        if (col != null) col.enabled = false;
+
+        // Disable Foe so TrySlash's iteration skips this enemy.
+        var foe = GetComponent<Foe>();
+        if (foe != null) foe.enabled = false;
+
+        // Play death animation.
+        if (_anim != null) _anim.CrossFade("Die", 0.05f);
+    }
+
     // ── Update ────────────────────────────────────────────────────────────────────
     void Update()
     {
+        // Death countdown — runs even while dying (no movement).
+        if (_dying)
+        {
+            _dieTimer -= Time.deltaTime;
+            if (_dieTimer <= 0f && gameObject.activeSelf)
+                gameObject.SetActive(false); // return to pool
+            return; // no movement while dying
+        }
+
         // Guard: inert if no player, player is dead, or the enemy has already passed the player.
         if (_player == null) return;
 
