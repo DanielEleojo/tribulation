@@ -86,9 +86,9 @@ public class MenuScreens : MonoBehaviour
 
         var scaler = canvasGO.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080f, 1920f);
+        scaler.referenceResolution = new Vector2(810f, 1440f);
         scaler.screenMatchMode     = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight  = 0.5f;
+        scaler.matchWidthOrHeight  = 0f; // match width — portrait-locked game
 
         canvasGO.AddComponent<GraphicRaycaster>();
 
@@ -147,12 +147,15 @@ public class MenuScreens : MonoBehaviour
     //         SealLine           [LayoutElement preferredHeight 44]
     //         StonesText         [LayoutElement preferredHeight 44]
     //         Divider            [LayoutElement preferredHeight 2]
-    //         UpgradeRow0..3     [LayoutElement preferredHeight 120]
-    //           (HorizontalLayoutGroup: TextCol flexibleWidth=1 | BuyBtn 140px)
-    //             TextCol (VerticalLayoutGroup: Name + Desc + Level)
+    //         UpgradeRow0..3     [LayoutElement preferredHeight 144]
+    //           (HorizontalLayoutGroup: TextCol flexibleWidth=1 | BuyBtn 140×≥92)
+    //             TextCol (VerticalLayoutGroup: Name 38 + Desc 56 + Level 30)
     //             BuyBtn
     //         Spacer             [LayoutElement flexibleHeight 1]
-    //         BackBtn            [LayoutElement preferredHeight 60]
+    //         BackBtn            [LayoutElement preferredHeight 92]
+    //
+    // Budget: pad 80 + 64 + 42 + 42 + 2 + 4×144 + 92 + 9×14 spacing = 1024
+    // ≤ 1100 card — the spacer soaks the remaining 76.
     GameObject BuildShopPanel(GameObject canvasGO, Font font, Font sealFont)
     {
         var panel  = MakePanelRoot(canvasGO, "ShopPanel");
@@ -197,9 +200,10 @@ public class MenuScreens : MonoBehaviour
                 rowBg.color         = new Color(C_INK.r, C_INK.g, C_INK.b, 0.06f);
                 rowBg.raycastTarget = false;
             }
+            // 144 = pad 16 + Name 38 + Desc 56 + Level 30 + 2×2 spacing
             var rowLE = rowGO.AddComponent<LayoutElement>();
-            rowLE.preferredHeight = 120f;
-            rowLE.minHeight       = 120f;
+            rowLE.preferredHeight = 144f;
+            rowLE.minHeight       = 144f;
 
             var rowHLG = rowGO.AddComponent<HorizontalLayoutGroup>();
             rowHLG.padding              = new RectOffset(10, 10, 8, 8);
@@ -229,27 +233,30 @@ public class MenuScreens : MonoBehaviour
             var nameGO = new GameObject("UpgradeName", typeof(RectTransform));
             nameGO.transform.SetParent(textColGO.transform, false);
             var nameLE = nameGO.AddComponent<LayoutElement>();
-            nameLE.preferredHeight = 34f;
-            nameLE.minHeight       = 34f;
+            nameLE.preferredHeight = 38f;
+            nameLE.minHeight       = 38f;
             var nameText = nameGO.AddComponent<Text>();
             nameText.font            = font;
-            nameText.fontSize        = 26;
+            nameText.fontSize        = 30;
             nameText.color           = C_INK;
             nameText.alignment       = TextAnchor.MiddleLeft;
             nameText.fontStyle       = FontStyle.Bold;
             nameText.supportRichText = false;
             nameText.raycastTarget   = false;
             nameText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            // Single line pinned at 38 — the serif line height slightly exceeds the
+            // slot and default Truncate would drop the whole line (invisible name).
+            nameText.verticalOverflow   = VerticalWrapMode.Overflow;
 
             // Desc
             var descGO = new GameObject("UpgradeDesc", typeof(RectTransform));
             descGO.transform.SetParent(textColGO.transform, false);
             var descLE = descGO.AddComponent<LayoutElement>();
-            descLE.preferredHeight = 44f;
-            descLE.minHeight       = 44f;
+            descLE.preferredHeight = 56f; // two wrapped lines at fontSize 24
+            descLE.minHeight       = 56f;
             var descText = descGO.AddComponent<Text>();
             descText.font               = font;
-            descText.fontSize           = 20;
+            descText.fontSize           = 24;
             descText.color              = C_TEXT_DIM;
             descText.alignment          = TextAnchor.UpperLeft;
             descText.fontStyle          = FontStyle.Normal;
@@ -263,24 +270,27 @@ public class MenuScreens : MonoBehaviour
             var lvGO = new GameObject("LevelText", typeof(RectTransform));
             lvGO.transform.SetParent(textColGO.transform, false);
             var lvLE = lvGO.AddComponent<LayoutElement>();
-            lvLE.preferredHeight = 28f;
-            lvLE.minHeight       = 28f;
+            lvLE.preferredHeight = 30f;
+            lvLE.minHeight       = 30f;
             var lvText = lvGO.AddComponent<Text>();
             lvText.font            = font;
-            lvText.fontSize        = 22;
+            lvText.fontSize        = 24;
             lvText.color           = C_TEXT_DIM;
             lvText.alignment       = TextAnchor.MiddleLeft;
             lvText.fontStyle       = FontStyle.Normal;
             lvText.supportRichText = false;
             lvText.raycastTarget   = false;
+            lvText.verticalOverflow = VerticalWrapMode.Overflow; // same truncation guard as the name
             lvText.text = "Lv 0/3";
 
             // RIGHT: Buy button
             var buyBtnGO = new GameObject("BuyBtn" + i, typeof(RectTransform));
             buyBtnGO.transform.SetParent(rowGO.transform, false);
             var buyBtnLE = buyBtnGO.AddComponent<LayoutElement>();
-            buyBtnLE.preferredWidth = 140f;
-            buyBtnLE.minWidth       = 140f;
+            buyBtnLE.preferredWidth  = 140f;
+            buyBtnLE.minWidth        = 140f;
+            buyBtnLE.preferredHeight = 92f; // 44pt touch target (row inner height is 128)
+            buyBtnLE.minHeight       = 92f;
 
             var buyBtnImg = buyBtnGO.AddComponent<Image>();
             buyBtnImg.sprite = InkArt.RoundedPanel(140, 56, 12, 2);
@@ -311,7 +321,7 @@ public class MenuScreens : MonoBehaviour
             buyLabelRT.offsetMax = Vector2.zero;
             var buyLabel = buyLabelGO.AddComponent<Text>();
             buyLabel.font            = font;
-            buyLabel.fontSize        = 22;
+            buyLabel.fontSize        = 26;
             buyLabel.color           = C_INK;
             buyLabel.alignment       = TextAnchor.MiddleCenter;
             buyLabel.supportRichText = false;
@@ -358,15 +368,24 @@ public class MenuScreens : MonoBehaviour
     // Layout hierarchy:
     //   JournalPanel (full-screen backdrop)
     //     Card (720×1100)
-    //       ContentContainer (VerticalLayoutGroup)
+    //       ContentContainer (VerticalLayoutGroup, pad 40/30, spacing 14)
     //         JournalHeader      [preferredHeight 64]
     //         SealLine           [preferredHeight 42]
-    //         StatsText          [preferredHeight 230, wrap]
-    //         TechHeader         [preferredHeight 44]
-    //         TechDivider        [preferredHeight 2]
-    //         TechList           [flexibleHeight 1, wrap]
-    //         Spacer             [flexibleHeight 1]
-    //         BackBtn            [preferredHeight 60]
+    //         JournalScroll      [flexibleHeight 1, minHeight 200]  (ScrollRect)
+    //           Viewport         (stretch; Image + Mask, mask graphic hidden)
+    //             ScrollContent  (VerticalLayoutGroup + ContentSizeFitter)
+    //               StatsText    [auto height, wrap]
+    //               TechHeader   [preferredHeight 44]
+    //               TechDivider  [preferredHeight 2]
+    //               TechList     [auto height, wrap]
+    //               AchHeader    [preferredHeight 44]
+    //               AchDivider   [preferredHeight 2]
+    //               AchList      [auto height, wrap]
+    //         DailyBtn           [preferredHeight 92]
+    //         BackBtn            [preferredHeight 92]
+    //
+    // Fixed rows budget: pad 80 + header 64 + seal 42 + daily 92 + back 92
+    // + 4×14 spacing = 426 → the scroll flexes to 1100 − 426 = 674 (≥ 200 min).
     GameObject BuildJournalPanel(GameObject canvasGO, Font font, Font sealFont)
     {
         var panel  = MakePanelRoot(canvasGO, "JournalPanel");
@@ -386,47 +405,105 @@ public class MenuScreens : MonoBehaviour
             TextAnchor.MiddleCenter, FontStyle.Normal, preferredHeight: 42);
         sealText.text = "道";
 
-        // Stats block — multiline, wrapping
-        _journalStatsText = AddTextRow(content, "StatsText", font, 24, C_INK,
-            TextAnchor.UpperLeft, FontStyle.Normal, preferredHeight: 230);
+        // ── Scrollable middle region ─────────────────────────────────────────
+        // Stats + techniques + achievements can outgrow the card, so they live
+        // in a masked, touch-draggable ScrollRect between the fixed header rows
+        // above and the fixed Daily/Back buttons below.
+        GameObject scrollContentGO;
+        {
+            var scrollGO = new GameObject("JournalScroll", typeof(RectTransform));
+            scrollGO.transform.SetParent(content.transform, false);
+            var scrollLE = scrollGO.AddComponent<LayoutElement>();
+            scrollLE.flexibleHeight = 1f;   // absorb whatever the fixed rows leave over
+            scrollLE.minHeight      = 200f; // never collapse below a usable window
+
+            var scroll = scrollGO.AddComponent<ScrollRect>();
+
+            // Viewport — masked window over the scrolled content.
+            var viewportGO = new GameObject("Viewport", typeof(RectTransform));
+            viewportGO.transform.SetParent(scrollGO.transform, false);
+            var viewportRT = viewportGO.GetComponent<RectTransform>();
+            viewportRT.anchorMin = Vector2.zero;
+            viewportRT.anchorMax = Vector2.one;
+            viewportRT.offsetMin = Vector2.zero;
+            viewportRT.offsetMax = Vector2.zero;
+            viewportRT.pivot     = new Vector2(0f, 1f);
+
+            var viewportImg = viewportGO.AddComponent<Image>();
+            viewportImg.color         = Color.white; // never drawn — mask graphic hidden
+            viewportImg.raycastTarget = true;        // catches the touch drags
+            var viewportMask = viewportGO.AddComponent<Mask>();
+            viewportMask.showMaskGraphic = false;
+
+            // Scroll content — own VLG; ContentSizeFitter grows it to true height.
+            scrollContentGO = new GameObject("ScrollContent", typeof(RectTransform));
+            scrollContentGO.transform.SetParent(viewportGO.transform, false);
+            var scRT = scrollContentGO.GetComponent<RectTransform>();
+            scRT.anchorMin = new Vector2(0f, 1f);
+            scRT.anchorMax = new Vector2(1f, 1f);
+            scRT.pivot     = new Vector2(0.5f, 1f);
+            scRT.offsetMin = Vector2.zero;
+            scRT.offsetMax = Vector2.zero;
+
+            var scVLG = scrollContentGO.AddComponent<VerticalLayoutGroup>();
+            scVLG.padding                = new RectOffset(0, 0, 0, 10); // outer VLG already pads L/R 30
+            scVLG.spacing                = 14f;
+            scVLG.childAlignment         = TextAnchor.UpperCenter;
+            scVLG.childControlWidth      = true;
+            scVLG.childControlHeight     = true;
+            scVLG.childForceExpandWidth  = true;
+            scVLG.childForceExpandHeight = false;
+
+            var scFitter = scrollContentGO.AddComponent<ContentSizeFitter>();
+            scFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            scFitter.verticalFit   = ContentSizeFitter.FitMode.PreferredSize;
+
+            scroll.content           = scRT;
+            scroll.viewport          = viewportRT;
+            scroll.horizontal        = false;
+            scroll.vertical          = true;
+            scroll.movementType      = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 30f;
+        }
+
+        // Stats block — multiline, wrapping; auto height, the scroll absorbs it
+        _journalStatsText = AddTextRow(scrollContentGO, "StatsText", font, 28, C_INK,
+            TextAnchor.UpperLeft, FontStyle.Normal, preferredHeight: -1f);
         _journalStatsText.horizontalOverflow = HorizontalWrapMode.Wrap;
-        _journalStatsText.verticalOverflow   = VerticalWrapMode.Overflow;
 
         // Techniques sub-header
-        var techHdr = AddTextRow(content, "TechHeader", font, 28, C_CINNABAR,
+        var techHdr = AddTextRow(scrollContentGO, "TechHeader", font, 28, C_CINNABAR,
             TextAnchor.MiddleLeft, FontStyle.Bold, preferredHeight: 44);
         techHdr.text = "Techniques";
 
         // Thin divider
-        AddDivider(content, "TechDivider");
+        AddDivider(scrollContentGO, "TechDivider");
 
-        // Techniques list — wrapping, flexible height
-        _journalTechText = AddTextRow(content, "TechList", font, 22, C_TEXT_DIM,
-            TextAnchor.UpperLeft, FontStyle.Normal,
-            preferredHeight: 200f, flexibleHeight: 1f);
+        // Techniques list — wrapping; unpinned so the Text's true preferred
+        // height drives the layout (verticalOverflow stays Truncate — the
+        // layout now always grants the full height, so nothing is cut).
+        _journalTechText = AddTextRow(scrollContentGO, "TechList", font, 28, C_TEXT_DIM,
+            TextAnchor.UpperLeft, FontStyle.Normal, preferredHeight: -1f);
         _journalTechText.horizontalOverflow = HorizontalWrapMode.Wrap;
-        _journalTechText.verticalOverflow   = VerticalWrapMode.Overflow;
 
         // ── Achievements sub-header ──────────────────────────────────────────
-        var achHdr = AddTextRow(content, "AchHeader", font, 28, C_CINNABAR,
+        var achHdr = AddTextRow(scrollContentGO, "AchHeader", font, 28, C_CINNABAR,
             TextAnchor.MiddleLeft, FontStyle.Bold, preferredHeight: 44);
         achHdr.text = "Achievements";
-        AddDivider(content, "AchDivider");
+        AddDivider(scrollContentGO, "AchDivider");
 
-        // Achievements list — wrapping, flexible height
-        _journalAchText = AddTextRow(content, "AchList", font, 20, C_TEXT_DIM,
-            TextAnchor.UpperLeft, FontStyle.Normal,
-            preferredHeight: 200f, flexibleHeight: 1f);
+        // Achievements list — wrapping; unpinned, same as TechList above.
+        _journalAchText = AddTextRow(scrollContentGO, "AchList", font, 26, C_TEXT_DIM,
+            TextAnchor.UpperLeft, FontStyle.Normal, preferredHeight: -1f);
         _journalAchText.horizontalOverflow = HorizontalWrapMode.Wrap;
-        _journalAchText.verticalOverflow   = VerticalWrapMode.Overflow;
 
-        // ── Daily reward button ──────────────────────────────────────────────
+        // ── Daily reward button (fixed footer — NOT scrolled) ────────────────
         {
             var dailyGO = new GameObject("DailyBtn", typeof(RectTransform));
             dailyGO.transform.SetParent(content.transform, false);
             var dlLE = dailyGO.AddComponent<LayoutElement>();
-            dlLE.preferredHeight = 60f;
-            dlLE.minHeight       = 60f;
+            dlLE.preferredHeight = 92f; // 44pt iOS minimum touch target
+            dlLE.minHeight       = 92f;
 
             var dlImg = dailyGO.AddComponent<Image>();
             dlImg.sprite        = InkArt.RoundedPanel(400, 60, 12, 2);
@@ -456,7 +533,7 @@ public class MenuScreens : MonoBehaviour
             dlLRT.offsetMax = Vector2.zero;
             _dailyBtnLabel = dlLabelGO.AddComponent<Text>();
             _dailyBtnLabel.font            = font;
-            _dailyBtnLabel.fontSize        = 24;
+            _dailyBtnLabel.fontSize        = 31;
             _dailyBtnLabel.color           = C_INK;
             _dailyBtnLabel.alignment       = TextAnchor.MiddleCenter;
             _dailyBtnLabel.fontStyle       = FontStyle.Bold;
@@ -478,8 +555,8 @@ public class MenuScreens : MonoBehaviour
             });
         }
 
-        // Spacer + Back
-        AddSpacer(content, "JournalSpacer");
+        // Back (fixed footer). No spacer — the ScrollRect flexes instead;
+        // a flexible spacer here would steal half the scroll's height.
         AddBackButtonToLayout(content, font);
 
         return panel;
@@ -488,21 +565,26 @@ public class MenuScreens : MonoBehaviour
     // ── SETTINGS PANEL ────────────────────────────────────────────────────────
     // Layout hierarchy:
     //   SettingsPanel (full-screen backdrop)
-    //     Card (720×820)
-    //       ContentContainer (VerticalLayoutGroup)
+    //     Card (720×960)
+    //       ContentContainer (VerticalLayoutGroup, spacing 16)
     //         SettingsHeader     [preferredHeight 64]
     //         SealLine           [preferredHeight 42]
-    //         MusicRow           [preferredHeight 56]  (HorizontalLayoutGroup)
+    //         MusicRow           [preferredHeight 92]  (HorizontalLayoutGroup)
     //           MusicLabel       [preferredWidth 180]
     //           MusicSlider      [flexibleWidth 1]
-    //         SfxRow             [preferredHeight 56]
+    //         SfxRow             [preferredHeight 92]
     //           SfxLabel
     //           SfxSlider
-    //         MuteRow            [preferredHeight 56]
+    //         MuteRow            [preferredHeight 92]
     //           MuteLabel
-    //           MuteToggle       [preferredWidth 48]
+    //           MuteToggle       [preferredWidth 72]
+    //         ResetNormalRow     [preferredHeight 92]  (swaps with confirm row)
+    //         ResetConfirmRow    [preferredHeight 92]  (hidden until reset tapped)
     //         Spacer             [flexibleHeight 1]
-    //         BackBtn            [preferredHeight 60]
+    //         BackBtn            [preferredHeight 92]
+    //
+    // Budget: pad 80 + 64 + 42 + 3×92 + 92 (one reset row visible) + 92
+    // + 7×16 spacing = 758 ≤ 960 card — the spacer soaks the remaining 202.
     GameObject BuildSettingsPanel(GameObject canvasGO, Font font, Font sealFont)
     {
         var panel  = MakePanelRoot(canvasGO, "SettingsPanel");
@@ -524,7 +606,7 @@ public class MenuScreens : MonoBehaviour
 
         // ── Music row ───────────────────────────────────────────────────────
         {
-            var rowGO = MakeHorizontalRow(content, "MusicRow", preferredHeight: 56f);
+            var rowGO = MakeHorizontalRow(content, "MusicRow", preferredHeight: 92f);
             var lbl = AddLabelToRow(rowGO, "MusicLabel", font, "Music");
             _musicSlider = AddSliderToRow(rowGO, "MusicSlider");
             _musicSlider.onValueChanged.AddListener(v =>
@@ -536,7 +618,7 @@ public class MenuScreens : MonoBehaviour
 
         // ── SFX row ─────────────────────────────────────────────────────────
         {
-            var rowGO = MakeHorizontalRow(content, "SfxRow", preferredHeight: 56f);
+            var rowGO = MakeHorizontalRow(content, "SfxRow", preferredHeight: 92f);
             var lbl = AddLabelToRow(rowGO, "SfxLabel", font, "SFX");
             _sfxSlider = AddSliderToRow(rowGO, "SfxSlider");
             _sfxSlider.onValueChanged.AddListener(v =>
@@ -548,7 +630,7 @@ public class MenuScreens : MonoBehaviour
 
         // ── Mute row ────────────────────────────────────────────────────────
         {
-            var rowGO = MakeHorizontalRow(content, "MuteRow", preferredHeight: 56f);
+            var rowGO = MakeHorizontalRow(content, "MuteRow", preferredHeight: 92f);
             var lbl = AddLabelToRow(rowGO, "MuteLabel", font, "Mute All");
             _muteToggle = AddToggleToRow(rowGO, "MuteToggle");
             _muteToggle.onValueChanged.AddListener(v =>
@@ -566,8 +648,8 @@ public class MenuScreens : MonoBehaviour
             var normalRowGO = new GameObject("ResetNormalRow", typeof(RectTransform));
             normalRowGO.transform.SetParent(content.transform, false);
             var nrLE = normalRowGO.AddComponent<LayoutElement>();
-            nrLE.preferredHeight = 60f;
-            nrLE.minHeight       = 60f;
+            nrLE.preferredHeight = 92f; // 44pt iOS minimum touch target
+            nrLE.minHeight       = 92f;
 
             var nrHLG = normalRowGO.AddComponent<HorizontalLayoutGroup>();
             nrHLG.padding               = new RectOffset(0, 0, 0, 0);
@@ -610,7 +692,7 @@ public class MenuScreens : MonoBehaviour
             rlrt.offsetMax = Vector2.zero;
             var resetLabel = resetLabelGO.AddComponent<Text>();
             resetLabel.font            = font;
-            resetLabel.fontSize        = 24;
+            resetLabel.fontSize        = 28;
             resetLabel.color           = C_CINNABAR;
             resetLabel.alignment       = TextAnchor.MiddleCenter;
             resetLabel.fontStyle       = FontStyle.Bold;
@@ -625,8 +707,8 @@ public class MenuScreens : MonoBehaviour
             var confirmRowGO = new GameObject("ResetConfirmRow", typeof(RectTransform));
             confirmRowGO.transform.SetParent(content.transform, false);
             var crLE = confirmRowGO.AddComponent<LayoutElement>();
-            crLE.preferredHeight = 60f;
-            crLE.minHeight       = 60f;
+            crLE.preferredHeight = 92f; // 44pt iOS minimum touch target
+            crLE.minHeight       = 92f;
 
             var crHLG = confirmRowGO.AddComponent<HorizontalLayoutGroup>();
             crHLG.padding               = new RectOffset(0, 0, 0, 0);
@@ -644,7 +726,7 @@ public class MenuScreens : MonoBehaviour
             promptLE.flexibleWidth = 1f;
             var promptText = promptGO.AddComponent<Text>();
             promptText.font            = font;
-            promptText.fontSize        = 22;
+            promptText.fontSize        = 24;
             promptText.color           = C_CINNABAR;
             promptText.alignment       = TextAnchor.MiddleLeft;
             promptText.fontStyle       = FontStyle.Bold;
@@ -656,8 +738,8 @@ public class MenuScreens : MonoBehaviour
             var confirmBtnGO = new GameObject("ConfirmYesBtn", typeof(RectTransform));
             confirmBtnGO.transform.SetParent(confirmRowGO.transform, false);
             var cbLE = confirmBtnGO.AddComponent<LayoutElement>();
-            cbLE.preferredWidth = 140f;
-            cbLE.minWidth       = 140f;
+            cbLE.preferredWidth = 160f;
+            cbLE.minWidth       = 160f;
 
             var confirmBtnImg = confirmBtnGO.AddComponent<Image>();
             confirmBtnImg.sprite        = InkArt.RoundedPanel(140, 56, 12, 2);
@@ -687,7 +769,7 @@ public class MenuScreens : MonoBehaviour
             cylrt.offsetMax = Vector2.zero;
             var confirmYesLabel = confirmYesLabelGO.AddComponent<Text>();
             confirmYesLabel.font            = font;
-            confirmYesLabel.fontSize        = 22;
+            confirmYesLabel.fontSize        = 26;
             confirmYesLabel.color           = C_PARCHMENT;
             confirmYesLabel.alignment       = TextAnchor.MiddleCenter;
             confirmYesLabel.fontStyle       = FontStyle.Bold;
@@ -699,8 +781,8 @@ public class MenuScreens : MonoBehaviour
             var cancelBtnGO = new GameObject("ConfirmNoBtn", typeof(RectTransform));
             cancelBtnGO.transform.SetParent(confirmRowGO.transform, false);
             var cancLE = cancelBtnGO.AddComponent<LayoutElement>();
-            cancLE.preferredWidth = 120f;
-            cancLE.minWidth       = 120f;
+            cancLE.preferredWidth = 150f;
+            cancLE.minWidth       = 150f;
 
             var cancelBtnImg = cancelBtnGO.AddComponent<Image>();
             cancelBtnImg.sprite        = InkArt.RoundedPanel(120, 56, 12, 2);
@@ -730,7 +812,7 @@ public class MenuScreens : MonoBehaviour
             clrt.offsetMax = Vector2.zero;
             var cancelLabel = cancelLabelGO.AddComponent<Text>();
             cancelLabel.font            = font;
-            cancelLabel.fontSize        = 22;
+            cancelLabel.fontSize        = 26;
             cancelLabel.color           = C_INK;
             cancelLabel.alignment       = TextAnchor.MiddleCenter;
             cancelLabel.fontStyle       = FontStyle.Bold;
@@ -757,6 +839,8 @@ public class MenuScreens : MonoBehaviour
                 // Refresh any open panels and the main menu realm/best readout.
                 RefreshShop();
                 RefreshSettings();
+                // End any live run so nothing keeps simulating behind the menu.
+                Game.I?.EndRunToMenu();
                 MainMenu.I?.Show();
                 // Dismiss confirm: swap back to normal row.
                 _resetConfirmRow.SetActive(false);
@@ -811,6 +895,45 @@ public class MenuScreens : MonoBehaviour
         }
     }
 
+    // ── Technique display names ──────────────────────────────────────────────
+    // Telegraph.SeenTechniques stores raw ids ("heaven_cleaving_slash"); the
+    // journal shows the DisplayName from Telegraph.Resolve ("Heaven-Cleaving
+    // Slash"). The id→name map is built once, lazily, by resolving every
+    // HazardKind through the static telegraph catalog.
+    static Dictionary<string, string> _techniqueNames;
+
+    static string TechniqueDisplayName(string id)
+    {
+        if (_techniqueNames == null)
+        {
+            _techniqueNames = new Dictionary<string, string>();
+            foreach (Tribulation.Core.HazardKind kind in
+                     System.Enum.GetValues(typeof(Tribulation.Core.HazardKind)))
+            {
+                try
+                {
+                    var info = Tribulation.Core.Telegraph.Resolve(kind);
+                    if (!string.IsNullOrEmpty(info.TechniqueId))
+                        _techniqueNames[info.TechniqueId] = info.DisplayName;
+                }
+                catch (System.ArgumentOutOfRangeException)
+                {
+                    // HazardKind without a telegraph entry — skip it.
+                }
+            }
+        }
+
+        if (_techniqueNames.TryGetValue(id, out var name)) return name;
+
+        // Unknown id (older save / future content) — prettify it:
+        // "some_new_move" → "Some New Move".
+        var parts = id.Split('_');
+        for (int i = 0; i < parts.Length; i++)
+            if (parts[i].Length > 0)
+                parts[i] = char.ToUpperInvariant(parts[i][0]) + parts[i].Substring(1);
+        return string.Join(" ", parts);
+    }
+
     void RefreshJournal()
     {
         var core = Game.I?.Core;
@@ -845,9 +968,15 @@ public class MenuScreens : MonoBehaviour
             {
                 var seen = new List<string>(tele.SeenTechniques);
                 if (seen.Count == 0)
+                {
                     _journalTechText.text = "None discovered yet — survive to learn your enemies' techniques.";
+                }
                 else
+                {
+                    for (int i = 0; i < seen.Count; i++)
+                        seen[i] = TechniqueDisplayName(seen[i]);
                     _journalTechText.text = string.Join("\n", seen);
+                }
             }
         }
 
@@ -978,6 +1107,9 @@ public class MenuScreens : MonoBehaviour
     }
 
     // Add a Text child to a layout container, with a LayoutElement for sizing.
+    // preferredHeight >= 0 pins the row (min = preferred). Pass a negative
+    // preferredHeight to leave it unpinned so the Text's own preferred height
+    // drives the layout — used by the journal's scrolled auto-height rows.
     static Text AddTextRow(GameObject container, string name, Font font,
         int fontSize, Color color, TextAnchor alignment, FontStyle style,
         float preferredHeight, float flexibleHeight = -1f)
@@ -986,8 +1118,11 @@ public class MenuScreens : MonoBehaviour
         go.transform.SetParent(container.transform, false);
 
         var le = go.AddComponent<LayoutElement>();
-        le.preferredHeight = preferredHeight;
-        le.minHeight       = preferredHeight;
+        if (preferredHeight >= 0f)
+        {
+            le.preferredHeight = preferredHeight;
+            le.minHeight       = preferredHeight;
+        }
         if (flexibleHeight >= 0f) le.flexibleHeight = flexibleHeight;
 
         var t = go.AddComponent<Text>();
@@ -998,6 +1133,12 @@ public class MenuScreens : MonoBehaviour
         t.fontStyle       = style;
         t.supportRichText = false;
         t.raycastTarget   = false;
+        // Pinned rows are single-line headers/labels: the serif font's line height
+        // can exceed the pinned slot by a few px, and the default Truncate then
+        // drops the whole line (invisible text). Overflow keeps them rendering;
+        // unpinned rows keep Truncate since layout grants their true height.
+        if (preferredHeight >= 0f)
+            t.verticalOverflow = VerticalWrapMode.Overflow;
         return t;
     }
 
@@ -1027,15 +1168,15 @@ public class MenuScreens : MonoBehaviour
         le.minHeight      = 0f;
     }
 
-    // Add a Back button as a layout child (preferredHeight 60).
+    // Add a Back button as a layout child (preferredHeight 92 — 44pt target).
     static void AddBackButtonToLayout(GameObject container, Font font)
     {
         var go = new GameObject("BackBtn", typeof(RectTransform));
         go.transform.SetParent(container.transform, false);
 
         var le = go.AddComponent<LayoutElement>();
-        le.preferredHeight = 60f;
-        le.minHeight       = 60f;
+        le.preferredHeight = 92f;
+        le.minHeight       = 92f;
 
         var img = go.AddComponent<Image>();
         img.sprite        = InkArt.RoundedPanel(260, 60, 12, 2);
@@ -1067,7 +1208,7 @@ public class MenuScreens : MonoBehaviour
 
         var lbl = labelGO.AddComponent<Text>();
         lbl.font            = font;
-        lbl.fontSize        = 28;
+        lbl.fontSize        = 31;
         lbl.color           = C_INK;
         lbl.alignment       = TextAnchor.MiddleCenter;
         lbl.fontStyle       = FontStyle.Bold;
@@ -1110,7 +1251,7 @@ public class MenuScreens : MonoBehaviour
 
         var t = go.AddComponent<Text>();
         t.font            = font;
-        t.fontSize        = 28;
+        t.fontSize        = 31;
         t.color           = C_INK;
         t.alignment       = TextAnchor.MiddleLeft;
         t.fontStyle       = FontStyle.Bold;
@@ -1159,24 +1300,25 @@ public class MenuScreens : MonoBehaviour
         var fillImg = fillGO.AddComponent<Image>();
         fillImg.color = C_JADE;
 
-        // Handle slide area
+        // Handle slide area — a 64-unit band centred on the track. The Slider
+        // component force-stretches the handle's cross-axis anchors to fill this
+        // area (authored handle anchors get stomped), so the band's height IS the
+        // handle height.
         var handleAreaGO = new GameObject("Handle Slide Area", typeof(RectTransform));
         handleAreaGO.transform.SetParent(go.transform, false);
         var haRT = handleAreaGO.GetComponent<RectTransform>();
-        haRT.anchorMin = Vector2.zero;
-        haRT.anchorMax = Vector2.one;
-        haRT.offsetMin = new Vector2(10f, 0f);
-        haRT.offsetMax = new Vector2(-10f, 0f);
+        haRT.anchorMin = new Vector2(0f, 0.5f);
+        haRT.anchorMax = new Vector2(1f, 0.5f);
+        haRT.offsetMin = new Vector2(10f, -32f);
+        haRT.offsetMax = new Vector2(-10f, 32f);
 
         var handleGO = new GameObject("Handle", typeof(RectTransform));
         handleGO.transform.SetParent(handleAreaGO.transform, false);
         var hRT = handleGO.GetComponent<RectTransform>();
-        hRT.sizeDelta = new Vector2(24f, 24f);
-        hRT.anchorMin = new Vector2(0f, 0.5f);
-        hRT.anchorMax = new Vector2(0f, 0.5f);
-        hRT.pivot     = new Vector2(0.5f, 0.5f);
         var handleImg = handleGO.AddComponent<Image>();
-        handleImg.color = C_GOLD;
+        handleImg.sprite = InkArt.RoundedPanel(36, 64, 14, 2);
+        handleImg.type   = Image.Type.Simple;
+        handleImg.color  = C_GOLD;
 
         var slider = go.AddComponent<Slider>();
         slider.fillRect      = fillRT;
@@ -1187,6 +1329,12 @@ public class MenuScreens : MonoBehaviour
         slider.maxValue      = 1f;
         slider.wholeNumbers  = false;
         slider.value         = 0.8f;
+
+        // Handle: 36 wide, fills the 64-tall slide-area band (see above — the
+        // Slider stretches the cross axis, so height comes from the band).
+        hRT.pivot            = new Vector2(0.5f, 0.5f);
+        hRT.sizeDelta        = new Vector2(36f, 0f);
+        hRT.anchoredPosition = Vector2.zero;
 
         var cb = slider.colors;
         cb.normalColor      = C_GOLD;
@@ -1206,11 +1354,16 @@ public class MenuScreens : MonoBehaviour
         go.transform.SetParent(rowGO.transform, false);
 
         var le = go.AddComponent<LayoutElement>();
-        le.preferredWidth = 48f;
-        le.minWidth       = 48f;
+        le.preferredWidth  = 72f; // 72x72 square box (35pt), centred in the 92-tall row
+        le.minWidth        = 72f;
+        le.preferredHeight = 72f;
+        le.minHeight       = 72f;
+        le.flexibleHeight  = 0f;
 
         var bgImg = go.AddComponent<Image>();
-        bgImg.color = new Color(C_INK.r, C_INK.g, C_INK.b, 0.18f);
+        bgImg.sprite = InkArt.RoundedPanel(72, 72, 12, 2);
+        bgImg.type   = Image.Type.Simple;
+        bgImg.color  = new Color(C_INK.r, C_INK.g, C_INK.b, 0.18f);
 
         var checkGO = new GameObject("Checkmark", typeof(RectTransform));
         checkGO.transform.SetParent(go.transform, false);

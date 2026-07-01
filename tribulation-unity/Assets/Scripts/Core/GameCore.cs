@@ -404,6 +404,28 @@ namespace Tribulation.Core
             StartRun();
         }
 
+        /// <summary>
+        /// End the current run and return to the idle boot state (main menu showing):
+        /// the inverse of StartRun. IsStarted stays false so Tick/Spawner bail and the
+        /// next "Begin Cultivation" starts a genuinely fresh run. Realm + lifetime
+        /// stats persist; the abandoned run's distance is not recorded as a best.
+        /// </summary>
+        public void EndRun()
+        {
+            IsDead        = false;
+            IsStarted     = false;
+            Souls         = 0;
+            RunProgress   = 0;
+            Combo         = 0;
+            Net           = 0f;
+            InTribulation = false;
+            _trials.Clear();
+            QiChanged?.Invoke(Qi, _b.qi_max);
+            NetChanged?.Invoke(Net);
+            SoulsChanged?.Invoke(Souls);
+            ComboChanged?.Invoke(Combo, 1f);
+        }
+
         public void StartRun()
         {
             if (IsStarted) return;

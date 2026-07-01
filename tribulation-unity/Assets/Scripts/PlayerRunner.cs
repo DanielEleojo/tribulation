@@ -433,6 +433,14 @@ public class PlayerRunner : MonoBehaviour
         SetHeight(STAND_HEIGHT);
     }
 
+    // Called by Game when quitting to the main menu: same revive/recenter as ResetRun,
+    // but leaves the runner idle — BeginRunning() (the next "Begin Cultivation") starts motion.
+    public void StopForMenu()
+    {
+        ResetRun();
+        _running = false;
+    }
+
     public float GetSpeedFraction() => Mathf.Clamp01(_runTime / _rampTime);
     public int GetDistance() => (int)Mathf.Max(0f, _startZ - transform.position.z);
 }
