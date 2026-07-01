@@ -372,8 +372,15 @@ public class PlayerRunner : MonoBehaviour
         var cam = Cam(); if (cam != null) { cam.AddTrauma(0.35f); cam.AddFovKick(5f); }
         if (SoundManager.I != null) SoundManager.I.Play("death"); // ponytail: reuse death sfx as a hit thud until a dedicated one exists
         if (Game.I != null) Game.I.OnContactHit(isEnemy);
-        // A pursuer that lands its hit is spent — remove it so it can't sit on you and re-spike.
-        if (isEnemy) other.gameObject.SetActive(false);
+        // A pursuer that lands its hit is spent — play its death (collapse) instead of
+        // vanishing instantly. Kill() disables its collider immediately so it can't
+        // sit on you and re-spike, then despawns after the death anim.
+        if (isEnemy)
+        {
+            var eb = other.GetComponent<EnemyBehavior>();
+            if (eb != null) eb.Kill();
+            else other.gameObject.SetActive(false);
+        }
     }
 
     // Public so Spawner-pooled hazards can trigger the same path.
@@ -388,6 +395,17 @@ public class PlayerRunner : MonoBehaviour
         // Game.OnCoreDied() will call GameLoop.I.OnPlayerDied() for restart support.
         if (Game.I != null) Game.I.OnPlayerHit();
         else if (GameLoop.I != null) GameLoop.I.OnPlayerDied(); // fallback if Game not present
+    }
+
+    // Called by Game.OnCoreDied when the Heavenly Net closes (the real death path now —
+    // contact is non-lethal). Halts forward motion and marks dead so the rigged model
+    // plays its death animation. Does NOT re-enter the core death path (Core already died).
+    public void HaltForDeath()
+    {
+        if (_dead) return;
+        _dead = true;
+        _running = false;
+        if (_sliding) EndSlide();
     }
 
     // Called by Game when an Iron Aegis talisman is picked up.

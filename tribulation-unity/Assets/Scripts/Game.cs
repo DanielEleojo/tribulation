@@ -79,6 +79,8 @@ public class Game : MonoBehaviour
     {
         int dist = _player != null ? Mathf.RoundToInt(_player.GetDistance()) : 0;
         Core.RecordDistance(dist);
+        // Stop the runner + trigger its death animation (the Net closing IS death now).
+        if (_player != null) _player.HaltForDeath();
         SaveGame();
         // The Net closing over you IS death now — give it the death sfx/shake here, since
         // it no longer routes through PlayerRunner.Die (contact is non-lethal).
