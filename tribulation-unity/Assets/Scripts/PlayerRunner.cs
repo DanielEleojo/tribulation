@@ -77,8 +77,17 @@ public class PlayerRunner : MonoBehaviour
     /// <summary>Fired when a slash actually executes (gates passed, cooldown reset).</summary>
     public event System.Action Slashed;
 
+    // ── Singleton (mirrors Game.I / HudOverlay.I / PauseMenu.I pattern) ─────────
+    public static PlayerRunner I { get; private set; }
+
+    /// <summary>Current Iron-Body shield count (from Survivability). 0 at realms below Nascent Soul.</summary>
+    public int Shields    => _surv.Shields;
+    /// <summary>Maximum Iron-Body shield slots for the current realm.</summary>
+    public int MaxShields => _surv.MaxShields;
+
     void Awake()
     {
+        I = this;
         _cc = GetComponent<CharacterController>();
         var b = Balance.D;
         _baseSpeed = b.player_base_speed; _maxSpeed = b.player_max_speed; _rampTime = b.player_speed_ramp_time;
@@ -307,12 +316,19 @@ public class PlayerRunner : MonoBehaviour
         int killed = 0;
         foreach (var foe in foes)
         {
-            if (foe == null || !foe.gameObject.activeSelf) continue;
+            // Skip null, inactive GameObjects, or disabled Foe (already dying).
+            if (foe == null || !foe.gameObject.activeSelf || !foe.enabled) continue;
             float ahead   = transform.position.z - foe.transform.position.z;
             float lateral = Mathf.Abs(foe.transform.position.x - transform.position.x);
             if (Tribulation.Core.GameCore.InSlashReach(ahead, lateral, range, tol))
             {
-                foe.gameObject.SetActive(false); // return-to-pool handled by Spawner.Cull()
+                // Trigger death anim + delayed despawn if EnemyBehavior present,
+                // else fall back to immediate deactivation.
+                var eb = foe.GetComponent<EnemyBehavior>();
+                if (eb != null)
+                    eb.Kill();
+                else
+                    foe.gameObject.SetActive(false); // fallback: return-to-pool immediately
                 Feel.Spark(foe.transform.position + Vector3.up * 1f);
                 killed++;
             }
@@ -356,8 +372,15 @@ public class PlayerRunner : MonoBehaviour
         var cam = Cam(); if (cam != null) { cam.AddTrauma(0.35f); cam.AddFovKick(5f); }
         if (SoundManager.I != null) SoundManager.I.Play("death"); // ponytail: reuse death sfx as a hit thud until a dedicated one exists
         if (Game.I != null) Game.I.OnContactHit(isEnemy);
-        // A pursuer that lands its hit is spent — remove it so it can't sit on you and re-spike.
-        if (isEnemy) other.gameObject.SetActive(false);
+        // A pursuer that lands its hit is spent — play its death (collapse) instead of
+        // vanishing instantly. Kill() disables its collider immediately so it can't
+        // sit on you and re-spike, then despawns after the death anim.
+        if (isEnemy)
+        {
+            var eb = other.GetComponent<EnemyBehavior>();
+            if (eb != null) eb.Kill();
+            else other.gameObject.SetActive(false);
+        }
     }
 
     // Public so Spawner-pooled hazards can trigger the same path.
@@ -372,6 +395,17 @@ public class PlayerRunner : MonoBehaviour
         // Game.OnCoreDied() will call GameLoop.I.OnPlayerDied() for restart support.
         if (Game.I != null) Game.I.OnPlayerHit();
         else if (GameLoop.I != null) GameLoop.I.OnPlayerDied(); // fallback if Game not present
+    }
+
+    // Called by Game.OnCoreDied when the Heavenly Net closes (the real death path now —
+    // contact is non-lethal). Halts forward motion and marks dead so the rigged model
+    // plays its death animation. Does NOT re-enter the core death path (Core already died).
+    public void HaltForDeath()
+    {
+        if (_dead) return;
+        _dead = true;
+        _running = false;
+        if (_sliding) EndSlide();
     }
 
     // Called by Game when an Iron Aegis talisman is picked up.

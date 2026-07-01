@@ -50,11 +50,18 @@ public class MenuScreens : MonoBehaviour
     // ── Journal live refs ─────────────────────────────────────────────────────
     Text _journalStatsText;
     Text _journalTechText;
+    Text _journalAchText;
+    // Daily claim button (lives in the journal panel)
+    Button _dailyBtn;
+    Text   _dailyBtnLabel;
 
     // ── Settings live refs ────────────────────────────────────────────────────
     Slider _musicSlider;
     Slider _sfxSlider;
     Toggle _muteToggle;
+    // Reset-cultivation confirm gate: the two rows swap visibility on tap.
+    GameObject _resetNormalRow;
+    GameObject _resetConfirmRow;
 
     // ════════════════════════════════════════════════════════════════════════
     // Lifecycle
@@ -400,6 +407,77 @@ public class MenuScreens : MonoBehaviour
         _journalTechText.horizontalOverflow = HorizontalWrapMode.Wrap;
         _journalTechText.verticalOverflow   = VerticalWrapMode.Overflow;
 
+        // ── Achievements sub-header ──────────────────────────────────────────
+        var achHdr = AddTextRow(content, "AchHeader", font, 28, C_CINNABAR,
+            TextAnchor.MiddleLeft, FontStyle.Bold, preferredHeight: 44);
+        achHdr.text = "Achievements";
+        AddDivider(content, "AchDivider");
+
+        // Achievements list — wrapping, flexible height
+        _journalAchText = AddTextRow(content, "AchList", font, 20, C_TEXT_DIM,
+            TextAnchor.UpperLeft, FontStyle.Normal,
+            preferredHeight: 200f, flexibleHeight: 1f);
+        _journalAchText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        _journalAchText.verticalOverflow   = VerticalWrapMode.Overflow;
+
+        // ── Daily reward button ──────────────────────────────────────────────
+        {
+            var dailyGO = new GameObject("DailyBtn", typeof(RectTransform));
+            dailyGO.transform.SetParent(content.transform, false);
+            var dlLE = dailyGO.AddComponent<LayoutElement>();
+            dlLE.preferredHeight = 60f;
+            dlLE.minHeight       = 60f;
+
+            var dlImg = dailyGO.AddComponent<Image>();
+            dlImg.sprite        = InkArt.RoundedPanel(400, 60, 12, 2);
+            dlImg.type          = Image.Type.Simple;
+            dlImg.color         = Color.white;
+            dlImg.raycastTarget = true;
+
+            _dailyBtn = dailyGO.AddComponent<Button>();
+            _dailyBtn.interactable  = false;
+            _dailyBtn.targetGraphic = dlImg;
+            {
+                var cb = _dailyBtn.colors;
+                cb.normalColor      = Color.white;
+                cb.highlightedColor = new Color(0.94f, 0.94f, 0.94f, 1f);
+                cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
+                cb.disabledColor    = new Color(1f, 1f, 1f, 0.45f);
+                cb.colorMultiplier  = 1f;
+                _dailyBtn.colors = cb;
+            }
+
+            var dlLabelGO = new GameObject("Label", typeof(RectTransform));
+            dlLabelGO.transform.SetParent(dailyGO.transform, false);
+            var dlLRT = dlLabelGO.GetComponent<RectTransform>();
+            dlLRT.anchorMin = Vector2.zero;
+            dlLRT.anchorMax = Vector2.one;
+            dlLRT.offsetMin = Vector2.zero;
+            dlLRT.offsetMax = Vector2.zero;
+            _dailyBtnLabel = dlLabelGO.AddComponent<Text>();
+            _dailyBtnLabel.font            = font;
+            _dailyBtnLabel.fontSize        = 24;
+            _dailyBtnLabel.color           = C_INK;
+            _dailyBtnLabel.alignment       = TextAnchor.MiddleCenter;
+            _dailyBtnLabel.fontStyle       = FontStyle.Bold;
+            _dailyBtnLabel.supportRichText = false;
+            _dailyBtnLabel.raycastTarget   = false;
+            _dailyBtnLabel.text            = "Daily Qi";
+
+            _dailyBtn.onClick.AddListener(() =>
+            {
+                var c = Game.I?.Core;
+                if (c == null) return;
+                int today = (int)(System.DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 86400L);
+                int reward = c.ClaimDaily(today);
+                if (reward > 0)
+                {
+                    Game.I.SaveProgress();
+                    RefreshJournal();
+                }
+            });
+        }
+
         // Spacer + Back
         AddSpacer(content, "JournalSpacer");
         AddBackButtonToLayout(content, font);
@@ -428,7 +506,7 @@ public class MenuScreens : MonoBehaviour
     GameObject BuildSettingsPanel(GameObject canvasGO, Font font, Font sealFont)
     {
         var panel  = MakePanelRoot(canvasGO, "SettingsPanel");
-        var cardGO = MakeCentredCard(panel, 720, 820);
+        var cardGO = MakeCentredCard(panel, 720, 960);
 
         var content = MakeContentContainer(cardGO, "SettingsContent",
             padTop: 40, padBottom: 40, padLeft: 30, padRight: 30, spacing: 16);
@@ -477,6 +555,219 @@ public class MenuScreens : MonoBehaviour
             {
                 Game.I?.Core?.SetMuted(v);
                 Game.I?.SaveProgress();
+            });
+        }
+
+        // ── Reset Cultivation (danger, confirm-gated) ────────────────────────
+        // Normal row: single "Reset Cultivation" button (cinnabar danger style).
+        // Clicking it hides the normal row and shows the confirm row.
+        // A stray single tap on the normal button CANNOT wipe data — it only opens the gate.
+        {
+            var normalRowGO = new GameObject("ResetNormalRow", typeof(RectTransform));
+            normalRowGO.transform.SetParent(content.transform, false);
+            var nrLE = normalRowGO.AddComponent<LayoutElement>();
+            nrLE.preferredHeight = 60f;
+            nrLE.minHeight       = 60f;
+
+            var nrHLG = normalRowGO.AddComponent<HorizontalLayoutGroup>();
+            nrHLG.padding               = new RectOffset(0, 0, 0, 0);
+            nrHLG.spacing               = 0f;
+            nrHLG.childAlignment        = TextAnchor.MiddleCenter;
+            nrHLG.childControlWidth     = true;
+            nrHLG.childControlHeight    = true;
+            nrHLG.childForceExpandWidth  = true;
+            nrHLG.childForceExpandHeight = true;
+
+            // The danger button
+            var resetBtnGO = new GameObject("ResetBtn", typeof(RectTransform));
+            resetBtnGO.transform.SetParent(normalRowGO.transform, false);
+
+            var resetImg = resetBtnGO.AddComponent<Image>();
+            resetImg.sprite        = InkArt.RoundedPanel(400, 60, 12, 2);
+            resetImg.type          = Image.Type.Simple;
+            resetImg.color         = new Color(C_CINNABAR.r, C_CINNABAR.g, C_CINNABAR.b, 0.18f);
+            resetImg.raycastTarget = true;
+
+            var resetBtn = resetBtnGO.AddComponent<Button>();
+            resetBtn.interactable  = true;
+            resetBtn.targetGraphic = resetImg;
+            {
+                var cb = resetBtn.colors;
+                cb.normalColor      = new Color(C_CINNABAR.r, C_CINNABAR.g, C_CINNABAR.b, 0.18f);
+                cb.highlightedColor = new Color(C_CINNABAR.r, C_CINNABAR.g, C_CINNABAR.b, 0.30f);
+                cb.pressedColor     = new Color(C_CINNABAR.r, C_CINNABAR.g, C_CINNABAR.b, 0.45f);
+                cb.disabledColor    = new Color(1f, 1f, 1f, 0.25f);
+                cb.colorMultiplier  = 1f;
+                resetBtn.colors = cb;
+            }
+
+            var resetLabelGO = new GameObject("Label", typeof(RectTransform));
+            resetLabelGO.transform.SetParent(resetBtnGO.transform, false);
+            var rlrt = resetLabelGO.GetComponent<RectTransform>();
+            rlrt.anchorMin = Vector2.zero;
+            rlrt.anchorMax = Vector2.one;
+            rlrt.offsetMin = Vector2.zero;
+            rlrt.offsetMax = Vector2.zero;
+            var resetLabel = resetLabelGO.AddComponent<Text>();
+            resetLabel.font            = font;
+            resetLabel.fontSize        = 24;
+            resetLabel.color           = C_CINNABAR;
+            resetLabel.alignment       = TextAnchor.MiddleCenter;
+            resetLabel.fontStyle       = FontStyle.Bold;
+            resetLabel.supportRichText = false;
+            resetLabel.raycastTarget   = false;
+            resetLabel.text            = "Reset Cultivation";
+
+            _resetNormalRow  = normalRowGO;
+
+            // Confirm row: "Erase all progress?  [Confirm]  [Cancel]"
+            // Starts hidden; shown when the normal button is tapped.
+            var confirmRowGO = new GameObject("ResetConfirmRow", typeof(RectTransform));
+            confirmRowGO.transform.SetParent(content.transform, false);
+            var crLE = confirmRowGO.AddComponent<LayoutElement>();
+            crLE.preferredHeight = 60f;
+            crLE.minHeight       = 60f;
+
+            var crHLG = confirmRowGO.AddComponent<HorizontalLayoutGroup>();
+            crHLG.padding               = new RectOffset(0, 0, 0, 0);
+            crHLG.spacing               = 12f;
+            crHLG.childAlignment        = TextAnchor.MiddleCenter;
+            crHLG.childControlWidth     = true;
+            crHLG.childControlHeight    = true;
+            crHLG.childForceExpandWidth  = false;
+            crHLG.childForceExpandHeight = true;
+
+            // Prompt label
+            var promptGO = new GameObject("ConfirmPrompt", typeof(RectTransform));
+            promptGO.transform.SetParent(confirmRowGO.transform, false);
+            var promptLE = promptGO.AddComponent<LayoutElement>();
+            promptLE.flexibleWidth = 1f;
+            var promptText = promptGO.AddComponent<Text>();
+            promptText.font            = font;
+            promptText.fontSize        = 22;
+            promptText.color           = C_CINNABAR;
+            promptText.alignment       = TextAnchor.MiddleLeft;
+            promptText.fontStyle       = FontStyle.Bold;
+            promptText.supportRichText = false;
+            promptText.raycastTarget   = false;
+            promptText.text            = "Erase all progress?";
+
+            // [Confirm] button
+            var confirmBtnGO = new GameObject("ConfirmYesBtn", typeof(RectTransform));
+            confirmBtnGO.transform.SetParent(confirmRowGO.transform, false);
+            var cbLE = confirmBtnGO.AddComponent<LayoutElement>();
+            cbLE.preferredWidth = 140f;
+            cbLE.minWidth       = 140f;
+
+            var confirmBtnImg = confirmBtnGO.AddComponent<Image>();
+            confirmBtnImg.sprite        = InkArt.RoundedPanel(140, 56, 12, 2);
+            confirmBtnImg.type          = Image.Type.Simple;
+            confirmBtnImg.color         = C_CINNABAR;
+            confirmBtnImg.raycastTarget = true;
+
+            var confirmBtnBtn = confirmBtnGO.AddComponent<Button>();
+            confirmBtnBtn.interactable  = true;
+            confirmBtnBtn.targetGraphic = confirmBtnImg;
+            {
+                var cb = confirmBtnBtn.colors;
+                cb.normalColor      = C_CINNABAR;
+                cb.highlightedColor = Color.Lerp(C_CINNABAR, Color.white, 0.15f);
+                cb.pressedColor     = Color.Lerp(C_CINNABAR, Color.black, 0.15f);
+                cb.disabledColor    = new Color(1f, 1f, 1f, 0.25f);
+                cb.colorMultiplier  = 1f;
+                confirmBtnBtn.colors = cb;
+            }
+
+            var confirmYesLabelGO = new GameObject("Label", typeof(RectTransform));
+            confirmYesLabelGO.transform.SetParent(confirmBtnGO.transform, false);
+            var cylrt = confirmYesLabelGO.GetComponent<RectTransform>();
+            cylrt.anchorMin = Vector2.zero;
+            cylrt.anchorMax = Vector2.one;
+            cylrt.offsetMin = Vector2.zero;
+            cylrt.offsetMax = Vector2.zero;
+            var confirmYesLabel = confirmYesLabelGO.AddComponent<Text>();
+            confirmYesLabel.font            = font;
+            confirmYesLabel.fontSize        = 22;
+            confirmYesLabel.color           = C_PARCHMENT;
+            confirmYesLabel.alignment       = TextAnchor.MiddleCenter;
+            confirmYesLabel.fontStyle       = FontStyle.Bold;
+            confirmYesLabel.supportRichText = false;
+            confirmYesLabel.raycastTarget   = false;
+            confirmYesLabel.text            = "Confirm";
+
+            // [Cancel] button
+            var cancelBtnGO = new GameObject("ConfirmNoBtn", typeof(RectTransform));
+            cancelBtnGO.transform.SetParent(confirmRowGO.transform, false);
+            var cancLE = cancelBtnGO.AddComponent<LayoutElement>();
+            cancLE.preferredWidth = 120f;
+            cancLE.minWidth       = 120f;
+
+            var cancelBtnImg = cancelBtnGO.AddComponent<Image>();
+            cancelBtnImg.sprite        = InkArt.RoundedPanel(120, 56, 12, 2);
+            cancelBtnImg.type          = Image.Type.Simple;
+            cancelBtnImg.color         = Color.white;
+            cancelBtnImg.raycastTarget = true;
+
+            var cancelBtnBtn = cancelBtnGO.AddComponent<Button>();
+            cancelBtnBtn.interactable  = true;
+            cancelBtnBtn.targetGraphic = cancelBtnImg;
+            {
+                var cb = cancelBtnBtn.colors;
+                cb.normalColor      = Color.white;
+                cb.highlightedColor = new Color(0.94f, 0.94f, 0.94f, 1f);
+                cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
+                cb.disabledColor    = new Color(1f, 1f, 1f, 0.45f);
+                cb.colorMultiplier  = 1f;
+                cancelBtnBtn.colors = cb;
+            }
+
+            var cancelLabelGO = new GameObject("Label", typeof(RectTransform));
+            cancelLabelGO.transform.SetParent(cancelBtnGO.transform, false);
+            var clrt = cancelLabelGO.GetComponent<RectTransform>();
+            clrt.anchorMin = Vector2.zero;
+            clrt.anchorMax = Vector2.one;
+            clrt.offsetMin = Vector2.zero;
+            clrt.offsetMax = Vector2.zero;
+            var cancelLabel = cancelLabelGO.AddComponent<Text>();
+            cancelLabel.font            = font;
+            cancelLabel.fontSize        = 22;
+            cancelLabel.color           = C_INK;
+            cancelLabel.alignment       = TextAnchor.MiddleCenter;
+            cancelLabel.fontStyle       = FontStyle.Bold;
+            cancelLabel.supportRichText = false;
+            cancelLabel.raycastTarget   = false;
+            cancelLabel.text            = "Cancel";
+
+            _resetConfirmRow = confirmRowGO;
+            confirmRowGO.SetActive(false); // hidden until user taps "Reset Cultivation"
+
+            // Wire the three callbacks now that both rows are fully built.
+            // Normal → show confirm row, hide normal row (single tap can't wipe).
+            resetBtn.onClick.AddListener(() =>
+            {
+                _resetNormalRow .SetActive(false);
+                _resetConfirmRow.SetActive(true);
+            });
+
+            // Confirm → execute reset, save, refresh UI, dismiss confirm.
+            confirmBtnBtn.onClick.AddListener(() =>
+            {
+                Game.I?.Core?.ResetCultivation();
+                Game.I?.SaveProgress();
+                // Refresh any open panels and the main menu realm/best readout.
+                RefreshShop();
+                RefreshSettings();
+                MainMenu.I?.Show();
+                // Dismiss confirm: swap back to normal row.
+                _resetConfirmRow.SetActive(false);
+                _resetNormalRow .SetActive(true);
+            });
+
+            // Cancel → dismiss confirm, no change.
+            cancelBtnBtn.onClick.AddListener(() =>
+            {
+                _resetConfirmRow.SetActive(false);
+                _resetNormalRow .SetActive(true);
             });
         }
 
@@ -549,14 +840,59 @@ public class MenuScreens : MonoBehaviour
             if (tele == null)
             {
                 _journalTechText.text = "None discovered yet — survive to learn your enemies' techniques.";
-                return;
             }
-
-            var seen = new List<string>(tele.SeenTechniques);
-            if (seen.Count == 0)
-                _journalTechText.text = "None discovered yet — survive to learn your enemies' techniques.";
             else
-                _journalTechText.text = string.Join("\n", seen);
+            {
+                var seen = new List<string>(tele.SeenTechniques);
+                if (seen.Count == 0)
+                    _journalTechText.text = "None discovered yet — survive to learn your enemies' techniques.";
+                else
+                    _journalTechText.text = string.Join("\n", seen);
+            }
+        }
+
+        // ── Achievements ─────────────────────────────────────────────────────
+        if (_journalAchText != null)
+        {
+            if (core == null)
+            {
+                _journalAchText.text = "No data.";
+            }
+            else
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach (var a in core.Achievements)
+                {
+                    bool unlocked = core.IsAchUnlocked(a.Id);
+                    sb.AppendLine(unlocked
+                        ? "✔ " + a.Name
+                        : "✧ " + a.Name + " — " + a.Desc);
+                }
+                _journalAchText.text = sb.ToString().TrimEnd();
+            }
+        }
+
+        // ── Daily button ──────────────────────────────────────────────────────
+        if (_dailyBtn != null && _dailyBtnLabel != null)
+        {
+            int today = (int)(System.DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 86400L);
+            bool available = core != null && core.DailyAvailable(today);
+            _dailyBtn.interactable = available;
+            if (core == null)
+            {
+                _dailyBtnLabel.text = "Daily Qi";
+            }
+            else if (available)
+            {
+                int streak   = core.DailyStreak;
+                int nextStreak = streak + 1;
+                int preview  = 80 * System.Math.Min(nextStreak, 7);
+                _dailyBtnLabel.text = $"Claim Daily Qi ({preview} stones)";
+            }
+            else
+            {
+                _dailyBtnLabel.text = $"Daily claimed — Streak {core.DailyStreak}";
+            }
         }
     }
 
@@ -569,6 +905,10 @@ public class MenuScreens : MonoBehaviour
         if (_musicSlider != null) _musicSlider.SetValueWithoutNotify(core.MusicVol);
         if (_sfxSlider   != null) _sfxSlider  .SetValueWithoutNotify(core.SfxVol);
         if (_muteToggle  != null) _muteToggle .SetIsOnWithoutNotify(core.Muted);
+
+        // Always dismiss any half-open confirm gate when re-entering Settings.
+        if (_resetNormalRow  != null) _resetNormalRow .SetActive(true);
+        if (_resetConfirmRow != null) _resetConfirmRow.SetActive(false);
     }
 
     // ════════════════════════════════════════════════════════════════════════

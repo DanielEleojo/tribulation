@@ -30,8 +30,53 @@ namespace Tribulation.Core
         public event Action                    Burst;         // Qi burst fired
         public event Action                    Breakthrough;  // realm advanced (tribulation surmounted)
         public event Action<int>               TrialFulfilled; // reward (for sfx/banner)
+        public event Action<string>            AchievementUnlocked; // id of newly unlocked achievement
+        public event Action<int, int>          DailyClaimed;        // (streak, reward)
 
         // note: RealmChanged event omitted; callers inspect Realm property after Tick
+
+        // ── Achievement definition ────────────────────────────────────────────
+        public readonly struct Achievement
+        {
+            public readonly string Id;
+            public readonly string Name;
+            public readonly string Desc;
+            public readonly string Stat;
+            public readonly int    Goal;
+            public Achievement(string id, string name, string desc, string stat, int goal)
+            { Id = id; Name = name; Desc = desc; Stat = stat; Goal = goal; }
+        }
+
+        static readonly Achievement[] _achievements = new[]
+        {
+            new Achievement("r1",      "Foundation Laid",    "Reach Foundation Establishment", "realm",  1),
+            new Achievement("r2",      "Golden Core Forged", "Reach Golden Core",              "realm",  2),
+            new Achievement("r3",      "Nascent Soul Born",  "Reach Nascent Soul",             "realm",  3),
+            new Achievement("r4",      "Spirit Severed",     "Reach Spirit Severing",          "realm",  4),
+            new Achievement("r5",      "Ascendant",          "Reach Ascension",                "realm",  5),
+            new Achievement("trib",    "Heaven Defied",      "Survive a Heavenly Tribulation", "tribs",  1),
+            new Achievement("slay100", "Blade Tally I",      "Slay 100 foes (lifetime)",       "foes",   100),
+            new Achievement("slay1000","Blade Tally II",     "Slay 1000 foes (lifetime)",      "foes",   1000),
+            new Achievement("li3000",  "Long Strider",       "Flee 3000 li in one life",       "best",   3000),
+            new Achievement("li8000",  "Untiring",           "Flee 8000 li in one life",       "best",   8000),
+            new Achievement("qi20k",   "Spirit Hoard",       "Earn 20,000 lifetime Qi",        "total",  20000),
+            new Achievement("devoted", "Devoted",            "Walk the road 25 times",         "runs",   25),
+        };
+
+        /// <summary>The full achievement catalogue (12 entries, mirrors Godot ACHIEVEMENTS const).</summary>
+        public IReadOnlyList<Achievement> Achievements => _achievements;
+
+        // ── Daily reward state ───────────────────────────────────────────────
+        int _dailyLastDay = -1;
+        int _dailyStreak  = 0;
+        public int DailyStreak => _dailyStreak;
+
+        // ── Achievement unlock state ─────────────────────────────────────────
+        readonly List<string> _achUnlocked = new List<string>();
+
+        // ── Daily + achievement constants ────────────────────────────────────
+        const int DAILY_BASE  = 80;
+        const int ACH_REWARD  = 150;
 
         // ── State (read-only outside) ─────────────────────────────────────
         public int   Realm        { get; private set; }
@@ -55,6 +100,9 @@ namespace Tribulation.Core
         public bool  InTribulation { get; private set; }
         float        _tribT;
         const float  TRIB_DURATION = 12f;
+
+        /// <summary>Seconds remaining in the current Heavenly Tribulation (0 when not active). Mirrors game.gd _trib_t.</summary>
+        public float TribTimeLeft => InTribulation ? Math.Max(0f, _tribT) : 0f;
 
         // Audio settings (persisted)
         public float MusicVol  { get; private set; } = 0.8f;
@@ -427,7 +475,7 @@ namespace Tribulation.Core
             StatFoes += count;
             TrialAdd("slay", count);
             TrialMax("combo", Combo);
-            // ponytail: achievements — deferred (Batch 3)
+            CheckAchievements();
 
             UpdateCultivation();
 
@@ -475,6 +523,26 @@ namespace Tribulation.Core
         public void RecordDistance(int li) { if (li > BestLi) BestLi = li; }
 
         /// <summary>
+        /// Wipe all cultivation progress: realm, lifetime stones, spent, best distance,
+        /// run progress, and all upgrade levels are zeroed.
+        /// Lifetime play-stats (StatRuns/StatFoes/StatTribs/StatDeaths) and
+        /// Tutorial.LearnedLessons are intentionally preserved — matches Godot reset_cultivation().
+        /// The caller (MonoBehaviour) is responsible for persisting (SaveProgress) and restarting.
+        /// </summary>
+        public void ResetCultivation()
+        {
+            Realm       = 0;
+            TotalStones = 0;
+            _spent      = 0;
+            BestLi      = 0;
+            RunProgress = 0;
+            for (int i = 0; i < _upLevels.Length; i++)
+                _upLevels[i] = 0;
+            // ponytail: _achUnlocked, _dailyLastDay, _dailyStreak intentionally NOT cleared —
+            // faithful to Godot reset_cultivation() which leaves daily/ach state untouched.
+        }
+
+        /// <summary>
         /// Explicit death (also called internally when net >= 1.0).
         /// </summary>
         public void Die(int distanceLi = 0)
@@ -489,6 +557,7 @@ namespace Tribulation.Core
                 InTribulation = false;
                 // ponytail: free heart demon, clear HUD tribulation — deferred
             }
+            CheckAchievements();
             // ponytail: telemetry, sfx, camera shake — deferred
             Died?.Invoke();
         }
@@ -566,6 +635,9 @@ namespace Tribulation.Core
         /// </summary>
         public bool IsPowerupActive(string id) => _powerups.ContainsKey(id);
 
+        /// <summary>Seconds remaining for a timed powerup (0 when inactive or unknown id). Mirrors game.gd _powerups[id].</summary>
+        public float PowerupTimeLeft(string id) => _powerups.TryGetValue(id, out float t) ? Math.Max(0f, t) : 0f;
+
         // ── Slash reach predicate (pure, testable) ────────────────────────────
 
         /// <summary>
@@ -609,6 +681,9 @@ namespace Tribulation.Core
                 muted         = Muted,
                 upgradeLevels  = upList,
                 learnedLessons = new System.Collections.Generic.List<string>(Tutorial.LearnedLessons),
+                dailyLastDay   = _dailyLastDay,
+                dailyStreak    = _dailyStreak,
+                achUnlocked    = new System.Collections.Generic.List<string>(_achUnlocked),
             };
         }
 
@@ -641,6 +716,15 @@ namespace Tribulation.Core
 
             // Restore learned coach-mark lessons
             Tutorial.LoadLearned(d.learnedLessons);
+
+            // Restore daily state
+            _dailyLastDay = d.dailyLastDay;
+            _dailyStreak  = Math.Max(0, d.dailyStreak);
+
+            // Restore achievement unlocks (null-guard mirrors learnedLessons pattern)
+            _achUnlocked.Clear();
+            if (d.achUnlocked != null)
+                _achUnlocked.AddRange(d.achUnlocked);
         }
 
         // ── Minor-layer helper (exposed for HUD / debug overlay) ─────────────
@@ -678,6 +762,81 @@ namespace Tribulation.Core
             return AbilityRealm.TryGetValue(name, out int r) && Realm >= r;
         }
 
+        // ── Daily reward public API ───────────────────────────────────────────
+
+        /// <summary>
+        /// True if the player has not yet claimed their daily reward for the given day number
+        /// (day = UTC unix seconds / 86400). No clock in the pure core — inject the day.
+        /// Mirrors game.gd daily_available().
+        /// </summary>
+        public bool DailyAvailable(int today) => today > _dailyLastDay;
+
+        /// <summary>
+        /// Claim the daily reward for today.  Returns the reward earned, or 0 if unavailable.
+        /// Streak increments only on consecutive days (today - lastDay == 1); any gap resets to 1.
+        /// Reward = DAILY_BASE × min(streak, 7).  Mirrors game.gd claim_daily().
+        /// </summary>
+        public int ClaimDaily(int today)
+        {
+            if (!DailyAvailable(today)) return 0;
+            if (_dailyLastDay >= 0 && today - _dailyLastDay == 1)
+                _dailyStreak++;
+            else
+                _dailyStreak = 1;
+            _dailyLastDay = today;
+            int reward = DAILY_BASE * Math.Min(_dailyStreak, 7);
+            TotalStones += reward;
+            DailyClaimed?.Invoke(_dailyStreak, reward);
+            CheckAchievements();
+            return reward;
+        }
+
+        // ── Achievement public API ────────────────────────────────────────────
+
+        /// <summary>True if the achievement with the given id has been unlocked.</summary>
+        public bool IsAchUnlocked(string id) => _achUnlocked.Contains(id);
+
+        /// <summary>
+        /// Check all achievements; unlock any whose stat has reached the goal.
+        /// Awards ACH_REWARD stones per newly-unlocked achievement.
+        /// Fires AchievementUnlocked for each new unlock.
+        /// Idempotent — safe to call repeatedly (mirrors game.gd _check_achievements()).
+        /// </summary>
+        public void CheckAchievements()
+        {
+            int newlyCount = 0;
+            foreach (var a in _achievements)
+            {
+                if (_achUnlocked.Contains(a.Id)) continue;
+                if (StatValue(a.Stat) >= a.Goal)
+                {
+                    _achUnlocked.Add(a.Id);
+                    newlyCount++;
+                    AchievementUnlocked?.Invoke(a.Id);
+                }
+            }
+            if (newlyCount > 0)
+                TotalStones += ACH_REWARD * newlyCount;
+        }
+
+        /// <summary>
+        /// Map a stat name (game.gd _stat_value) to its current integer value.
+        /// realm→Realm, foes→StatFoes, best→BestLi, tribs→StatTribs, total→TotalStones, runs→StatRuns.
+        /// </summary>
+        int StatValue(string stat)
+        {
+            switch (stat)
+            {
+                case "realm": return Realm;
+                case "foes":  return StatFoes;
+                case "best":  return BestLi;
+                case "tribs": return StatTribs;
+                case "total": return TotalStones;
+                case "runs":  return StatRuns;
+                default:      return 0;
+            }
+        }
+
         // ── Internal helpers ──────────────────────────────────────────────────
 
         /// <summary>
@@ -709,6 +868,7 @@ namespace Tribulation.Core
             TotalStones += r;
             SoulsChanged?.Invoke(Souls);
 
+            CheckAchievements();
             // ponytail: telemetry, sfx, camera, HUD breakthrough banner — deferred to Game.cs
             Breakthrough?.Invoke();
         }

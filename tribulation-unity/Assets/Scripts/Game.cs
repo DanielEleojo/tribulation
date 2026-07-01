@@ -55,6 +55,10 @@ public class Game : MonoBehaviour
         // ponytail: trial banner + HUD trial list — Batch 2 (HudOverlay)
         // ponytail: QiChanged / NetChanged / SoulsChanged / ComboChanged → HUD deferred (later issue)
 
+        // Telemetry: wire achievement + daily events (local JSONL only — no data leaves device)
+        Core.AchievementUnlocked += id => Telemetry.Event("achievement", $"\"id\":\"{id}\"");
+        Core.DailyClaimed        += (s, r) => Telemetry.Event("daily", $"\"streak\":{s},\"reward\":{r}");
+
         // Load saved state; run begins when the player taps "Begin Cultivation" (MainMenu).
         LoadSave();
 
@@ -75,6 +79,8 @@ public class Game : MonoBehaviour
     {
         int dist = _player != null ? Mathf.RoundToInt(_player.GetDistance()) : 0;
         Core.RecordDistance(dist);
+        // Stop the runner + trigger its death animation (the Net closing IS death now).
+        if (_player != null) _player.HaltForDeath();
         SaveGame();
         // The Net closing over you IS death now — give it the death sfx/shake here, since
         // it no longer routes through PlayerRunner.Die (contact is non-lethal).
