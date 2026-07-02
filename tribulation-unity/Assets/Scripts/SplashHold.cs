@@ -80,6 +80,11 @@ public class SplashHold : MonoBehaviour
         fitter.aspectMode  = AspectRatioFitter.AspectMode.EnvelopeParent;
         fitter.aspectRatio = sprite.rect.width / sprite.rect.height;
 
+        // Silence everything (music starts at boot) while the brand is up;
+        // audio fades back in with the visual fade. AudioListener.volume is a
+        // global multiplier nothing else in the project touches.
+        AudioListener.volume = 0f;
+
         StartCoroutine(Run());
     }
 
@@ -94,10 +99,15 @@ public class SplashHold : MonoBehaviour
         while (t < FADE_SECONDS)
         {
             t += Time.unscaledDeltaTime;
-            _group.alpha = 1f - Mathf.Clamp01(t / FADE_SECONDS);
+            float k = Mathf.Clamp01(t / FADE_SECONDS);
+            _group.alpha = 1f - k;
+            AudioListener.volume = k;
             yield return null;
         }
 
         Destroy(gameObject);
     }
+
+    // Safety: never leave the game muted if the overlay dies early for any reason.
+    void OnDestroy() { AudioListener.volume = 1f; }
 }
