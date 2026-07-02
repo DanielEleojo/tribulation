@@ -16,12 +16,25 @@ public class Bootstrap : MonoBehaviour
             new GameObject("Bootstrap").AddComponent<Bootstrap>();
     }
 
+    // Anchor collider classes against IL2CPP code stripping (belt to Assets/link.xml's
+    // braces). CreatePrimitive needs these classes at runtime, but code only references
+    // colliders via the base Collider type — without an explicit reference the linker
+    // stripped SphereCollider on iOS and every CreatePrimitive(Sphere) returned null
+    // (invisible qi orbs, ink figure missing its sphere parts).
+    static readonly System.Type[] _strippingKeepAlive =
+    {
+        typeof(SphereCollider), typeof(BoxCollider), typeof(CapsuleCollider), typeof(MeshCollider)
+    };
+
     void Awake()
     {
         // Mobile defaults to 30 FPS — force 60 so on-device input/motion feels responsive.
         // (Editor/Device Simulator ignore this; it matters in the real iOS build.)
         Application.targetFrameRate = 60;
         QualitySettings.vSyncCount = 0;
+
+        // Game audio must play even with the iPhone's silent switch on.
+        IOSAudioSession.IgnoreMuteSwitch();
 
         // Managers first (their Awake sets singletons before the player subscribes in Start).
         gameObject.AddComponent<SwipeDetector>();
@@ -46,6 +59,32 @@ public class Bootstrap : MonoBehaviour
         BuildCamera();
         BuildAtmosphere();
         BuildPostFX();
+    }
+
+    // Interruptions (calls, Siri, other apps taking audio focus) can reset the iOS
+    // audio session back to a switch-muted category — re-assert on every focus regain.
+    void OnApplicationFocus(bool focused)
+    {
+        if (focused) IOSAudioSession.IgnoreMuteSwitch();
+    }
+
+    // System UI that resigns the app (screenshot markup, Control Center, Siri)
+    // interrupts the audio session, and mixable (MixWithOthers) sessions often
+    // never receive InterruptionEnded — Unity's audio output stays suspended and
+    // the game resumes silent. Reinitializing the audio engine is the reliable
+    // recovery; looping sources restart themselves (see Music.Update).
+    // Guarded past the first frame so the launch-time pause(false) callback
+    // doesn't reset audio mid-boot.
+    bool _pastFirstFrame;
+    void Update() { _pastFirstFrame = true; }
+
+    void OnApplicationPause(bool paused)
+    {
+        if (paused || !_pastFirstFrame) return;
+#if UNITY_IOS && !UNITY_EDITOR
+        AudioSettings.Reset(AudioSettings.GetConfiguration());
+#endif
+        IOSAudioSession.IgnoreMuteSwitch(); // reset re-picks Unity's category; re-assert ours after
     }
 
     void BuildPlayer()

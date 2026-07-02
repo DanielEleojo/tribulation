@@ -18,7 +18,10 @@ using Tribulation.Core;
 public class Spawner : MonoBehaviour
 {
     // ── Constants (ported from spawner.gd lines 12-29) ──────────────────────
-    const float SPAWN_AHEAD   = 70f;   // how far ahead of player to place hazard (-Z)
+    const float SPAWN_AHEAD   = 105f;  // how far ahead of player to place hazard (-Z).
+                                       // Beyond the fog wall (expSq density 0.018 ≈ 97%
+                                       // fogged at 105) so spawns fade in with distance
+                                       // instead of popping into view at 70.
     const float DESPAWN_BEHIND = 25f;  // cull once this far behind the player (+Z)
     const float LANE_WIDTH     = 2.5f; // must match PlayerRunner's lane spacing
     const float FULL_WIDTH     = 8.0f; // spans all three lanes
@@ -380,6 +383,8 @@ public class Spawner : MonoBehaviour
     // ── Orb trail ────────────────────────────────────────────────────────────
     // Ported from game.gd _spawn_orb_trail: a line of ORB_TRAIL orbs in one lane.
 
+    static bool _loggedOrbState; // one-time device diagnostic (visible in Xcode console)
+
     void SpawnOrbTrail(float leadZ, int lane)
     {
         float x = LaneX(lane);
@@ -389,10 +394,32 @@ public class Spawner : MonoBehaviour
             var go = AcquireOrb();
             go.transform.position = new Vector3(x, ORB_Y, z);
             // Phase-offset each orb by index so the trail ripples like a wave (not lockstep).
-            var visual = go.GetComponent<OrbVisual>();
-            if (visual != null) visual.Init(i * 1.2f); // ~1.2 rad apart over 5 orbs ≈ one full wave
+            // Guarded: a failure inside the visual/halo setup must never abort the trail
+            // or leave orbs inactive (invisible coins on device, run unwinnable).
+            try
+            {
+                var visual = go.GetComponent<OrbVisual>();
+                if (visual != null) visual.Init(i * 1.2f); // ~1.2 rad apart over 5 orbs ≈ one full wave
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning("[Spawner] OrbVisual.Init failed — orb spawns without halo. " + ex);
+            }
             go.SetActive(true);
             _liveOrbs.Add(go);
+
+            if (!_loggedOrbState)
+            {
+                _loggedOrbState = true;
+                var mf = go.GetComponent<MeshFilter>();
+                var mr = go.GetComponent<MeshRenderer>();
+                Debug.Log("[Spawner] first orb: pos=" + go.transform.position
+                    + " activeInHierarchy=" + go.activeInHierarchy
+                    + " mesh=" + (mf != null && mf.sharedMesh != null ? mf.sharedMesh.name + "(" + mf.sharedMesh.vertexCount + "v)" : "NULL")
+                    + " rendererEnabled=" + (mr != null && mr.enabled)
+                    + " shader=" + (mr != null && mr.sharedMaterial != null && mr.sharedMaterial.shader != null ? mr.sharedMaterial.shader.name : "NULL")
+                    + " scale=" + go.transform.localScale.x.ToString("F2"));
+            }
         }
     }
 
@@ -412,6 +439,17 @@ public class Spawner : MonoBehaviour
         go.AddComponent<OrbPickup>();
         go.AddComponent<OrbVisual>(); // idle bob + halo; Init() called from SpawnOrbTrail after position set
         Apply(go, _matOrb);
+        // Device safety: orbs are the only gameplay use of the built-in sphere mesh;
+        // if a player build stripped it, fall back to the cube mesh (hazards/pills
+        // prove it ships) — coins must never be invisible-but-collectible.
+        var meshFilter = go.GetComponent<MeshFilter>();
+        if (meshFilter != null && meshFilter.sharedMesh == null)
+        {
+            Debug.LogWarning("[Spawner] built-in sphere mesh missing from build — orb falls back to cube visual.");
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            meshFilter.sharedMesh = cube.GetComponent<MeshFilter>().sharedMesh;
+            Destroy(cube);
+        }
         return go;
     }
 
@@ -587,8 +625,16 @@ public class Spawner : MonoBehaviour
         var soldierPrefab = Resources.Load<GameObject>("Char/Solider_Ssanggeom");
         var attackCtrl    = Resources.Load<RuntimeAnimatorController>("Anim/EnemyAttack");
 
-        if (soldierPrefab == null)
+        // A prefab whose source model files aren't in the project still loads, but every
+        // SkinnedMeshRenderer has a null sharedMesh — instantiating it would hide the cube
+        // and render nothing, leaving an invisible enemy. Treat it the same as missing.
+        if (soldierPrefab == null || !HasUsableSkinnedMesh(soldierPrefab))
         {
+            if (soldierPrefab != null && !_warnedBrokenSoldier)
+            {
+                _warnedBrokenSoldier = true;
+                Debug.LogWarning("[Spawner] Char/Solider_Ssanggeom prefab has no usable meshes (source model files missing from project) — using cube enemy visuals.");
+            }
             // Fallback: keep the cube's MeshRenderer visible with _matEnemy.
             Apply(go, _matEnemy);
             return;
@@ -664,6 +710,15 @@ public class Spawner : MonoBehaviour
 
         // Face the soldier toward the oncoming player (+Z = toward camera).
         soldier.transform.localRotation = Quaternion.identity;
+    }
+
+    static bool _warnedBrokenSoldier;
+
+    static bool HasUsableSkinnedMesh(GameObject prefab)
+    {
+        foreach (var smr in prefab.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            if (smr.sharedMesh != null) return true;
+        return false;
     }
 
     // ── Procedural hazard visuals (issue #25) ───────────────────────────────

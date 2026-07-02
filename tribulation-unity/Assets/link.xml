@@ -1,0 +1,18 @@
+<!-- link.xml — preserve engine classes that IL2CPP code stripping would otherwise
+     remove because nothing references them by name.
+
+     The whole game builds objects with GameObject.CreatePrimitive, which needs the
+     matching collider CLASS to exist at runtime (Sphere -> SphereCollider, etc.).
+     Code only ever touches colliders via the base Collider type, so the linker
+     stripped SphereCollider from iOS builds: CreatePrimitive(Sphere) then logged
+     "Can't add component because class 'SphereCollider' doesn't exist!", returned
+     null, and every qi orb (and the ink figure's sphere parts, and the collect
+     poof) vanished from device builds while the editor looked fine. -->
+<linker>
+  <assembly fullname="UnityEngine.PhysicsModule">
+    <type fullname="UnityEngine.SphereCollider" preserve="all"/>
+    <type fullname="UnityEngine.BoxCollider" preserve="all"/>
+    <type fullname="UnityEngine.CapsuleCollider" preserve="all"/>
+    <type fullname="UnityEngine.MeshCollider" preserve="all"/>
+  </assembly>
+</linker>

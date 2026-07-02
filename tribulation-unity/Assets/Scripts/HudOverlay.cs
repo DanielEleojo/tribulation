@@ -57,6 +57,7 @@ public class HudOverlay : MonoBehaviour
     RectTransform _stonesTab; // root rect — punch-scaled on collect
     Text   _comboText;
     Text   _qiFlare;
+    GameObject _qiFlareRoot; // flare container (glow + text) — toggled as one
     Text   _breakthroughText;
 
     // Seal-ring (procedural)
@@ -112,34 +113,40 @@ public class HudOverlay : MonoBehaviour
         canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 10;
 
+        // 720×1280 width-matched: phone-readable HUD scale on tall (19.5:9) screens.
+        // Menus keep a gentler 810×1440 (see MainMenu/PauseMenu/MenuScreens).
         var scaler = canvasGO.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080f, 1920f);
+        scaler.referenceResolution = new Vector2(720f, 1280f);
         scaler.screenMatchMode     = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight  = 0.5f;
+        scaler.matchWidthOrHeight  = 0f; // match width — portrait-locked game
 
         canvasGO.AddComponent<GraphicRaycaster>();
+
+        // All live-HUD elements go under the safe-area root so they clear the
+        // notch / Dynamic Island / home indicator. Full-screen veils (death dim)
+        // stay on the canvas itself.
+        var uiRoot = SafeAreaUI.CreateRoot(canvasGO);
 
         // ── Art-pass fonts (InkArt cached) ──────────────────────────────────
         Font font     = InkArt.Serif(); // elegant Latin serif for all UI text
         Font sealFont = InkArt.Seal();  // traditional-Chinese subset (23 glyphs)
 
-        // Top safe-area pad
-        // ponytail: full Screen.safeArea rect later
-        const float TOP_PAD  = 80f;
+        // Aesthetic pad inside the safe area (the notch itself is handled by uiRoot).
+        const float TOP_PAD  = 24f;
         const float SIDE_PAD = 20f;
 
         // ── Realm block (top-left) ──────────────────────────────────────────
         // Parchment backing panel behind the realm texts.
-        var realmBlock = MakeAnchoredRect(canvasGO, "RealmBlock",
+        var realmBlock = MakeAnchoredRect(uiRoot, "RealmBlock",
             new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(SIDE_PAD, -(TOP_PAD)),
-            new Vector2(320f, 100f));
+            new Vector2(280f, 96f));
 
         var realmPanelImg = MakeImage(realmBlock, "RealmPanel", Color.white,
             new Vector2(0f, 1f), new Vector2(0f, 1f),
-            Vector2.zero, new Vector2(320f, 100f));
-        realmPanelImg.sprite = InkArt.RoundedPanel(320, 100, 12, 2);
+            Vector2.zero, new Vector2(280f, 96f));
+        realmPanelImg.sprite = InkArt.RoundedPanel(280, 96, 12, 2);
         realmPanelImg.type   = Image.Type.Simple;
 
         // Kanji accent (seal font, gold) — 2 chars wide, top-left inside the panel.
@@ -149,22 +156,24 @@ public class HudOverlay : MonoBehaviour
             new Vector2(8f, -6f), new Vector2(52f, 52f));
 
         // Romanized realm name (serif bold, gold) — offset right of the kanji.
-        _realmName = MakeText(realmBlock, "RealmName", font, 26, C_GOLD,
+        _realmName = MakeText(realmBlock, "RealmName", font, 24, C_GOLD,
             TextAnchor.UpperLeft,
             new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(66f, -8f), new Vector2(248f, 40f));
+            new Vector2(66f, -8f), new Vector2(206f, 40f));
         _realmName.fontStyle = FontStyle.Bold;
         InkArt.AddOutline(_realmName, 0.7f);
 
         _layerText = MakeText(realmBlock, "LayerText", font, 20, C_TEXT_DIM,
             TextAnchor.UpperLeft,
             new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(66f, -52f), new Vector2(248f, 32f));
+            new Vector2(66f, -52f), new Vector2(206f, 32f));
 
-        // ── Li distance (top-center) ────────────────────────────────────────
-        var distBlock = MakeAnchoredRect(canvasGO, "DistBlock",
-            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -(TOP_PAD)),
+        // ── Li distance (top-right, below the seal ring) ────────────────────
+        // At the 720-wide reference a centered tab would collide with the realm
+        // block, so the right edge stacks: seal ring → li tab → stones tab.
+        var distBlock = MakeAnchoredRect(uiRoot, "DistBlock",
+            new Vector2(1f, 1f), new Vector2(1f, 1f),
+            new Vector2(-SIDE_PAD, -(TOP_PAD + 96f)),
             new Vector2(220f, 60f));
 
         // Parchment tab behind the li readout.
@@ -188,11 +197,11 @@ public class HudOverlay : MonoBehaviour
             new Vector2(76f, -10f), new Vector2(36f, 44f));
         _liKanji.text = "里";
 
-        // ── Spirit-stone / Qi count (below dist tab, top-center) ────────────
+        // ── Spirit-stone / Qi count (below dist tab, top-right) ─────────────
         // Parchment tab, smaller than the li tab; punches on every orb collect.
-        var stonesBlock = MakeAnchoredRect(canvasGO, "StonesBlock",
-            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -(TOP_PAD + 68f)),   // 8px gap below the 60px dist tab
+        var stonesBlock = MakeAnchoredRect(uiRoot, "StonesBlock",
+            new Vector2(1f, 1f), new Vector2(1f, 1f),
+            new Vector2(-SIDE_PAD, -(TOP_PAD + 96f + 68f)),   // 8px gap below the 60px dist tab
             new Vector2(180f, 48f));
         _stonesTab = stonesBlock.GetComponent<RectTransform>();
 
@@ -220,7 +229,7 @@ public class HudOverlay : MonoBehaviour
         _stonesKanji.text = "靈";
 
         // ── Sky-Net seal-ring (top-right) ───────────────────────────────────
-        var sealParent = MakeAnchoredRect(canvasGO, "SealParent",
+        var sealParent = MakeAnchoredRect(uiRoot, "SealParent",
             new Vector2(1f, 1f), new Vector2(1f, 1f),
             new Vector2(-SIDE_PAD, -(TOP_PAD)),
             new Vector2(88f, 88f));
@@ -260,9 +269,9 @@ public class HudOverlay : MonoBehaviour
         _sealFill.sprite      = InkArt.SolidCircle(80);
 
         // ── Combo float (contextual, upper-mid) ────────────────────────────
-        var comboGO = MakeAnchoredRect(canvasGO, "Combo",
+        var comboGO = MakeAnchoredRect(uiRoot, "Combo",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -280f), new Vector2(200f, 60f));
+            new Vector2(0f, -330f), new Vector2(200f, 60f)); // below the taller vows panel
 
         _comboText = MakeText(comboGO, "ComboText", font, 42, C_CINNABAR,
             TextAnchor.MiddleCenter,
@@ -273,9 +282,9 @@ public class HudOverlay : MonoBehaviour
         _comboText.gameObject.SetActive(false);
 
         // ── Qi-ready flare (contextual) ─────────────────────────────────────
-        var qiGO = MakeAnchoredRect(canvasGO, "QiFlare",
+        var qiGO = MakeAnchoredRect(uiRoot, "QiFlare",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -350f), new Vector2(280f, 48f));
+            new Vector2(0f, -400f), new Vector2(280f, 48f));
 
         // SoftGlow halo behind the qi-ready text.
         var qiGlowImg = MakeImage(qiGO, "QiGlow", new Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.4f),
@@ -292,49 +301,52 @@ public class HudOverlay : MonoBehaviour
         _qiFlare.text      = "QI READY";
         _qiFlare.fontStyle = FontStyle.Bold;
         InkArt.AddOutline(_qiFlare, 0.8f);
-        _qiFlare.gameObject.SetActive(false);
+        // Hide the whole flare block — hiding only the text leaves the glow
+        // halo floating over the world permanently.
+        _qiFlareRoot = qiGO;
+        _qiFlareRoot.SetActive(false);
 
         // ── Breakthrough banner (contextual, centered) ──────────────────────
-        var btGO = MakeAnchoredRect(canvasGO, "Breakthrough",
+        var btGO = MakeAnchoredRect(uiRoot, "Breakthrough",
             new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(700f, 80f));
+            Vector2.zero, new Vector2(640f, 80f));
 
         _breakthroughText = MakeText(btGO, "BtText", font, 38, C_GOLD,
             TextAnchor.MiddleCenter,
             new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(700f, 80f));
+            Vector2.zero, new Vector2(640f, 80f));
         _breakthroughText.fontStyle = FontStyle.Bold;
         InkArt.AddOutline(_breakthroughText, 1.0f);
         _breakthroughText.gameObject.SetActive(false);
 
         // ── Cultivation Vows / Trials panel (below realm block, top-left) ──────
-        BuildTrialPanel(canvasGO, font);
+        BuildTrialPanel(uiRoot, font);
 
         // ── Issue #9: shield pips, tribulation countdown, powerup timers ────────
-        BuildShieldPips(canvasGO, font);
-        BuildTribText(canvasGO, font);
-        BuildPowerupText(canvasGO, font);
+        BuildShieldPips(uiRoot, font);
+        BuildTribText(uiRoot, font);
+        BuildPowerupText(uiRoot, font);
 
         // ── Death card (drawn last so it sits on top of all live HUD) ─────────
         BuildDeathCard(canvasGO, font); // passes InkArt.Serif() — full reskin is PART 2
     }
 
     // ── Cultivation Vows trials panel ───────────────────────────────────────
-    // Anchored top-left, directly below the Realm block.
-    // Realm block: anchoredPos (20, -80), size 320x100  →  bottom edge at y = -(80+100) = -180
-    // Trial panel top at y ≈ -195 (15px gap), size 340x124.
-    void BuildTrialPanel(GameObject canvasGO, Font font)
+    // Anchored top-left, below the Realm block and shield pips.
+    // Realm block: anchoredPos (20, -24), size 280x96 → bottom edge at y = -120;
+    // shield pips row sits at -128..-160. Trial panel top at y = -170, size 380x140.
+    void BuildTrialPanel(GameObject uiRoot, Font font)
     {
         const float SIDE_PAD    = 20f;
-        const float PANEL_Y     = -195f;   // top edge y from top of canvas
-        const float PANEL_W     = 340f;
-        const float PANEL_H     = 124f;    // header 24px + 3×30px rows + 10px padding
-        const float HEADER_H    = 24f;
-        const float ROW_H       = 28f;
+        const float PANEL_Y     = -170f;   // top edge y from top of the safe area
+        const float PANEL_W     = 380f;
+        const float PANEL_H     = 140f;    // header 28 + 3×32 rows + padding
+        const float HEADER_H    = 28f;
+        const float ROW_H       = 32f;
         const float ROW_INDENT  = 8f;
 
         // Root container — anchor top-left
-        _trialRoot = MakeAnchoredRect(canvasGO, "TrialRoot",
+        _trialRoot = MakeAnchoredRect(uiRoot, "TrialRoot",
             new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(SIDE_PAD, PANEL_Y),
             new Vector2(PANEL_W, PANEL_H));
@@ -347,7 +359,7 @@ public class HudOverlay : MonoBehaviour
         panelImg.type   = Image.Type.Simple;
 
         // Header: "Cultivation Vows" — serif bold, gold, outlined (Latin only — no seal font)
-        var header = MakeText(_trialRoot, "TrialHeader", font, 17, C_GOLD,
+        var header = MakeText(_trialRoot, "TrialHeader", font, 22, C_GOLD,
             TextAnchor.UpperLeft,
             new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(ROW_INDENT, -6f), new Vector2(PANEL_W - ROW_INDENT * 2f, HEADER_H));
@@ -359,7 +371,7 @@ public class HudOverlay : MonoBehaviour
         for (int i = 0; i < 3; i++)
         {
             float rowY = -(HEADER_H + 10f + i * ROW_H);
-            _trialRows[i] = MakeText(_trialRoot, "TrialRow" + i, font, 15, C_INK,
+            _trialRows[i] = MakeText(_trialRoot, "TrialRow" + i, font, 20, C_INK,
                 TextAnchor.UpperLeft,
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(ROW_INDENT, rowY), new Vector2(PANEL_W - ROW_INDENT * 2f, ROW_H));
@@ -372,16 +384,15 @@ public class HudOverlay : MonoBehaviour
     }
 
     // ── Shield pips (Issue #9) ───────────────────────────────────────────────
-    // Positioned top-left below the realm block (realm block bottom: y=-(80+100)=-180;
-    // trial panel top: -195; pips sit under the realm block at -190 on the right side
-    // of the realm block, so they don't overlap the trial panel header).
+    // Positioned top-left below the realm block (realm block bottom: y=-(24+96)=-120;
+    // trial panel top: -170; pips sit between them at -128).
     // Faithful to hud.gd set_shields: "Iron Body  " + "◆".repeat(n), hidden when n==0.
-    void BuildShieldPips(GameObject canvasGO, Font font)
+    void BuildShieldPips(GameObject uiRoot, Font font)
     {
-        // Anchored top-left, just below the realm block (y=-185 leaves 5px gap after -180).
-        var go = MakeAnchoredRect(canvasGO, "ShieldPips",
+        // Anchored top-left, just below the realm block (y=-128 leaves 8px gap after -120).
+        var go = MakeAnchoredRect(uiRoot, "ShieldPips",
             new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(20f, -185f),
+            new Vector2(20f, -128f),
             new Vector2(320f, 32f));
 
         _shieldText = MakeText(go, "ShieldText", font, 18,
@@ -395,17 +406,17 @@ public class HudOverlay : MonoBehaviour
     // ── Tribulation countdown (Issue #9) ─────────────────────────────────────
     // Centre-top, gold, two lines, visible only while InTribulation.
     // Faithful to hud.gd set_tribulation / "⚡ HEAVENLY TRIBULATION ⚡\nEndure  Ns".
-    void BuildTribText(GameObject canvasGO, Font font)
+    void BuildTribText(GameObject uiRoot, Font font)
     {
-        var go = MakeAnchoredRect(canvasGO, "TribBlock",
+        var go = MakeAnchoredRect(uiRoot, "TribBlock",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -300f),
-            new Vector2(700f, 90f));
+            new Vector2(0f, -340f),
+            new Vector2(640f, 90f));
 
         _tribText = MakeText(go, "TribText", font, 32, C_GOLD,
             TextAnchor.MiddleCenter,
             new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(700f, 90f));
+            Vector2.zero, new Vector2(640f, 90f));
         _tribText.fontStyle = FontStyle.Bold;
         InkArt.AddOutline(_tribText, 0.9f);
         _tribText.lineSpacing = 1.2f;
@@ -415,18 +426,18 @@ public class HudOverlay : MonoBehaviour
     // ── Powerup timers (Issue #9) ─────────────────────────────────────────────
     // Centre-top below the combo flare. Faithful to hud.gd _refresh_powerups:
     // chips "<Name> <ceil(t)>s" joined by "   "; hidden when none active.
-    void BuildPowerupText(GameObject canvasGO, Font font)
+    void BuildPowerupText(GameObject uiRoot, Font font)
     {
-        var go = MakeAnchoredRect(canvasGO, "PowerupBlock",
+        var go = MakeAnchoredRect(uiRoot, "PowerupBlock",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -410f),
-            new Vector2(680f, 36f));
+            new Vector2(0f, -455f),
+            new Vector2(640f, 36f));
 
         _powerupText = MakeText(go, "PowerupText", font, 20,
             new Color(0.60f, 0.95f, 1.00f), // hud.gd _pu_label color
             TextAnchor.MiddleCenter,
             new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(680f, 36f));
+            Vector2.zero, new Vector2(640f, 36f));
         _powerupText.gameObject.SetActive(false);
     }
 
@@ -493,7 +504,7 @@ public class HudOverlay : MonoBehaviour
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
             new Vector2(0f, -338f), new Vector2(500f, 40f));
-        deathPrompt.text = "Tap or press Space to walk the road again";
+        deathPrompt.text = "Tap to walk the road again";
         InkArt.AddOutline(deathPrompt, 0.6f);
 
         // ── Dim tip — serif TextDim ─────────────────────────────────────────
@@ -636,8 +647,8 @@ public class HudOverlay : MonoBehaviour
         if (ready != _qiReady)
         {
             _qiReady = ready;
-            if (_qiFlare != null)
-                _qiFlare.gameObject.SetActive(ready);
+            if (_qiFlareRoot != null)
+                _qiFlareRoot.SetActive(ready);
         }
     }
 
