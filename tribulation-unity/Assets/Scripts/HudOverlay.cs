@@ -504,7 +504,7 @@ public class HudOverlay : MonoBehaviour
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
             new Vector2(0f, -338f), new Vector2(500f, 40f));
-        deathPrompt.text = "Tap or press Space to walk the road again";
+        deathPrompt.text = "Tap to walk the road again";
         InkArt.AddOutline(deathPrompt, 0.6f);
 
         // ── Dim tip — serif TextDim ─────────────────────────────────────────
