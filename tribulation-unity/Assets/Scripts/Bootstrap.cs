@@ -16,6 +16,16 @@ public class Bootstrap : MonoBehaviour
             new GameObject("Bootstrap").AddComponent<Bootstrap>();
     }
 
+    // Anchor collider classes against IL2CPP code stripping (belt to Assets/link.xml's
+    // braces). CreatePrimitive needs these classes at runtime, but code only references
+    // colliders via the base Collider type — without an explicit reference the linker
+    // stripped SphereCollider on iOS and every CreatePrimitive(Sphere) returned null
+    // (invisible qi orbs, ink figure missing its sphere parts).
+    static readonly System.Type[] _strippingKeepAlive =
+    {
+        typeof(SphereCollider), typeof(BoxCollider), typeof(CapsuleCollider), typeof(MeshCollider)
+    };
+
     void Awake()
     {
         // Mobile defaults to 30 FPS — force 60 so on-device input/motion feels responsive.
