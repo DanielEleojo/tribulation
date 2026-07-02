@@ -68,6 +68,25 @@ public class Bootstrap : MonoBehaviour
         if (focused) IOSAudioSession.IgnoreMuteSwitch();
     }
 
+    // System UI that resigns the app (screenshot markup, Control Center, Siri)
+    // interrupts the audio session, and mixable (MixWithOthers) sessions often
+    // never receive InterruptionEnded — Unity's audio output stays suspended and
+    // the game resumes silent. Reinitializing the audio engine is the reliable
+    // recovery; looping sources restart themselves (see Music.Update).
+    // Guarded past the first frame so the launch-time pause(false) callback
+    // doesn't reset audio mid-boot.
+    bool _pastFirstFrame;
+    void Update() { _pastFirstFrame = true; }
+
+    void OnApplicationPause(bool paused)
+    {
+        if (paused || !_pastFirstFrame) return;
+#if UNITY_IOS && !UNITY_EDITOR
+        AudioSettings.Reset(AudioSettings.GetConfiguration());
+#endif
+        IOSAudioSession.IgnoreMuteSwitch(); // reset re-picks Unity's category; re-assert ours after
+    }
+
     void BuildPlayer()
     {
         var player = new GameObject("Player");
