@@ -380,6 +380,8 @@ public class Spawner : MonoBehaviour
     // ── Orb trail ────────────────────────────────────────────────────────────
     // Ported from game.gd _spawn_orb_trail: a line of ORB_TRAIL orbs in one lane.
 
+    static bool _loggedOrbState; // one-time device diagnostic (visible in Xcode console)
+
     void SpawnOrbTrail(float leadZ, int lane)
     {
         float x = LaneX(lane);
@@ -389,10 +391,32 @@ public class Spawner : MonoBehaviour
             var go = AcquireOrb();
             go.transform.position = new Vector3(x, ORB_Y, z);
             // Phase-offset each orb by index so the trail ripples like a wave (not lockstep).
-            var visual = go.GetComponent<OrbVisual>();
-            if (visual != null) visual.Init(i * 1.2f); // ~1.2 rad apart over 5 orbs ≈ one full wave
+            // Guarded: a failure inside the visual/halo setup must never abort the trail
+            // or leave orbs inactive (invisible coins on device, run unwinnable).
+            try
+            {
+                var visual = go.GetComponent<OrbVisual>();
+                if (visual != null) visual.Init(i * 1.2f); // ~1.2 rad apart over 5 orbs ≈ one full wave
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning("[Spawner] OrbVisual.Init failed — orb spawns without halo. " + ex);
+            }
             go.SetActive(true);
             _liveOrbs.Add(go);
+
+            if (!_loggedOrbState)
+            {
+                _loggedOrbState = true;
+                var mf = go.GetComponent<MeshFilter>();
+                var mr = go.GetComponent<MeshRenderer>();
+                Debug.Log("[Spawner] first orb: pos=" + go.transform.position
+                    + " activeInHierarchy=" + go.activeInHierarchy
+                    + " mesh=" + (mf != null && mf.sharedMesh != null ? mf.sharedMesh.name + "(" + mf.sharedMesh.vertexCount + "v)" : "NULL")
+                    + " rendererEnabled=" + (mr != null && mr.enabled)
+                    + " shader=" + (mr != null && mr.sharedMaterial != null && mr.sharedMaterial.shader != null ? mr.sharedMaterial.shader.name : "NULL")
+                    + " scale=" + go.transform.localScale.x.ToString("F2"));
+            }
         }
     }
 
@@ -412,6 +436,17 @@ public class Spawner : MonoBehaviour
         go.AddComponent<OrbPickup>();
         go.AddComponent<OrbVisual>(); // idle bob + halo; Init() called from SpawnOrbTrail after position set
         Apply(go, _matOrb);
+        // Device safety: orbs are the only gameplay use of the built-in sphere mesh;
+        // if a player build stripped it, fall back to the cube mesh (hazards/pills
+        // prove it ships) — coins must never be invisible-but-collectible.
+        var meshFilter = go.GetComponent<MeshFilter>();
+        if (meshFilter != null && meshFilter.sharedMesh == null)
+        {
+            Debug.LogWarning("[Spawner] built-in sphere mesh missing from build — orb falls back to cube visual.");
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            meshFilter.sharedMesh = cube.GetComponent<MeshFilter>().sharedMesh;
+            Destroy(cube);
+        }
         return go;
     }
 
