@@ -57,6 +57,7 @@ public class HudOverlay : MonoBehaviour
     RectTransform _stonesTab; // root rect — punch-scaled on collect
     Text   _comboText;
     Text   _qiFlare;
+    GameObject _qiFlareRoot; // flare container (glow + text) — toggled as one
     Text   _breakthroughText;
 
     // Seal-ring (procedural)
@@ -300,7 +301,10 @@ public class HudOverlay : MonoBehaviour
         _qiFlare.text      = "QI READY";
         _qiFlare.fontStyle = FontStyle.Bold;
         InkArt.AddOutline(_qiFlare, 0.8f);
-        _qiFlare.gameObject.SetActive(false);
+        // Hide the whole flare block — hiding only the text leaves the glow
+        // halo floating over the world permanently.
+        _qiFlareRoot = qiGO;
+        _qiFlareRoot.SetActive(false);
 
         // ── Breakthrough banner (contextual, centered) ──────────────────────
         var btGO = MakeAnchoredRect(uiRoot, "Breakthrough",
@@ -643,8 +647,8 @@ public class HudOverlay : MonoBehaviour
         if (ready != _qiReady)
         {
             _qiReady = ready;
-            if (_qiFlare != null)
-                _qiFlare.gameObject.SetActive(ready);
+            if (_qiFlareRoot != null)
+                _qiFlareRoot.SetActive(ready);
         }
     }
 
