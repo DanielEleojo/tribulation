@@ -182,14 +182,14 @@ public class MainMenu : MonoBehaviour
         // ── Begin Cultivation (primary button) ───────────────────────────────
         // RoundedPanel parchment background with ink border; Ink label reads well on parchment.
         // HIG sizing: 100 units tall (> 44pt min touch target), 36-unit label (~17pt body).
-        // Spans -870..-970 from card top — bottom quarter of the 1150-tall card,
+        // Spans -730..-830 from card top — below the Best line with breathing room,
         // in one-handed thumb reach (right about where the runner stands in-game).
         var beginBtn = MakeButton(cardGO, "BeginBtn",
             "Begin Cultivation",
             font, 36, InkArt.Ink,
             Color.white,        // color multiplied by sprite; white = show sprite as-is
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -870f), new Vector2(440f, 100f),
+            new Vector2(0f, -730f), new Vector2(440f, 100f),
             new Vector2(0.5f, 1f),
             beginSprite: InkArt.RoundedPanel(440, 100, 14, 2));
         beginBtn.onClick.AddListener(() =>
@@ -203,9 +203,9 @@ public class MainMenu : MonoBehaviour
         // These are disabled/dimmed until those screens are built.
         // HIG sizing: 92 units tall (44pt min touch target), 31-unit labels (~15pt).
         // Row fit in the 700-wide card: 3×200 + 2×25 gaps = 650, leaving a 25-unit
-        // margin each side. Row spans -1000..-1092; BeginBtn ends at -970 (30-unit gap),
-        // 58 units of parchment left below before the card bottom at -1150.
-        const float GHOST_Y    = -1000f;
+        // margin each side. Row spans -860..-952; BeginBtn ends at -830 (30-unit gap),
+        // parchment breathing room below before the card bottom at -1150.
+        const float GHOST_Y    = -860f;
         const float GHOST_W    = 200f;
         const float GHOST_H    = 92f;
         const float GHOST_GAP  = 25f;
