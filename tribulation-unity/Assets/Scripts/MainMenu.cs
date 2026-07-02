@@ -120,11 +120,14 @@ public class MainMenu : MonoBehaviour
         // ── Centred card — parchment scroll panel ────────────────────────────
         // RoundedPanel gives the card rounded corners + ink border.
         // Color set to white so the sprite's own parchment tones show through.
+        // 700x1150 offset down 125 so the TOP edge sits where the old 900-tall card's
+        // did, while the extra height extends the parchment toward the bottom of the
+        // screen — the buttons live down there, in one-handed thumb reach.
         var card = MakeImage(_menuRoot, "MenuCard", Color.white,
             new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(700f, 900f),
+            new Vector2(0f, -125f), new Vector2(700f, 1150f),
             new Vector2(0.5f, 0.5f));
-        card.sprite = InkArt.RoundedPanel(700, 900, 20, 3);
+        card.sprite = InkArt.RoundedPanel(700, 1150, 20, 3);
         card.type   = Image.Type.Simple;
         var cardGO = card.gameObject;
 
@@ -177,13 +180,14 @@ public class MainMenu : MonoBehaviour
         // ── Begin Cultivation (primary button) ───────────────────────────────
         // RoundedPanel parchment background with ink border; Ink label reads well on parchment.
         // HIG sizing: 100 units tall (> 44pt min touch target), 36-unit label (~17pt body).
-        // Spans -410..-510 from card top; best line ends at -374 (36-unit gap above).
+        // Spans -870..-970 from card top — bottom quarter of the 1150-tall card,
+        // in one-handed thumb reach (right about where the runner stands in-game).
         var beginBtn = MakeButton(cardGO, "BeginBtn",
             "Begin Cultivation",
             font, 36, InkArt.Ink,
             Color.white,        // color multiplied by sprite; white = show sprite as-is
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -410f), new Vector2(440f, 100f),
+            new Vector2(0f, -870f), new Vector2(440f, 100f),
             new Vector2(0.5f, 1f),
             beginSprite: InkArt.RoundedPanel(440, 100, 14, 2));
         beginBtn.onClick.AddListener(() =>
@@ -197,8 +201,9 @@ public class MainMenu : MonoBehaviour
         // These are disabled/dimmed until those screens are built.
         // HIG sizing: 92 units tall (44pt min touch target), 31-unit labels (~15pt).
         // Row fit in the 700-wide card: 3×200 + 2×25 gaps = 650, leaving a 25-unit
-        // margin each side. Row spans -560..-652; BeginBtn ends at -510 (50-unit gap).
-        const float GHOST_Y    = -560f;
+        // margin each side. Row spans -1000..-1092; BeginBtn ends at -970 (30-unit gap),
+        // 58 units of parchment left below before the card bottom at -1150.
+        const float GHOST_Y    = -1000f;
         const float GHOST_W    = 200f;
         const float GHOST_H    = 92f;
         const float GHOST_GAP  = 25f;

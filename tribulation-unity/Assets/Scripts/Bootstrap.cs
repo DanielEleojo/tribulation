@@ -33,6 +33,9 @@ public class Bootstrap : MonoBehaviour
         Application.targetFrameRate = 60;
         QualitySettings.vSyncCount = 0;
 
+        // Game audio must play even with the iPhone's silent switch on.
+        IOSAudioSession.IgnoreMuteSwitch();
+
         // Managers first (their Awake sets singletons before the player subscribes in Start).
         gameObject.AddComponent<SwipeDetector>();
         gameObject.AddComponent<GameLoop>();
@@ -56,6 +59,13 @@ public class Bootstrap : MonoBehaviour
         BuildCamera();
         BuildAtmosphere();
         BuildPostFX();
+    }
+
+    // Interruptions (calls, Siri, other apps taking audio focus) can reset the iOS
+    // audio session back to a switch-muted category — re-assert on every focus regain.
+    void OnApplicationFocus(bool focused)
+    {
+        if (focused) IOSAudioSession.IgnoreMuteSwitch();
     }
 
     void BuildPlayer()
