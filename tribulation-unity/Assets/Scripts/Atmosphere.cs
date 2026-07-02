@@ -71,7 +71,10 @@ public class Atmosphere : MonoBehaviour
         main.startLifetime = 9f;
         main.startSpeed = 0.25f;
         main.startSize = new ParticleSystem.MinMaxCurve(5f, 9f);
-        main.startColor = new Color(0.45f, 0.5f, 0.65f, 0.06f); // cool, very faint — hazes, doesn't bubble
+        // 0.30 alpha: the old 0.06 was authored against a broken runtime blend state
+        // that rendered far brighter than specified in the editor; with the correct
+        // serialized material it was near-invisible on every platform.
+        main.startColor = new Color(0.55f, 0.6f, 0.75f, 0.30f);
         main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
         main.maxParticles = 30;
         main.gravityModifier = 0f;
@@ -100,6 +103,26 @@ public class Atmosphere : MonoBehaviour
 
         Apply(ps, ParticleMat(glow, additive: false), 100);
         ps.Play();
+        _fog = ps;
+    }
+
+    // One-time device diagnostic (Xcode console): proves whether the fog system is
+    // alive and what material state it renders with — the wisps have already been
+    // invisible-on-device twice for different reasons.
+    ParticleSystem _fog;
+    bool _loggedFog;
+
+    void Update()
+    {
+        if (_loggedFog || _fog == null || Time.timeSinceLevelLoad < 5f) return;
+        _loggedFog = true;
+        var r = _fog.GetComponent<ParticleSystemRenderer>();
+        Debug.Log("[Atmosphere] fog: alive=" + _fog.particleCount
+            + " playing=" + _fog.isPlaying
+            + " shader=" + (r != null && r.sharedMaterial != null && r.sharedMaterial.shader != null ? r.sharedMaterial.shader.name : "NULL")
+            + " srcBlend=" + (r != null && r.sharedMaterial != null ? r.sharedMaterial.GetInt("_SrcBlend") : -1)
+            + " dstBlend=" + (r != null && r.sharedMaterial != null ? r.sharedMaterial.GetInt("_DstBlend") : -1)
+            + " tex=" + (r != null && r.sharedMaterial != null && r.sharedMaterial.mainTexture != null ? r.sharedMaterial.mainTexture.name + "/" + r.sharedMaterial.mainTexture.width : "NULL"));
     }
 
     static void Apply(ParticleSystem ps, Material mat, int sortOffset)
