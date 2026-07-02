@@ -12,8 +12,8 @@ PlayerSettings:
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: Vellicade Games
-  productName: Tribulation
+  companyName: Vallicade Games
+  productName: Tribulation Runner
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.039215688, g: 0.14509805, b: 0.27450982, a: 1}
@@ -165,9 +165,9 @@ PlayerSettings:
   androidMaxAspectRatio: 2.4
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.vellicade.tribulation
-    Standalone: com.vellicade.tribulation
-    iPhone: com.vellicade.tribulation
+    Android: com.vallicade.tribulation
+    Standalone: com.vallicade.tribulation
+    iPhone: com.vallicade.tribulation
   buildNumber:
     Standalone: 0
     VisionOS: 0
