@@ -132,50 +132,52 @@ public class MainMenu : MonoBehaviour
         var cardGO = card.gameObject;
 
         // ── Seal accent 渡劫 above wordmark (the wuxia name for "crossing tribulation") ──
+        // Title block fills the card's upper two-thirds (-60..-620) with generous
+        // line spacing — the buttons live in the bottom quarter (thumb reach), and
+        // this rhythm keeps the parchment between them from reading as dead space.
         // Cinnabar seal glyphs; large, centered, above the English wordmark.
-        var sealAccent = MakeText(cardGO, "SealAccent", sealFont, 64, InkArt.Cinnabar,
+        var sealAccent = MakeText(cardGO, "SealAccent", sealFont, 80, InkArt.Cinnabar,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -30f), new Vector2(660f, 80f));
+            new Vector2(0f, -60f), new Vector2(660f, 100f));
         sealAccent.text = "渡劫";
 
         // ── Wordmark "TRIBULATION" — serif bold, Gold, outlined ─────────────
-        var wordmark = MakeText(cardGO, "Wordmark", font, 72, InkArt.Gold,
+        var wordmark = MakeText(cardGO, "Wordmark", font, 88, InkArt.Gold,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -118f), new Vector2(660f, 90f));
+            new Vector2(0f, -185f), new Vector2(680f, 110f));
         wordmark.text      = "TRIBULATION";
         wordmark.fontStyle = FontStyle.Bold;
         InkArt.AddOutline(wordmark, 1f);
 
         // ── Subtitle "The Cultivator's Road" — serif Jade + 道 seal accent ──
-        // Subtitle sits below wordmark; font bumped to HIG-readable size (≥31 units
-        // ≈ 15pt), rect grown to match. Offset unchanged.
-        var subtitle = MakeText(cardGO, "Subtitle", font, 34, InkArt.Jade,
+        var subtitle = MakeText(cardGO, "Subtitle", font, 44, InkArt.Jade,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(-16f, -220f), new Vector2(580f, 48f));
+            new Vector2(-16f, -340f), new Vector2(640f, 60f));
         subtitle.text = "The Cultivator's Road";
 
         // Small 道 seal accent to the right of subtitle text.
-        var subtitleSeal = MakeText(cardGO, "SubtitleSeal", sealFont, 32, InkArt.Jade,
+        var subtitleSeal = MakeText(cardGO, "SubtitleSeal", sealFont, 40, InkArt.Jade,
             TextAnchor.UpperLeft,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(240f, -218f), new Vector2(40f, 44f));
+            new Vector2(272f, -336f), new Vector2(52f, 56f));
         subtitleSeal.text = "道";
 
         // ── Live data: realm + best ──────────────────────────────────────────
-        // Fonts ≥31 units (~15pt HIG compact minimum); hierarchy kept:
-        // wordmark 72 > seal 64 > subtitle 34 > realm 32 > best 31.
-        _realmLine = MakeText(cardGO, "RealmLine", font, 32, InkArt.Gold,
+        // Hierarchy kept: wordmark 88 > seal 80 > subtitle 44 > realm 36 > best 34.
+        // Realm stays 36: "Foundation Establishment · 1st Layer" (the longest realm
+        // string) must fit ONE line in 680 — at 42 it wraps into the Best line.
+        _realmLine = MakeText(cardGO, "RealmLine", font, 36, InkArt.Gold,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -280f), new Vector2(660f, 44f));
+            new Vector2(0f, -470f), new Vector2(680f, 50f));
 
-        _bestLine = MakeText(cardGO, "BestLine", font, 31, InkArt.TextDim,
+        _bestLine = MakeText(cardGO, "BestLine", font, 34, InkArt.TextDim,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -332f), new Vector2(660f, 42f));
+            new Vector2(0f, -560f), new Vector2(660f, 46f));
 
         // ── Begin Cultivation (primary button) ───────────────────────────────
         // RoundedPanel parchment background with ink border; Ink label reads well on parchment.
