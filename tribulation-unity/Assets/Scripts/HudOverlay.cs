@@ -271,7 +271,7 @@ public class HudOverlay : MonoBehaviour
         // ── Combo float (contextual, upper-mid) ────────────────────────────
         var comboGO = MakeAnchoredRect(uiRoot, "Combo",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -280f), new Vector2(200f, 60f));
+            new Vector2(0f, -330f), new Vector2(200f, 60f)); // below the taller vows panel
 
         _comboText = MakeText(comboGO, "ComboText", font, 42, C_CINNABAR,
             TextAnchor.MiddleCenter,
@@ -284,7 +284,7 @@ public class HudOverlay : MonoBehaviour
         // ── Qi-ready flare (contextual) ─────────────────────────────────────
         var qiGO = MakeAnchoredRect(uiRoot, "QiFlare",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -350f), new Vector2(280f, 48f));
+            new Vector2(0f, -400f), new Vector2(280f, 48f));
 
         // SoftGlow halo behind the qi-ready text.
         var qiGlowImg = MakeImage(qiGO, "QiGlow", new Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.4f),
@@ -334,15 +334,15 @@ public class HudOverlay : MonoBehaviour
     // ── Cultivation Vows trials panel ───────────────────────────────────────
     // Anchored top-left, below the Realm block and shield pips.
     // Realm block: anchoredPos (20, -24), size 280x96 → bottom edge at y = -120;
-    // shield pips row sits at -128..-160. Trial panel top at y = -170, size 320x124.
+    // shield pips row sits at -128..-160. Trial panel top at y = -170, size 380x140.
     void BuildTrialPanel(GameObject uiRoot, Font font)
     {
         const float SIDE_PAD    = 20f;
         const float PANEL_Y     = -170f;   // top edge y from top of the safe area
-        const float PANEL_W     = 320f;
-        const float PANEL_H     = 124f;    // header 24px + 3×30px rows + 10px padding
-        const float HEADER_H    = 24f;
-        const float ROW_H       = 28f;
+        const float PANEL_W     = 380f;
+        const float PANEL_H     = 140f;    // header 28 + 3×32 rows + padding
+        const float HEADER_H    = 28f;
+        const float ROW_H       = 32f;
         const float ROW_INDENT  = 8f;
 
         // Root container — anchor top-left
@@ -359,7 +359,7 @@ public class HudOverlay : MonoBehaviour
         panelImg.type   = Image.Type.Simple;
 
         // Header: "Cultivation Vows" — serif bold, gold, outlined (Latin only — no seal font)
-        var header = MakeText(_trialRoot, "TrialHeader", font, 17, C_GOLD,
+        var header = MakeText(_trialRoot, "TrialHeader", font, 22, C_GOLD,
             TextAnchor.UpperLeft,
             new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(ROW_INDENT, -6f), new Vector2(PANEL_W - ROW_INDENT * 2f, HEADER_H));
@@ -371,7 +371,7 @@ public class HudOverlay : MonoBehaviour
         for (int i = 0; i < 3; i++)
         {
             float rowY = -(HEADER_H + 10f + i * ROW_H);
-            _trialRows[i] = MakeText(_trialRoot, "TrialRow" + i, font, 15, C_INK,
+            _trialRows[i] = MakeText(_trialRoot, "TrialRow" + i, font, 20, C_INK,
                 TextAnchor.UpperLeft,
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(ROW_INDENT, rowY), new Vector2(PANEL_W - ROW_INDENT * 2f, ROW_H));
@@ -410,7 +410,7 @@ public class HudOverlay : MonoBehaviour
     {
         var go = MakeAnchoredRect(uiRoot, "TribBlock",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -300f),
+            new Vector2(0f, -340f),
             new Vector2(640f, 90f));
 
         _tribText = MakeText(go, "TribText", font, 32, C_GOLD,
@@ -430,7 +430,7 @@ public class HudOverlay : MonoBehaviour
     {
         var go = MakeAnchoredRect(uiRoot, "PowerupBlock",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -410f),
+            new Vector2(0f, -455f),
             new Vector2(640f, 36f));
 
         _powerupText = MakeText(go, "PowerupText", font, 20,

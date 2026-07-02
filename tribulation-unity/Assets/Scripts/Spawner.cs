@@ -18,7 +18,10 @@ using Tribulation.Core;
 public class Spawner : MonoBehaviour
 {
     // ── Constants (ported from spawner.gd lines 12-29) ──────────────────────
-    const float SPAWN_AHEAD   = 70f;   // how far ahead of player to place hazard (-Z)
+    const float SPAWN_AHEAD   = 105f;  // how far ahead of player to place hazard (-Z).
+                                       // Beyond the fog wall (expSq density 0.018 ≈ 97%
+                                       // fogged at 105) so spawns fade in with distance
+                                       // instead of popping into view at 70.
     const float DESPAWN_BEHIND = 25f;  // cull once this far behind the player (+Z)
     const float LANE_WIDTH     = 2.5f; // must match PlayerRunner's lane spacing
     const float FULL_WIDTH     = 8.0f; // spans all three lanes
