@@ -18,6 +18,7 @@
 // ponytail: full Screen.safeArea rect (top/bottom notch) — currently just 80px top pad
 
 using System.Collections;
+using PrimeTween;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -72,12 +73,21 @@ public class HudOverlay : MonoBehaviour
     GameObject _deathRoot;
     Text       _deathStats;
 
+    // Run-summary ceremony: count-up + NEW BEST stamp (all unscaled-time tweens)
+    GameObject _newBestStamp;      // glow halo + "NEW BEST" text — active only on record runs
+    string     _deathStatsFinal = ""; // exact final stats text — restored by HideDeathCard()
+    Sequence   _deathSeq;          // ceremony handle — stopped on hide/destroy
+
     // Trials panel
     GameObject _trialRoot;
     Text[]     _trialRows = new Text[3];
 
     // Breakthrough fade coroutine handle
     Coroutine _btCo;
+
+    // Near-miss popup ("Near Miss!") + its fade coroutine
+    Text      _nearMissText;
+    Coroutine _nmCo;
 
     // Runtime state
     PlayerRunner _player;
@@ -124,10 +134,10 @@ public class HudOverlay : MonoBehaviour
         Font font     = InkArt.Serif(); // elegant Latin serif for all UI text
         Font sealFont = InkArt.Seal();  // traditional-Chinese subset (23 glyphs)
 
-        // Top safe-area pad
-        // ponytail: full Screen.safeArea rect later
-        const float TOP_PAD  = 80f;
-        const float SIDE_PAD = 20f;
+        // Top pad = base + device safe-area inset (notch / Dynamic Island). SafeArea returns 0 on
+        // non-notched devices and in the editor Game view, so this is a no-op there.
+        float TOP_PAD  = 80f + SafeArea.TopInset(canvas);
+        float SIDE_PAD = 20f + SafeArea.LeftInset(canvas);
 
         // ── Realm block (top-left) ──────────────────────────────────────────
         // Parchment backing panel behind the realm texts.
@@ -307,6 +317,22 @@ public class HudOverlay : MonoBehaviour
         InkArt.AddOutline(_breakthroughText, 1.0f);
         _breakthroughText.gameObject.SetActive(false);
 
+        // ── Near-miss popup (small, above the breakthrough banner) ──────────
+        // note: "Near Miss!" in Latin serif — the InkSeal font is a 23-glyph subset
+        // that does not include 險/险, so a kanji flourish would render as tofu.
+        var nmGO = MakeAnchoredRect(canvasGO, "NearMiss",
+            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 140f), new Vector2(300f, 44f));
+
+        _nearMissText = MakeText(nmGO, "NearMissText", font, 28, C_JADE_LIGHT,
+            TextAnchor.MiddleCenter,
+            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(300f, 44f));
+        _nearMissText.text      = "Near Miss!";
+        _nearMissText.fontStyle = FontStyle.Bold;
+        InkArt.AddOutline(_nearMissText, 0.7f);
+        _nearMissText.gameObject.SetActive(false);
+
         // ── Cultivation Vows / Trials panel (below realm block, top-left) ──────
         BuildTrialPanel(canvasGO, font);
 
@@ -469,6 +495,7 @@ public class HudOverlay : MonoBehaviour
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
             new Vector2(0f, -28f), new Vector2(520f, 60f));
+        deathTitle.text      = "QI DEVIATION"; // was never assigned — title rendered empty
         deathTitle.fontStyle = FontStyle.Bold;
         InkArt.AddOutline(deathTitle, 0.8f);
 
@@ -502,6 +529,37 @@ public class HudOverlay : MonoBehaviour
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
             new Vector2(0f, -396f), new Vector2(500f, 56f))
             .text = "Your realm endures — only this layer's progress is lost.";
+
+        // ── NEW BEST stamp — chop-mark over the stats block, record runs only ─
+        // Latin text on purpose: the seal font is a 23-glyph subset, kanji here
+        // would render as tofu. Hidden by default; OnDied pops it in after the
+        // count-up when Core.WasNewBestThisRun is set.
+        _newBestStamp = MakeAnchoredRect(cardGO, "NewBestStamp",
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(140f, -290f), new Vector2(240f, 54f));
+        var stampRt = _newBestStamp.GetComponent<RectTransform>();
+        stampRt.pivot = new Vector2(0.5f, 0.5f);           // pop scales from center
+        stampRt.anchoredPosition = new Vector2(140f, -290f); // re-apply after pivot change
+        _newBestStamp.transform.localRotation = Quaternion.Euler(0f, 0f, 7f); // stamped tilt
+
+        // SoftGlow halo behind the stamp (gold, mirrors the qi-flare halo).
+        var stampGlow = MakeImage(_newBestStamp, "NewBestGlow",
+            new Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.45f),
+            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(280f, 96f),
+            new Vector2(0.5f, 0.5f));
+        stampGlow.sprite = InkArt.SoftGlow(128);
+        stampGlow.type   = Image.Type.Simple;
+
+        var stampText = MakeText(_newBestStamp, "NewBestText", font, 30, C_CINNABAR,
+            TextAnchor.MiddleCenter,
+            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(240f, 54f));
+        stampText.text      = "NEW BEST";
+        stampText.fontStyle = FontStyle.Bold;
+        InkArt.AddOutline(stampText, 0.8f);
+
+        _newBestStamp.SetActive(false);
 
         // ── Wrap dim overlay, glow, and card under one root ─────────────────
         // A single SetActive on _deathRoot hides/shows the entire card.
@@ -711,18 +769,49 @@ public class HudOverlay : MonoBehaviour
         int realm = Mathf.Clamp(core.Realm, 0, RealmNames.Length - 1);
         string realmLine = RealmNames[realm] + " · " + LayerStr(core.MinorLevel());
 
-        int dist = Mathf.RoundToInt(_player != null ? _player.GetDistance() : 0f);
+        int dist  = Mathf.RoundToInt(_player != null ? _player.GetDistance() : 0f);
+        int best  = core.BestLi;
+        int souls = core.Souls;
 
-        _deathStats.text = realmLine
-            + "\n\n" + dist + " li traveled     Best: " + core.BestLi + " li"
-            + "\n+" + core.Souls + " Qi gathered this run";
+        // Reset from any prior ceremony, then reveal the card at zeroed counters.
+        if (_deathSeq.isAlive) _deathSeq.Stop();
+        if (_newBestStamp != null) _newBestStamp.SetActive(false);
+        _deathStats.text = ComposeDeathStats(realmLine, 0, best, 0);
+        UiAnim.Show(_deathRoot);
 
-        _deathRoot.SetActive(true);
+        // Ceremony: count li + Qi up (unscaled — the card can outlive a timescale dip),
+        // then stamp NEW BEST on a record run.
+        var seq = Sequence.Create(useUnscaledTime: true)
+            .Chain(Tween.Custom(0f, 1f, 0.8f, t =>
+            {
+                if (_deathStats == null) return;              // destroyed mid-tween
+                _deathStats.text = ComposeDeathStats(
+                    realmLine, Mathf.RoundToInt(dist * t), best, Mathf.RoundToInt(souls * t));
+            }, Ease.OutQuad, useUnscaledTime: true));
+
+        if (core.WasNewBestThisRun && _newBestStamp != null)
+        {
+            seq.ChainCallback(() =>
+            {
+                _newBestStamp.SetActive(true);
+                _newBestStamp.transform.localScale = Vector3.one * 0.5f;
+                Haptics.Success();
+            })
+            .Chain(Tween.Scale(_newBestStamp.transform, Vector3.one, 0.35f, Ease.OutBack, useUnscaledTime: true));
+        }
+        _deathSeq = seq;
     }
+
+    // Death-card stats string; li + Qi are animated 0→final by the OnDied ceremony.
+    string ComposeDeathStats(string realmLine, int li, int best, int qi)
+        => realmLine
+           + "\n\n" + li + " li traveled     Best: " + best + " li"
+           + "\n+" + qi + " Qi gathered this run";
 
     public void HideDeathCard()
     {
-        if (_deathRoot != null) _deathRoot.SetActive(false);
+        if (_deathSeq.isAlive) _deathSeq.Stop();
+        UiAnim.Hide(_deathRoot); // fade the whole card out (stamp included); OnDied re-resets stamp
     }
 
     // ── Seal-ring visual encoding ────────────────────────────────────────────
@@ -735,6 +824,46 @@ public class HudOverlay : MonoBehaviour
         // Tint the fill to match ring color but keep lower alpha
         Color fc = Color.Lerp(C_JADE_LIGHT, C_CINNABAR, net);
         _sealFill.color = new Color(fc.r, fc.g, fc.b, 0.35f);
+    }
+
+    // ── New-best banner ──────────────────────────────────────────────────────
+    // Reuses the breakthrough banner machinery (same Text, same coroutine slot) —
+    // gold like a breakthrough, distinct from the cinnabar death card.
+    /// <summary>Gold "New Best!" banner — Game.OnNewBest fires this the moment a run passes the old record.</summary>
+    public void ShowNewBest()
+    {
+        if (_breakthroughText == null) return;
+        _breakthroughText.text  = "New Best!";
+        _breakthroughText.color = C_GOLD;
+        if (_btCo != null) StopCoroutine(_btCo);
+        _btCo = StartCoroutine(ShowBannerThenFade(2f, 0.5f));
+    }
+
+    // ── Near-miss popup ──────────────────────────────────────────────────────
+    /// <summary>Small transient "Near Miss!" near center — quick pop + ~0.6s fade. Light, non-intrusive.</summary>
+    public void ShowNearMiss()
+    {
+        if (_nearMissText == null) return;
+        if (_nmCo != null) StopCoroutine(_nmCo);
+        _nmCo = StartCoroutine(NearMissPopThenFade(0.6f));
+    }
+
+    IEnumerator NearMissPopThenFade(float secs)
+    {
+        _nearMissText.gameObject.SetActive(true);
+        float t = 0f;
+        while (t < secs)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.Clamp01(t / secs);
+            // Quick settle from 1.3× to 1× over the first 0.12s, alpha fades over the full window.
+            float s = Mathf.Lerp(1.3f, 1f, Mathf.Clamp01(t / 0.12f));
+            _nearMissText.transform.localScale = new Vector3(s, s, 1f);
+            _nearMissText.color = new Color(C_JADE_LIGHT.r, C_JADE_LIGHT.g, C_JADE_LIGHT.b, 1f - k);
+            yield return null;
+        }
+        _nearMissText.gameObject.SetActive(false);
+        _nmCo = null;
     }
 
     // ── Breakthrough banner coroutine ────────────────────────────────────────
@@ -935,6 +1064,8 @@ public class HudOverlay : MonoBehaviour
     {
         UnsubscribeCoreEvents();
         if (_btCo != null) { StopCoroutine(_btCo); _btCo = null; }
+        if (_nmCo != null) { StopCoroutine(_nmCo); _nmCo = null; }
+        if (_deathSeq.isAlive) _deathSeq.Stop();
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -975,8 +1106,12 @@ public class HudOverlay : MonoBehaviour
         t.fontSize  = fontSize;
         t.color     = color;
         t.alignment = alignment;
-        t.supportRichText = false;
-        t.raycastTarget   = false;
+        t.supportRichText  = false;
+        t.raycastTarget    = false;
+        // Never truncate a label to nothing: when a font's line-height exceeds a tight box, the
+        // default Truncate vertical overflow emits ZERO geometry (the death-card / panel-title
+        // "won't render" bug). Overflow always draws the text.
+        t.verticalOverflow = VerticalWrapMode.Overflow;
         return t;
     }
 

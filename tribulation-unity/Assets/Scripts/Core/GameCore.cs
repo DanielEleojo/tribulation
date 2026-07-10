@@ -28,10 +28,12 @@ namespace Tribulation.Core
         public event Action<int>               SoulsChanged;  // souls this run
         public event Action<int, float>        ComboChanged;  // (combo, mult)
         public event Action                    Burst;         // Qi burst fired
+        public event Action                    TribulationStarted; // heavenly tribulation began
         public event Action                    Breakthrough;  // realm advanced (tribulation surmounted)
         public event Action<int>               TrialFulfilled; // reward (for sfx/banner)
         public event Action<string>            AchievementUnlocked; // id of newly unlocked achievement
         public event Action<int, int>          DailyClaimed;        // (streak, reward)
+        public event Action                    NewBest;       // this run just passed the previous best (once per run)
 
         // note: RealmChanged event omitted; callers inspect Realm property after Tick
 
@@ -95,6 +97,13 @@ namespace Tribulation.Core
         public int   StatFoes     { get; private set; }
         public int   StatTribs    { get; private set; }
         public int   StatDeaths   { get; private set; }
+
+        // New-best tracking (live, per run)
+        int  _bestAtRunStart;
+        bool _newBestFired;
+
+        /// <summary>True once this run has surpassed the best that stood when it started.</summary>
+        public bool WasNewBestThisRun => _newBestFired;
 
         // Tribulation state
         public bool  InTribulation { get; private set; }
@@ -351,9 +360,10 @@ namespace Tribulation.Core
         }
 
         // ── Constructor ───────────────────────────────────────────────────────
-        public GameCore(BalanceData balance)
+        public GameCore(BalanceData balance, System.Random rng = null)
         {
             _b = balance ?? new BalanceData();
+            if (rng != null) _rng = rng; // seedable for deterministic trial rolls (tests)
         }
 
         /// <summary>Seconds of difficulty head-start for the current realm (higher realms start
@@ -414,6 +424,8 @@ namespace Tribulation.Core
             Combo       = 0;
             Qi          = Math.Min(_b.qi_max, StartQiBonus); // spirit_root head-start
             Net         = 0f;
+            _bestAtRunStart = BestLi;
+            _newBestFired   = false;
             StatRuns++;
             RollTrials(_rng);
             QiChanged?.Invoke(Qi, _b.qi_max);
@@ -521,6 +533,28 @@ namespace Tribulation.Core
         /// <summary>Record a run distance (li); updates BestLi if it's a new best. Called by the
         /// MonoBehaviour layer on death, which knows the real distance the pure core does not.</summary>
         public void RecordDistance(int li) { if (li > BestLi) BestLi = li; }
+
+        /// <summary>Live per-frame distance report: keeps BestLi climbing during the run and
+        /// fires NewBest once, the moment this run surpasses the previous best (best>0 only —
+        /// the very first-ever run never fires, there is no record to beat at li=1).</summary>
+        public void ReportDistance(int li)
+        {
+            if (li > BestLi) BestLi = li;
+            if (!_newBestFired && _bestAtRunStart > 0 && li > _bestAtRunStart)
+            {
+                _newBestFired = true;
+                NewBest?.Invoke();
+            }
+        }
+
+        /// <summary>Reward for a skillful dodge (an enemy cleanly slipped past) — a small Qi
+        /// nudge only. Deliberately does not touch combo or the Heavenly Net.</summary>
+        public void OnNearMiss()
+        {
+            if (IsDead || !IsStarted) return;
+            Qi = Math.Min(_b.qi_max, Qi + 2f);
+            QiChanged?.Invoke(Qi, _b.qi_max);
+        }
 
         /// <summary>
         /// Wipe all cultivation progress: realm, lifetime stones, spent, best distance,
@@ -853,6 +887,9 @@ namespace Tribulation.Core
         {
             InTribulation = true;
             _tribT        = TRIB_DURATION;
+            // Fires exactly once per tribulation entry (UpdateCultivation's !InTribulation
+            // guard prevents re-entry). After state set so subscribers see InTribulation=true.
+            TribulationStarted?.Invoke();
             // ponytail: sfx, camera shake, HUD tribulation banner — deferred to Game.cs
         }
 

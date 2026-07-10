@@ -74,6 +74,10 @@ public class PlayerRunner : MonoBehaviour
     public int   Lane      => _lane;
     public float Vy        => _vy;
 
+    /// <summary>True during the post-hit invulnerability window (Spawner near-miss scan:
+    /// a hazard passing during i-frames was a hit, not a dodge — no reward).</summary>
+    public bool InIFrames => _iframes > 0f;
+
     /// <summary>Fired when a slash actually executes (gates passed, cooldown reset).</summary>
     public event System.Action Slashed;
 
@@ -222,7 +226,7 @@ public class PlayerRunner : MonoBehaviour
         }
 
         // Feel: dust puff + camera trauma on a real landing (was falling, now grounded).
-        if (grounded && !_wasGrounded && _vy < -4f) { Feel.Poof(transform.position, 1.3f); Cam()?.AddTrauma(0.12f); }
+        if (grounded && !_wasGrounded && _vy < -4f) { Feel.Poof(transform.position, 1.3f); Cam()?.AddTrauma(0.12f); Haptics.Soft(); }
 
         // A queued fast-fall slide fires on landing.
         if (grounded && !_wasGrounded && _pendingSlide) { _pendingSlide = false; StartSlide(); }
@@ -267,6 +271,7 @@ public class PlayerRunner : MonoBehaviour
         {
             _jumpBuf = JUMP_BUFFER;
             if (SoundManager.I != null) SoundManager.I.Play("jump");
+            Haptics.Light();
         }
     }
 
@@ -278,6 +283,7 @@ public class PlayerRunner : MonoBehaviour
             if (_sliding) return;
             _sliding = true; _slideLeft = SLIDE_DURATION; SetHeight(SLIDE_HEIGHT);
             if (SoundManager.I != null) SoundManager.I.Play("slide");
+            Haptics.Light();
             Feel.DustBurst(transform.position);
         }
         else { _vy = Mathf.Min(_vy, -fastFall); _pendingSlide = true; }
@@ -305,6 +311,7 @@ public class PlayerRunner : MonoBehaviour
         _slashCd = SLASH_COOLDOWN;
         Slashed?.Invoke(); // notify InkCultivator (and any other visual subscriber)
         Feel.SlashArc(transform.position);
+        Feel.SlashTrail(transform); // hero brush-stroke trail sweeping through the arc
         if (SoundManager.I != null) SoundManager.I.Play("slash");
         // ponytail: slash VFX arc — driven by InkCultivator via Slashed event
 
@@ -337,6 +344,7 @@ public class PlayerRunner : MonoBehaviour
         if (killed > 0)
         {
             if (SoundManager.I != null) SoundManager.I.Play("kill");
+            Haptics.Medium();
             // Feel: hitstop + scale-pop + FOV kick + light trauma on kill.
             Feel.Hitstop(0.05f);
             FeelPop(0.30f);
@@ -359,6 +367,7 @@ public class PlayerRunner : MonoBehaviour
         // Iron-Body: try to absorb the hit; absorb = no Net spike, no stumble (#8).
         if (_surv.TryAbsorbHit())
         {
+            Haptics.Rigid(); // shield/iron-body soak — crisp "clank" instead of the damage thud
             // ponytail: brief flash / SFX on absorb — deferred to visual polish
             return;
         }
@@ -368,6 +377,7 @@ public class PlayerRunner : MonoBehaviour
         bool isEnemy = other.GetComponent<Foe>() != null;
         _iframes  = HIT_IFRAMES;
         _stumbleT = HIT_STUMBLE;
+        Haptics.Heavy(); // i-frames above guarantee this can't machine-gun
         Feel.Hitstop(0.07f);
         var cam = Cam(); if (cam != null) { cam.AddTrauma(0.35f); cam.AddFovKick(5f); }
         if (SoundManager.I != null) SoundManager.I.Play("death"); // ponytail: reuse death sfx as a hit thud until a dedicated one exists
@@ -417,6 +427,7 @@ public class PlayerRunner : MonoBehaviour
     // Called by GameLoop on tap-to-restart.
     public void ResetRun()
     {
+        Feel.ClearActive(); // drop any lingering slash trail / burst particles before teleport
         _dead = false; _running = true; _runTime = 0f; _vy = 0f;
         _sliding = false; _pendingSlide = false; _lane = 1;
         _slashCd = 0f; _airJumpsUsed = 0; _iframes = 0f; _stumbleT = 0f;

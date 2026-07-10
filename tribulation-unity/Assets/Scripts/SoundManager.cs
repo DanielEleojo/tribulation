@@ -1,4 +1,5 @@
-// Lightweight SFX hub. Lazy-loads the 11 named clips from Resources on Awake.
+// Lightweight SFX hub. Lazy-loads the named clips from Resources on Awake;
+// a couple of event names alias existing clips (asset-free).
 // Play(name) is a null-safe no-op if the clip wasn't found.
 // Ported from scripts/sound_manager.gd.
 // note: no AudioMixer bus — PlayOneShot volume scaled directly.
@@ -11,7 +12,8 @@ public class SoundManager : MonoBehaviour
 
     static readonly string[] SoundNames = {
         "start", "slash", "kill", "jump", "slide",
-        "gate_good", "gate_bad", "burst", "death", "breakthrough", "orb"
+        "gate_good", "gate_bad", "burst", "death", "breakthrough", "orb",
+        "ui_tap"
     };
 
     readonly Dictionary<string, AudioClip> _clips = new Dictionary<string, AudioClip>();
@@ -28,6 +30,10 @@ public class SoundManager : MonoBehaviour
             var clip = Resources.Load<AudioClip>("audio/sfx/" + name);
             if (clip != null) _clips[name] = clip;
         }
+
+        // Aliases — event names that reuse already-loaded clips.
+        if (_clips.TryGetValue("breakthrough", out var newBest)) _clips["new_best"] = newBest;
+        if (_clips.TryGetValue("orb", out var nearMiss)) _clips["near_miss"] = nearMiss;
     }
 
     /// <summary>Play a named SFX. Safe no-op if clip missing or core is muted.</summary>

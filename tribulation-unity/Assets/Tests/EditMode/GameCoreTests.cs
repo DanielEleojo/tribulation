@@ -47,6 +47,27 @@ namespace Tribulation.Tests.EditMode
         }
 
         [Test]
+        public void EnteringTribulation_FiresTribulationStartedExactlyOnce()
+        {
+            // Seeded RNG so trial rolls are deterministic and can't interfere.
+            var core = new GameCore(MinBalance(), new System.Random(1));
+            int fired = 0;
+            core.TribulationStarted += () => fired++;
+            core.StartRun();
+
+            // Fill realm_span[0]=5 the same way KillingEnoughEnemies_StartsHeavenlyTribulation does.
+            for (int i = 0; i < 5; i++)
+                core.OnEnemyKilled(1);
+
+            Assert.IsTrue(core.InTribulation, "Precondition: crossing the realm-span threshold begins a tribulation");
+            Assert.AreEqual(1, fired, "TribulationStarted must fire exactly once on tribulation entry");
+
+            // More kills while already inside the tribulation must not re-fire it.
+            core.OnEnemyKilled(5);
+            Assert.AreEqual(1, fired, "TribulationStarted must not re-fire while a tribulation is active");
+        }
+
+        [Test]
         public void SurvivingTribulation_AdvancesRealm()
         {
             var core = new GameCore(MinBalance());
@@ -1468,16 +1489,20 @@ namespace Tribulation.Tests.EditMode
         {
             var balance = UpgradeBalance(); // qi_per_kill=10, qi_max=200
 
+            // Seed both cores identically so RollTrials picks the same trials — otherwise an
+            // unseeded roll can hand the baseline a completed slay/combo trial reward (+40 stones)
+            // mid-kill and invert the comparison (flaky: baseGain jumps to 60 vs upg 24).
             // Kill 10 enemies at once so base soul gain is large enough for 1.20x to show a diff.
-            // Baseline: 10 kills, combo starts at 0 → mult=1 → g=round(10*1)=10
-            var baseCore = new GameCore(balance);
+            var baseCore = new GameCore(balance, new System.Random(1));
             baseCore.StartRun();
             int stonesBefore = baseCore.TotalStones;
             baseCore.OnEnemyKilled(10);
             int baseGain = baseCore.TotalStones - stonesBefore;
 
-            // With stone_sense level 1 → StoneMult = 1.20 → stoneGain=round(10*1.20)=12
-            var upgCore = new GameCore(balance);
+            // With stone_sense level 1 → StoneMult = 1.20 → more stones per kill than baseline.
+            // Same seed ⇒ identical trial rolls, so any trial reward cancels and only the
+            // StoneMult difference remains in the comparison.
+            var upgCore = new GameCore(balance, new System.Random(1));
             upgCore.LoadSave(new SaveData { totalStones = 9999 });
             int idx = IdxOf(upgCore, "stone_sense");
             upgCore.TryBuyUpgrade(idx);
@@ -1991,6 +2016,200 @@ namespace Tribulation.Tests.EditMode
             core.StartRun();
             Assert.AreEqual(0f, core.PowerupTimeLeft("nonexistent"), 0.001f,
                 "unknown powerup id must return 0");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // NEW-BEST celebration — ReportDistance keeps BestLi live and fires NewBest
+    // exactly once, the moment a run surpasses the best that stood at run start
+    // (best>0 only — the first-ever run has no record to beat).
+    // ─────────────────────────────────────────────────────────────────────────
+    [TestFixture]
+    public class NewBestTests
+    {
+        static BalanceData QuietBalance() => new BalanceData
+        {
+            realm_span     = new[] { 999999, 999999, 999999, 999999, 999999, 999999 },
+            qi_max         = 100f,
+            qi_per_kill    = 5f,
+            net_close_rate = 0f,   // freeze the net — nothing dies mid-test
+        };
+
+        static GameCore CoreWithBest(int bestLi)
+        {
+            // Seeded RNG so trial rolls are deterministic and can't interfere.
+            var core = new GameCore(QuietBalance(), new System.Random(1));
+            if (bestLi > 0) core.LoadSave(new SaveData { bestLi = bestLi });
+            return core;
+        }
+
+        [Test]
+        public void NewBest_FiresExactlyOnce_WhenRunCrossesPriorBest()
+        {
+            var core = CoreWithBest(100);
+            int fired = 0;
+            core.NewBest += () => fired++;
+            core.StartRun();
+
+            core.ReportDistance(50);
+            Assert.AreEqual(0, fired, "Below the old best — must not fire");
+            core.ReportDistance(100);
+            Assert.AreEqual(0, fired, "Equal to the old best is not a new best");
+            core.ReportDistance(101);
+            Assert.AreEqual(1, fired, "Crossing the old best must fire NewBest");
+            core.ReportDistance(200);
+            Assert.AreEqual(1, fired, "NewBest must fire at most once per run");
+        }
+
+        [Test]
+        public void NewBest_DoesNotFire_OnFirstEverRun()
+        {
+            var core = CoreWithBest(0); // fresh save — bestAtRunStart == 0
+            int fired = 0;
+            core.NewBest += () => fired++;
+            core.StartRun();
+
+            for (int li = 1; li <= 500; li += 50)
+                core.ReportDistance(li);
+
+            Assert.AreEqual(0, fired, "First-ever run has no record to beat — no NewBest");
+            Assert.AreEqual(451, core.BestLi, "BestLi must still climb live on the first run");
+        }
+
+        [Test]
+        public void WasNewBestThisRun_LatchesTrue_AndResetsOnFreshStartRun()
+        {
+            var core = CoreWithBest(100);
+            core.StartRun();
+
+            Assert.IsFalse(core.WasNewBestThisRun, "No fire yet — latch must be false");
+            core.ReportDistance(60);
+            Assert.IsFalse(core.WasNewBestThisRun, "Below old best — latch stays false");
+            core.ReportDistance(150);
+            Assert.IsTrue(core.WasNewBestThisRun, "Latch flips true when NewBest fires");
+            core.ReportDistance(160);
+            Assert.IsTrue(core.WasNewBestThisRun, "Latch stays true for the rest of the run");
+
+            core.RestartRun(); // fresh StartRun
+            Assert.IsFalse(core.WasNewBestThisRun, "Fresh run — latch must reset to false");
+        }
+
+        [Test]
+        public void ReportDistance_StillAdvancesBestLi()
+        {
+            var core = CoreWithBest(100);
+            core.StartRun();
+
+            core.ReportDistance(250);
+            Assert.AreEqual(250, core.BestLi, "ReportDistance must raise BestLi live");
+            core.ReportDistance(180);
+            Assert.AreEqual(250, core.BestLi, "A lower report must never lower BestLi");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // NEAR-MISS reward — pure band classifier + GameCore.OnNearMiss Qi nudge
+    // (small Qi only; deliberately no combo / Heavenly-Net change).
+    // ─────────────────────────────────────────────────────────────────────────
+    [TestFixture]
+    public class NearMissTests
+    {
+        // ── Classifier: (halfWidthSum .. halfWidthSum+band] is the near-miss band ──
+
+        [Test]
+        public void IsNearMiss_FalseInsideCollisionEnvelope()
+        {
+            Assert.IsFalse(NearMiss.IsNearMiss(0.8f, 1.0f, 0.5f), "Inside the envelope = a hit, not a miss");
+            Assert.IsFalse(NearMiss.IsNearMiss(1.0f, 1.0f, 0.5f), "Exactly at the envelope edge is not a clean clear");
+        }
+
+        [Test]
+        public void IsNearMiss_TrueJustOutsideEnvelope()
+        {
+            Assert.IsTrue(NearMiss.IsNearMiss(1.01f, 1.0f, 0.5f), "Barely outside the envelope = near miss");
+            Assert.IsTrue(NearMiss.IsNearMiss(1.5f, 1.0f, 0.5f), "Outer band edge (inclusive) = near miss");
+        }
+
+        [Test]
+        public void IsNearMiss_FalseBeyondBand()
+        {
+            Assert.IsFalse(NearMiss.IsNearMiss(1.51f, 1.0f, 0.5f), "Past the band = a comfortable dodge, no reward");
+            Assert.IsFalse(NearMiss.IsNearMiss(2.5f, 1.0f, 0.5f), "A full-lane gap is not a near miss");
+        }
+
+        // ── GameCore.OnNearMiss: +2 Qi, clamped at qi_max, nothing else moves ──
+
+        static BalanceData NearMissBalance(float qiMax = 100f) => new BalanceData
+        {
+            realm_span        = new[] { 999999, 999999, 999999, 999999, 999999, 999999 },
+            qi_max            = qiMax,
+            qi_per_kill       = 5f,
+            net_close_rate    = 0f,     // freeze the net so drift can't mask "unchanged"
+            net_push_per_kill = 0.1f,
+        };
+
+        [Test]
+        public void OnNearMiss_NudgesQiByTwo()
+        {
+            var core = new GameCore(NearMissBalance(), new System.Random(1));
+            core.StartRun();
+            Assert.AreEqual(0f, core.Qi, 0.001f, "Precondition: no spirit_root — run starts at 0 Qi");
+
+            float lastQi = -1f, lastMax = -1f;
+            core.QiChanged += (qi, max) => { lastQi = qi; lastMax = max; };
+            core.OnNearMiss();
+
+            Assert.AreEqual(2f, core.Qi, 0.001f, "A near miss nudges Qi by +2");
+            Assert.AreEqual(2f, lastQi, 0.001f, "QiChanged must report the nudged value");
+            Assert.AreEqual(100f, lastMax, 0.001f, "QiChanged must report qi_max");
+        }
+
+        [Test]
+        public void OnNearMiss_ClampsAtQiMax()
+        {
+            var core = new GameCore(NearMissBalance(qiMax: 3f), new System.Random(1));
+            core.StartRun();
+
+            core.OnNearMiss(); // 0 → 2
+            core.OnNearMiss(); // 2 → clamp 3
+            Assert.AreEqual(3f, core.Qi, 0.001f, "Qi must clamp at qi_max");
+            core.OnNearMiss(); // already at max → stays at max
+            Assert.AreEqual(3f, core.Qi, 0.001f, "At max, a near miss keeps Qi at max");
+        }
+
+        [Test]
+        public void OnNearMiss_DoesNotTouchComboOrNet()
+        {
+            var core = new GameCore(NearMissBalance(), new System.Random(1));
+            core.StartRun();
+            core.OnGate(false);     // Net 0 → 0.30 (combo reset to 0)
+            core.OnEnemyKilled(1);  // combo 1, Net 0.30 − 0.1 = 0.20, Qi = 5
+
+            int comboEvents = 0; float lastNet = -1f;
+            core.ComboChanged += (c, m) => comboEvents++;
+            core.NetChanged   += n => lastNet = n;
+
+            core.OnNearMiss();
+
+            Assert.AreEqual(1, core.Combo, "Near miss must not touch the combo");
+            Assert.AreEqual(0, comboEvents, "Near miss must not fire ComboChanged");
+            Assert.AreEqual(0.20f, core.Net, 0.001f, "Near miss must not move the Heavenly Net");
+            Assert.AreEqual(-1f, lastNet, 0.001f, "Near miss must not fire NetChanged");
+            Assert.AreEqual(7f, core.Qi, 0.001f, "Only Qi moves: 5 + 2");
+        }
+
+        [Test]
+        public void OnNearMiss_IgnoredWhenDeadOrNotStarted()
+        {
+            var core = new GameCore(NearMissBalance(), new System.Random(1));
+            core.OnNearMiss(); // not started
+            Assert.AreEqual(0f, core.Qi, 0.001f, "Before StartRun a near miss is a no-op");
+
+            core.StartRun();
+            core.Die();
+            float qiAtDeath = core.Qi;
+            core.OnNearMiss(); // dead
+            Assert.AreEqual(qiAtDeath, core.Qi, 0.001f, "After death a near miss is a no-op");
         }
     }
 }

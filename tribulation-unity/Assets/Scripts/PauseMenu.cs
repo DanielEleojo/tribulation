@@ -114,7 +114,7 @@ public class PauseMenu : MonoBehaviour
         Time.timeScale = 0f;
 
         if (_triggerBtn != null) _triggerBtn.SetActive(false);
-        if (_pausePanel  != null) _pausePanel .SetActive(true);
+        UiAnim.Show(_pausePanel);
     }
 
     /// <summary>Resume the run after pause.</summary>
@@ -125,7 +125,7 @@ public class PauseMenu : MonoBehaviour
         _paused = false;
         Time.timeScale = 1f;
 
-        if (_pausePanel != null) _pausePanel.SetActive(false);
+        UiAnim.Hide(_pausePanel);
         // Trigger button visibility is handled each frame in Update().
     }
 
@@ -135,7 +135,7 @@ public class PauseMenu : MonoBehaviour
         _paused = false;
         Time.timeScale = 1f;
 
-        if (_pausePanel != null) _pausePanel.SetActive(false);
+        UiAnim.Hide(_pausePanel);
 
         DoRestartSequence();
     }
@@ -146,7 +146,7 @@ public class PauseMenu : MonoBehaviour
         _paused = false;
         Time.timeScale = 1f;
 
-        if (_pausePanel != null) _pausePanel.SetActive(false);
+        UiAnim.Hide(_pausePanel);
 
         // Reset run state so nothing odd keeps running behind the menu.
         DoRestartSequence();
@@ -193,7 +193,8 @@ public class PauseMenu : MonoBehaviour
         rt.anchorMin        = new Vector2(1f, 1f);
         rt.anchorMax        = new Vector2(1f, 1f);
         rt.pivot            = new Vector2(1f, 1f);
-        rt.anchoredPosition = new Vector2(-28f, -60f); // ~28px from right, 60px from top
+        var tCanvas = canvasGO.GetComponent<Canvas>();
+        rt.anchoredPosition = new Vector2(-28f, -60f - SafeArea.TopInset(tCanvas)); // top-right, pushed below notch/Island
         rt.sizeDelta        = new Vector2(88f, 72f);
 
         var img = go.AddComponent<Image>();
@@ -214,7 +215,7 @@ public class PauseMenu : MonoBehaviour
             cb.colorMultiplier  = 1f;
             btn.colors = cb;
         }
-        btn.onClick.AddListener(() => Pause());
+        btn.onClick.AddListener(() => { Haptics.Light(); SoundManager.I?.Play("ui_tap"); Pause(); });
 
         // Label — "II" (two ascii pipe characters) reads as a pause icon.
         var labelGO = new GameObject("Label", typeof(RectTransform));
@@ -383,6 +384,7 @@ public class PauseMenu : MonoBehaviour
             cb.colorMultiplier  = 1f;
             btn.colors = cb;
         }
+        btn.onClick.AddListener(() => { Haptics.Light(); SoundManager.I?.Play("ui_tap"); }); // every pause-menu button ticks
         btn.onClick.AddListener(onClick);
 
         var labelGO = new GameObject("Label", typeof(RectTransform));

@@ -184,7 +184,7 @@ public class MainMenu : MonoBehaviour
         beginBtn.onClick.AddListener(() =>
         {
             Game.I?.BeginRun();
-            _menuRoot.SetActive(false);
+            UiAnim.Hide(_menuRoot);
         });
 
         // ── Secondary (ghost) buttons row ───────────────────────────────────
@@ -231,7 +231,7 @@ public class MainMenu : MonoBehaviour
     /// <summary>Show the main menu (e.g. called by PauseMenu's Quit to Menu).</summary>
     public void Show()
     {
-        if (_menuRoot != null) _menuRoot.SetActive(true);
+        UiAnim.Show(_menuRoot);
         RefreshLiveTexts();
     }
 
@@ -304,6 +304,7 @@ public class MainMenu : MonoBehaviour
         var btn = go.AddComponent<Button>();
         btn.interactable = interactable;
         btn.targetGraphic = img;
+        btn.onClick.AddListener(() => { Haptics.Light(); SoundManager.I?.Play("ui_tap"); }); // every menu button ticks
 
         // Color block — dim all states when disabled.
         // Use white for normal/highlight/pressed when a sprite is supplied so its

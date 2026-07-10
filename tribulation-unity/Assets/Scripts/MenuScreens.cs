@@ -110,28 +110,28 @@ public class MenuScreens : MonoBehaviour
     {
         CloseAll();
         RefreshShop();
-        _shopPanel.SetActive(true);
+        UiAnim.Show(_shopPanel);
     }
 
     public void OpenJournal()
     {
         CloseAll();
         RefreshJournal();
-        _journalPanel.SetActive(true);
+        UiAnim.Show(_journalPanel);
     }
 
     public void OpenSettings()
     {
         CloseAll();
         RefreshSettings();
-        _settingsPanel.SetActive(true);
+        UiAnim.Show(_settingsPanel);
     }
 
     public void CloseAll()
     {
-        if (_shopPanel     != null) _shopPanel    .SetActive(false);
-        if (_journalPanel  != null) _journalPanel .SetActive(false);
-        if (_settingsPanel != null) _settingsPanel.SetActive(false);
+        UiAnim.Hide(_shopPanel);
+        UiAnim.Hide(_journalPanel);
+        UiAnim.Hide(_settingsPanel);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -322,6 +322,8 @@ public class MenuScreens : MonoBehaviour
             int idx = i;
             buyBtn.onClick.AddListener(() =>
             {
+                Haptics.Light();
+                SoundManager.I?.Play("ui_tap");
                 var c = Game.I?.Core;
                 if (c != null && c.TryBuyUpgrade(idx))
                 {
@@ -466,6 +468,8 @@ public class MenuScreens : MonoBehaviour
 
             _dailyBtn.onClick.AddListener(() =>
             {
+                Haptics.Light();
+                SoundManager.I?.Play("ui_tap");
                 var c = Game.I?.Core;
                 if (c == null) return;
                 int today = (int)(System.DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 86400L);
@@ -745,6 +749,8 @@ public class MenuScreens : MonoBehaviour
             // Normal → show confirm row, hide normal row (single tap can't wipe).
             resetBtn.onClick.AddListener(() =>
             {
+                Haptics.Light();
+                SoundManager.I?.Play("ui_tap");
                 _resetNormalRow .SetActive(false);
                 _resetConfirmRow.SetActive(true);
             });
@@ -752,6 +758,8 @@ public class MenuScreens : MonoBehaviour
             // Confirm → execute reset, save, refresh UI, dismiss confirm.
             confirmBtnBtn.onClick.AddListener(() =>
             {
+                Haptics.Light();
+                SoundManager.I?.Play("ui_tap");
                 Game.I?.Core?.ResetCultivation();
                 Game.I?.SaveProgress();
                 // Refresh any open panels and the main menu realm/best readout.
@@ -766,6 +774,8 @@ public class MenuScreens : MonoBehaviour
             // Cancel → dismiss confirm, no change.
             cancelBtnBtn.onClick.AddListener(() =>
             {
+                Haptics.Light();
+                SoundManager.I?.Play("ui_tap");
                 _resetConfirmRow.SetActive(false);
                 _resetNormalRow .SetActive(true);
             });
@@ -1055,7 +1065,7 @@ public class MenuScreens : MonoBehaviour
             cb.colorMultiplier  = 1f;
             btn.colors = cb;
         }
-        btn.onClick.AddListener(() => MenuScreens.I?.CloseAll());
+        btn.onClick.AddListener(() => { Haptics.Light(); SoundManager.I?.Play("ui_tap"); MenuScreens.I?.CloseAll(); });
 
         var labelGO = new GameObject("Label", typeof(RectTransform));
         labelGO.transform.SetParent(go.transform, false);
