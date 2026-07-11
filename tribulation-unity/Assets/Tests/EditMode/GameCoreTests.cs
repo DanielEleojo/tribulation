@@ -2212,4 +2212,105 @@ namespace Tribulation.Tests.EditMode
             Assert.AreEqual(qiAtDeath, core.Qi, 0.001f, "After death a near miss is a no-op");
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Revive-after-death — rewarded-ad "watch ad to keep going".
+    // GameCore.Revive(): undoes a death without resetting the run — restores
+    // RunProgress to its pre-death value, relieves Net to revive_net_reset,
+    // fires Revived. Leaves StatDeaths untouched (a revived death still counts).
+    // ─────────────────────────────────────────────────────────────────────────
+    [TestFixture]
+    public class ReviveTests
+    {
+        static BalanceData ReviveBalance(float reviveNetReset = 0.35f) => new BalanceData
+        {
+            realm_span        = new[] { 999999, 999999, 999999, 999999, 999999, 999999 },
+            qi_max             = 100f,
+            qi_per_kill        = 10f,
+            net_push_per_kill  = 0f,
+            net_close_rate     = 0f,
+            net_burst_relief   = 0f,
+            revive_net_reset   = reviveNetReset,
+        };
+
+        [Test]
+        public void Revive_WhenNotDead_IsNoOp()
+        {
+            var core = new GameCore(ReviveBalance());
+            core.StartRun();
+            core.OnEnemyKilled(2); // RunProgress = 2, some Qi/Combo state
+
+            int   progressBefore = core.RunProgress;
+            float netBefore      = core.Net;
+            int   deathsBefore   = core.StatDeaths;
+            bool  isDeadBefore   = core.IsDead;
+
+            int revivedCount = 0;
+            core.Revived += () => revivedCount++;
+
+            core.Revive();
+
+            Assert.AreEqual(0, revivedCount, "Revived must not fire when not dead");
+            Assert.AreEqual(isDeadBefore, core.IsDead, "IsDead must be unchanged");
+            Assert.AreEqual(progressBefore, core.RunProgress, "RunProgress must be unchanged");
+            Assert.AreEqual(netBefore, core.Net, 0.001f, "Net must be unchanged");
+            Assert.AreEqual(deathsBefore, core.StatDeaths, "StatDeaths must be unchanged");
+        }
+
+        [Test]
+        public void Revive_AfterDeath_RestoresRunProgressAndSetsReviveNet()
+        {
+            var core = new GameCore(ReviveBalance(0.35f));
+            core.StartRun();
+            core.OnEnemyKilled(3); // RunProgress = 3 (qi_per_kill doesn't affect souls/progress here; combo mult applies)
+            int progressBeforeDeath = core.RunProgress;
+            Assert.Greater(progressBeforeDeath, 0, "Precondition: run has made some progress");
+
+            core.Die();
+            Assert.IsTrue(core.IsDead, "Precondition: core is dead");
+            Assert.AreEqual(0, core.RunProgress, "Precondition: Die() zeroes RunProgress");
+            int deathsAfterDie = core.StatDeaths;
+
+            core.Revive();
+
+            Assert.IsFalse(core.IsDead, "Revive should clear IsDead");
+            Assert.AreEqual(progressBeforeDeath, core.RunProgress,
+                "Revive should restore RunProgress to its value immediately before Die() zeroed it");
+            Assert.AreEqual(0.35f, core.Net, 0.001f, "Revive should set Net to revive_net_reset");
+            Assert.AreEqual(deathsAfterDie, core.StatDeaths,
+                "Revive must not change StatDeaths — a revived death still counts as one death");
+        }
+
+        [Test]
+        public void Revive_FiresRevivedExactlyOnce()
+        {
+            var core = new GameCore(ReviveBalance());
+            core.StartRun();
+            core.OnEnemyKilled(1);
+            core.Die();
+
+            int revivedCount = 0;
+            core.Revived += () => revivedCount++;
+
+            core.Revive();
+
+            Assert.AreEqual(1, revivedCount, "Revived must fire exactly once per successful revive");
+        }
+
+        [Test]
+        public void Revive_FiresNetChangedWithReviveNetValue()
+        {
+            var core = new GameCore(ReviveBalance(0.42f));
+            core.StartRun();
+            core.OnEnemyKilled(1);
+            core.Die();
+
+            float lastNet = -1f;
+            core.NetChanged += n => lastNet = n;
+
+            core.Revive();
+
+            Assert.AreEqual(0.42f, lastNet, 0.001f, "NetChanged should carry the revive_net_reset value");
+        }
+    }
 }

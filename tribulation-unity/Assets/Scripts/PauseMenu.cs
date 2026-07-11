@@ -171,10 +171,7 @@ public class PauseMenu : MonoBehaviour
     // Shared restart sequence (used by Restart() and QuitToMenu()).
     void DoRestartSequence()
     {
-        HudOverlay.I?.HideDeathCard();
-        Game.I?.RestartRun();
-        var pr = FindObjectOfType<PlayerRunner>();
-        if (pr != null) pr.ResetRun();
+        Game.I?.PerformRestart();
     }
 
     // ════════════════════════════════════════════════════════════════════════

@@ -36,9 +36,6 @@ public class GameLoop : MonoBehaviour
     void Restart()
     {
         _dead = false;
-        HudOverlay.I?.HideDeathCard();
-        if (Game.I != null) Game.I.RestartRun(); // reset run-state core, else spawner stays dead
-        _player.ResetRun();
-        _spawner.ClearAll();
+        Game.I?.PerformRestart();
     }
 }

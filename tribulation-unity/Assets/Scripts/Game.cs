@@ -142,6 +142,16 @@ public class Game : MonoBehaviour
     }
     public bool IsPowerupActive(string id)   => Core != null && Core.IsPowerupActive(id);
     public void RestartRun()                 { Core?.RestartRun(); } // re-init run-state after death
+
+    /// <summary>Full restart sequence shared by GameLoop's tap-to-restart and PauseMenu's
+    /// Restart/Quit-to-Menu buttons: hide the death card, reset run-state core, player, and spawner.</summary>
+    public void PerformRestart()
+    {
+        HudOverlay.I?.HideDeathCard();
+        Core?.RestartRun();
+        _player?.ResetRun();
+        _spawner?.ClearAll();
+    }
     /// <summary>Called by MenuScreens after a shop purchase or settings change to persist immediately.</summary>
     public void SaveProgress() => SaveGame();
 

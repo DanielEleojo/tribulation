@@ -23,6 +23,7 @@ namespace Tribulation.Core
     {
         // ── Public events ────────────────────────────────────────────────────
         public event Action                    Died;
+        public event Action                    Revived;       // revive-after-death (rewarded ad) succeeded
         public event Action<float, float>      QiChanged;     // (qi, qi_max)
         public event Action<float>             NetChanged;    // net 0..1
         public event Action<int>               SoulsChanged;  // souls this run
@@ -101,6 +102,10 @@ namespace Tribulation.Core
         // New-best tracking (live, per run)
         int  _bestAtRunStart;
         bool _newBestFired;
+
+        // Snapshot of RunProgress at the moment of death, so Revive() can restore it
+        // (Die() zeroes RunProgress; without this the revived run would lose its progress).
+        int _runProgressAtDeath;
 
         /// <summary>True once this run has surpassed the best that stood when it started.</summary>
         public bool WasNewBestThisRun => _newBestFired;
@@ -585,6 +590,7 @@ namespace Tribulation.Core
             IsDead = true;
             StatDeaths++;
             if (distanceLi > BestLi) BestLi = distanceLi;
+            _runProgressAtDeath = RunProgress;
             RunProgress = 0;
             if (InTribulation)
             {
@@ -594,6 +600,25 @@ namespace Tribulation.Core
             CheckAchievements();
             // ponytail: telemetry, sfx, camera shake — deferred
             Died?.Invoke();
+        }
+
+        /// <summary>
+        /// Revive after death (rewarded-ad "watch ad to keep going"): undoes the death
+        /// without resetting the run. Restores RunProgress to its value immediately before
+        /// Die() zeroed it, and relieves the Heavenly Net to revive_net_reset so the player
+        /// isn't instantly killed again. StatDeaths is deliberately left untouched — a
+        /// revived death still counts as one recorded death. Does not resume InTribulation
+        /// or any other in-progress special encounter; revive drops back to normal running.
+        /// No-op if not currently dead.
+        /// </summary>
+        public void Revive()
+        {
+            if (!IsDead) return;
+            IsDead = false;
+            RunProgress = _runProgressAtDeath;
+            Net = _b.revive_net_reset;
+            NetChanged?.Invoke(Net);
+            Revived?.Invoke();
         }
 
         /// <summary>
