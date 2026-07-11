@@ -168,10 +168,12 @@ public class PauseMenu : MonoBehaviour
         return core.IsStarted && !core.IsDead;
     }
 
-    // Shared restart sequence (used by Restart() and QuitToMenu()).
+    // Shared restart sequence (used by Restart() and QuitToMenu()). An interstitial on
+    // quit-to-menu is acceptable — it's still an end-of-run boundary, not special-cased.
     void DoRestartSequence()
     {
-        Game.I?.PerformRestart();
+        if (AdsManager.I != null) AdsManager.I.RestartWithInterstitial(() => Game.I?.PerformRestart());
+        else Game.I?.PerformRestart();
     }
 
     // ════════════════════════════════════════════════════════════════════════

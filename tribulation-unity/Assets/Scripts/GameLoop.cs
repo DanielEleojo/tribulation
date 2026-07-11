@@ -36,6 +36,7 @@ public class GameLoop : MonoBehaviour
     void Restart()
     {
         _dead = false;
-        Game.I?.PerformRestart();
+        if (AdsManager.I != null) AdsManager.I.RestartWithInterstitial(() => Game.I?.PerformRestart());
+        else Game.I?.PerformRestart();
     }
 }

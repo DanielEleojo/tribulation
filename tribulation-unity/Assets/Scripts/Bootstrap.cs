@@ -35,6 +35,7 @@ public class Bootstrap : MonoBehaviour
         gameObject.AddComponent<CoachMarks>(); // coach-mark tutorial overlay (issue #10, sortingOrder 12)
         gameObject.AddComponent<SoundManager>(); // audio SFX hub (#18)
         gameObject.AddComponent<Music>();        // music shaping (#18)
+        gameObject.AddComponent<AdsManager>();   // LevelPlay init + interstitial/rewarded ad lifecycle
         new GameObject("Ground").AddComponent<Ground>();
         new GameObject("Scenery").AddComponent<Scenery>();
         new GameObject("GateLandmark").AddComponent<GateLandmark>();
