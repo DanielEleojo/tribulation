@@ -87,9 +87,9 @@ public class MainMenu : MonoBehaviour
 
         var scaler = canvasGO.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080f, 1920f);
+        scaler.referenceResolution = new Vector2(810f, 1440f);
         scaler.screenMatchMode     = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight  = 0.5f;
+        scaler.matchWidthOrHeight  = 0f; // match width — portrait-locked game
 
         // GraphicRaycaster needed so Button clicks register
         canvasGO.AddComponent<GraphicRaycaster>();
@@ -120,67 +120,78 @@ public class MainMenu : MonoBehaviour
         // ── Centred card — parchment scroll panel ────────────────────────────
         // RoundedPanel gives the card rounded corners + ink border.
         // Color set to white so the sprite's own parchment tones show through.
+        // 700x1150 offset down 125 so the TOP edge sits where the old 900-tall card's
+        // did, while the extra height extends the parchment toward the bottom of the
+        // screen — the buttons live down there, in one-handed thumb reach.
         var card = MakeImage(_menuRoot, "MenuCard", Color.white,
             new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(700f, 900f),
+            new Vector2(0f, -125f), new Vector2(700f, 1150f),
             new Vector2(0.5f, 0.5f));
-        card.sprite = InkArt.RoundedPanel(700, 900, 20, 3);
+        card.sprite = InkArt.RoundedPanel(700, 1150, 20, 3);
         card.type   = Image.Type.Simple;
         var cardGO = card.gameObject;
 
         // ── Seal accent 渡劫 above wordmark (the wuxia name for "crossing tribulation") ──
+        // Title block fills the card's upper two-thirds (-60..-620) with generous
+        // line spacing — the buttons live in the bottom quarter (thumb reach), and
+        // this rhythm keeps the parchment between them from reading as dead space.
         // Cinnabar seal glyphs; large, centered, above the English wordmark.
-        var sealAccent = MakeText(cardGO, "SealAccent", sealFont, 64, InkArt.Cinnabar,
+        var sealAccent = MakeText(cardGO, "SealAccent", sealFont, 80, InkArt.Cinnabar,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -30f), new Vector2(660f, 80f));
+            new Vector2(0f, -60f), new Vector2(660f, 100f));
         sealAccent.text = "渡劫";
 
         // ── Wordmark "TRIBULATION" — serif bold, Gold, outlined ─────────────
-        var wordmark = MakeText(cardGO, "Wordmark", font, 72, InkArt.Gold,
+        var wordmark = MakeText(cardGO, "Wordmark", font, 88, InkArt.Gold,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -118f), new Vector2(660f, 90f));
+            new Vector2(0f, -185f), new Vector2(680f, 110f));
         wordmark.text      = "TRIBULATION";
         wordmark.fontStyle = FontStyle.Bold;
         InkArt.AddOutline(wordmark, 1f);
 
         // ── Subtitle "The Cultivator's Road" — serif Jade + 道 seal accent ──
-        // Subtitle sits below wordmark; anchor/size/offset kept at original relative positions.
-        var subtitle = MakeText(cardGO, "Subtitle", font, 28, InkArt.Jade,
+        var subtitle = MakeText(cardGO, "Subtitle", font, 44, InkArt.Jade,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(-16f, -220f), new Vector2(580f, 40f));
+            new Vector2(-16f, -340f), new Vector2(640f, 60f));
         subtitle.text = "The Cultivator's Road";
 
         // Small 道 seal accent to the right of subtitle text.
-        var subtitleSeal = MakeText(cardGO, "SubtitleSeal", sealFont, 32, InkArt.Jade,
+        var subtitleSeal = MakeText(cardGO, "SubtitleSeal", sealFont, 40, InkArt.Jade,
             TextAnchor.UpperLeft,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(240f, -218f), new Vector2(40f, 44f));
+            new Vector2(272f, -336f), new Vector2(52f, 56f));
         subtitleSeal.text = "道";
 
         // ── Live data: realm + best ──────────────────────────────────────────
-        _realmLine = MakeText(cardGO, "RealmLine", font, 26, InkArt.Gold,
+        // Hierarchy kept: wordmark 88 > seal 80 > subtitle 44 > realm 36 > best 34.
+        // Realm stays 36: "Foundation Establishment · 1st Layer" (the longest realm
+        // string) must fit ONE line in 680 — at 42 it wraps into the Best line.
+        _realmLine = MakeText(cardGO, "RealmLine", font, 36, InkArt.Gold,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -288f), new Vector2(660f, 36f));
+            new Vector2(0f, -470f), new Vector2(680f, 50f));
 
-        _bestLine = MakeText(cardGO, "BestLine", font, 24, InkArt.TextDim,
+        _bestLine = MakeText(cardGO, "BestLine", font, 34, InkArt.TextDim,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -330f), new Vector2(660f, 36f));
+            new Vector2(0f, -560f), new Vector2(660f, 46f));
 
         // ── Begin Cultivation (primary button) ───────────────────────────────
         // RoundedPanel parchment background with ink border; Ink label reads well on parchment.
+        // HIG sizing: 100 units tall (> 44pt min touch target), 36-unit label (~17pt body).
+        // Spans -730..-830 from card top — below the Best line with breathing room,
+        // in one-handed thumb reach (right about where the runner stands in-game).
         var beginBtn = MakeButton(cardGO, "BeginBtn",
             "Begin Cultivation",
-            font, 34, InkArt.Ink,
+            font, 36, InkArt.Ink,
             Color.white,        // color multiplied by sprite; white = show sprite as-is
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -428f), new Vector2(440f, 64f),
+            new Vector2(0f, -730f), new Vector2(440f, 100f),
             new Vector2(0.5f, 1f),
-            beginSprite: InkArt.RoundedPanel(440, 64, 14, 2));
+            beginSprite: InkArt.RoundedPanel(440, 100, 14, 2));
         beginBtn.onClick.AddListener(() =>
         {
             Game.I?.BeginRun();
@@ -190,19 +201,23 @@ public class MainMenu : MonoBehaviour
         // ── Secondary (ghost) buttons row ───────────────────────────────────
         // ponytail: shop/journal/settings slices TODO
         // These are disabled/dimmed until those screens are built.
-        const float GHOST_Y    = -548f;
-        const float GHOST_W    = 140f;
-        const float GHOST_H    = 56f;
-        const float GHOST_GAP  = 20f;
+        // HIG sizing: 92 units tall (44pt min touch target), 31-unit labels (~15pt).
+        // Row fit in the 700-wide card: 3×200 + 2×25 gaps = 650, leaving a 25-unit
+        // margin each side. Row spans -860..-952; BeginBtn ends at -830 (30-unit gap),
+        // parchment breathing room below before the card bottom at -1150.
+        const float GHOST_Y    = -860f;
+        const float GHOST_W    = 200f;
+        const float GHOST_H    = 92f;
+        const float GHOST_GAP  = 25f;
         float[] offsets = { -(GHOST_W + GHOST_GAP), 0f, GHOST_W + GHOST_GAP };
         string[] labels = { "Cultivation", "Journal", "Settings" };
 
         for (int i = 0; i < 3; i++)
         {
-            var ghostSprite = InkArt.RoundedPanel(140, 56, 10, 2);
+            var ghostSprite = InkArt.RoundedPanel((int)GHOST_W, (int)GHOST_H, 10, 2);
             var ghostBtn = MakeButton(cardGO, labels[i] + "Btn",
                 labels[i],
-                font, 20, InkArt.TextDim,
+                font, 31, InkArt.TextDim,
                 new Color(InkArt.ParchmentDark.r, InkArt.ParchmentDark.g, InkArt.ParchmentDark.b, 0.75f),
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(offsets[i], GHOST_Y), new Vector2(GHOST_W, GHOST_H),
@@ -360,6 +375,10 @@ public class MainMenu : MonoBehaviour
         t.alignment = alignment;
         t.supportRichText = false;
         t.raycastTarget   = false;
+        // All menu texts are single-line in fixed slots; the serif line height can
+        // exceed a tight slot (e.g. wordmark 72pt in 90u) and default Truncate then
+        // drops the whole line — Overflow keeps them rendering.
+        t.verticalOverflow = VerticalWrapMode.Overflow;
         return t;
     }
 

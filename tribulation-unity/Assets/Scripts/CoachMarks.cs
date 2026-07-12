@@ -105,11 +105,14 @@ public class CoachMarks : MonoBehaviour
 
         var scaler = canvasGO.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080f, 1920f);
+        scaler.referenceResolution = new Vector2(720f, 1280f); // matches HudOverlay
         scaler.screenMatchMode     = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight  = 0.5f;
+        scaler.matchWidthOrHeight  = 0f; // match width — portrait-locked game
 
         canvasGO.AddComponent<GraphicRaycaster>();
+
+        // Keep the pill above the home indicator on notched phones.
+        var uiRoot = SafeAreaUI.CreateRoot(canvasGO);
 
         // Pill root: anchored bottom-center, 60px above bottom edge.
         const float PILL_W = 480f;
@@ -117,7 +120,7 @@ public class CoachMarks : MonoBehaviour
         const float BOTTOM_OFFSET = 140f; // clear thumb-zone on phone
 
         _pill = new GameObject("CoachPill", typeof(RectTransform));
-        _pill.transform.SetParent(canvasGO.transform, false);
+        _pill.transform.SetParent(uiRoot.transform, false);
         var pillRt = _pill.GetComponent<RectTransform>();
         pillRt.anchorMin        = new Vector2(0.5f, 0f);
         pillRt.anchorMax        = new Vector2(0.5f, 0f);

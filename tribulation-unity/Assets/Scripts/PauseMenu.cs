@@ -60,15 +60,19 @@ public class PauseMenu : MonoBehaviour
 
         var scaler = canvasGO.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080f, 1920f);
+        scaler.referenceResolution = new Vector2(810f, 1440f);
         scaler.screenMatchMode     = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight  = 0.5f;
+        scaler.matchWidthOrHeight  = 0f; // match width — portrait-locked game
 
         canvasGO.AddComponent<GraphicRaycaster>();
         // NOTE: EventSystem already exists (created by MainMenu) — no second one added.
 
         // ── Build the two pieces ─────────────────────────────────────────────
-        _triggerBtn = BuildTriggerButton(canvasGO, font);
+        // Trigger button lives in the safe area (clears the notch / Dynamic
+        // Island); the pause panel is a full-screen veil + centred card, so it
+        // stays on the canvas itself.
+        var uiRoot = SafeAreaUI.CreateRoot(canvasGO);
+        _triggerBtn = BuildTriggerButton(uiRoot, font);
         _pausePanel = BuildPausePanel(canvasGO, font);
 
         // Initial state — trigger hidden, panel hidden.
@@ -140,7 +144,7 @@ public class PauseMenu : MonoBehaviour
         DoRestartSequence();
     }
 
-    /// <summary>Quit to the main menu. Resets the run state behind the menu.</summary>
+    /// <summary>Quit to the main menu. Ends the run so nothing simulates behind the menu.</summary>
     public void QuitToMenu()
     {
         _paused = false;
@@ -148,8 +152,10 @@ public class PauseMenu : MonoBehaviour
 
         UiAnim.Hide(_pausePanel);
 
-        // Reset run state so nothing odd keeps running behind the menu.
-        DoRestartSequence();
+        // End the run (idle core/player/spawner) — DoRestartSequence would START a
+        // fresh live run and leave it playing behind the menu.
+        HudOverlay.I?.HideDeathCard();
+        Game.I?.EndRunToMenu();
 
         // Show the main menu on top.
         if (MainMenu.I != null)
@@ -183,21 +189,21 @@ public class PauseMenu : MonoBehaviour
     // ── Trigger button ───────────────────────────────────────────────────────
     // Small "II" (two pipes, ascii) anchored to the top-right corner.
     // Visible only while a run is active and not paused.
-    GameObject BuildTriggerButton(GameObject canvasGO, Font font)
+    // 96x96 units (> HIG 44pt = 92-unit minimum touch target).
+    GameObject BuildTriggerButton(GameObject uiRoot, Font font)
     {
         var go = new GameObject("PauseTrigger", typeof(RectTransform));
-        go.transform.SetParent(canvasGO.transform, false);
+        go.transform.SetParent(uiRoot.transform, false);
 
         var rt = go.GetComponent<RectTransform>();
         rt.anchorMin        = new Vector2(1f, 1f);
         rt.anchorMax        = new Vector2(1f, 1f);
         rt.pivot            = new Vector2(1f, 1f);
-        var tCanvas = canvasGO.GetComponent<Canvas>();
-        rt.anchoredPosition = new Vector2(-28f, -60f - SafeArea.TopInset(tCanvas)); // top-right, pushed below notch/Island
-        rt.sizeDelta        = new Vector2(88f, 72f);
+        rt.anchoredPosition = new Vector2(-28f, -24f); // safe-area root already clears the notch
+        rt.sizeDelta        = new Vector2(96f, 96f);
 
         var img = go.AddComponent<Image>();
-        img.sprite        = InkArt.RoundedPanel(88, 72, 10, 2);
+        img.sprite        = InkArt.RoundedPanel(96, 96, 12, 2);
         img.type          = Image.Type.Simple;
         img.color         = new Color(C_PARCHMENT.r, C_PARCHMENT.g, C_PARCHMENT.b, 0.88f);
         img.raycastTarget = true;
@@ -227,7 +233,7 @@ public class PauseMenu : MonoBehaviour
 
         var lbl = labelGO.AddComponent<Text>();
         lbl.font            = font;
-        lbl.fontSize        = 32;
+        lbl.fontSize        = 40; // scaled up with the 96x96 button so the glyph stays balanced
         lbl.color           = C_INK;
         lbl.alignment       = TextAnchor.MiddleCenter;
         lbl.fontStyle       = FontStyle.Bold;
@@ -239,7 +245,7 @@ public class PauseMenu : MonoBehaviour
     }
 
     // ── Pause panel ──────────────────────────────────────────────────────────
-    // Full-screen dim backdrop + centred 560x620 parchment card.
+    // Full-screen dim backdrop + centred 560x680 parchment card.
     // Content: [spacer(first-child, invisible)], "Paused" title, flexible spacer,
     //          Resume, Restart, Quit to Menu buttons, bottom padding spacer.
     GameObject BuildPausePanel(GameObject canvasGO, Font font)
@@ -258,8 +264,10 @@ public class PauseMenu : MonoBehaviour
         backdropImg.raycastTarget = true;
 
         // ── Centred parchment card ───────────────────────────────────────────
+        // Fixed content: 72 padding + 8 spacer + 72 title + 3×92 buttons
+        // + 6×25 VLG gaps = 578; 680 leaves 102 units for the two flex spacers.
         const int CARD_W = 560;
-        const int CARD_H = 620;
+        const int CARD_H = 680;
 
         var cardGO = new GameObject("Card", typeof(RectTransform));
         cardGO.transform.SetParent(panel.transform, false);
@@ -287,7 +295,7 @@ public class PauseMenu : MonoBehaviour
 
         var vlg = content.AddComponent<VerticalLayoutGroup>();
         vlg.padding               = new RectOffset(36, 36, 36, 36);
-        vlg.spacing               = 16f;
+        vlg.spacing               = 25f; // HIG: ≥12pt (25 units) between stacked buttons
         vlg.childAlignment        = TextAnchor.UpperCenter;
         vlg.childControlWidth     = true;
         vlg.childControlHeight    = true;
@@ -325,6 +333,10 @@ public class PauseMenu : MonoBehaviour
             t.fontStyle       = FontStyle.Bold;
             t.supportRichText = false;
             t.raycastTarget   = false;
+            // The serif line height at 56pt exceeds the 72-unit slot; the default
+            // Truncate drops the whole line (this — not a VLG first-child quirk —
+            // is why the title used to vanish). Overflow keeps it rendering.
+            t.verticalOverflow = VerticalWrapMode.Overflow;
             t.text = "Paused";
             InkArt.AddOutline(t, 1f);
         }
@@ -354,7 +366,8 @@ public class PauseMenu : MonoBehaviour
         le.minHeight      = 0f;
     }
 
-    // Full-width button in the VLG, 68px tall, parchment card, coloured label.
+    // Full-width button in the VLG, 92 units tall (HIG 44pt minimum touch
+    // target), parchment card, coloured label.
     static void AddPauseButton(GameObject container, Font font,
         string label, Color labelColor, UnityEngine.Events.UnityAction onClick)
     {
@@ -362,11 +375,11 @@ public class PauseMenu : MonoBehaviour
         go.transform.SetParent(container.transform, false);
 
         var le = go.AddComponent<LayoutElement>();
-        le.preferredHeight = 68f;
-        le.minHeight       = 68f;
+        le.preferredHeight = 92f;
+        le.minHeight       = 92f;
 
         var img = go.AddComponent<Image>();
-        img.sprite        = InkArt.RoundedPanel(488, 68, 12, 2);
+        img.sprite        = InkArt.RoundedPanel(488, 92, 12, 2);
         img.type          = Image.Type.Simple;
         img.color         = Color.white;
         img.raycastTarget = true;
@@ -396,7 +409,7 @@ public class PauseMenu : MonoBehaviour
 
         var lbl = labelGO.AddComponent<Text>();
         lbl.font            = font;
-        lbl.fontSize        = 30;
+        lbl.fontSize        = 34; // ≥31 units (~15pt HIG compact minimum)
         lbl.color           = labelColor;
         lbl.alignment       = TextAnchor.MiddleCenter;
         lbl.fontStyle       = FontStyle.Bold;

@@ -37,9 +37,13 @@ public class Atmosphere : MonoBehaviour
         sh.scale = new Vector3(20f, 11f, 18f);
         sh.randomDirectionAmount = 1f; // drift every which way, gently
 
+        // All three axes must share one curve mode or Unity rejects the module
+        // ("Particle Velocity curves must all be in the same mode" every frame).
         var vol = ps.velocityOverLifetime;
         vol.enabled = true;
+        vol.x = new ParticleSystem.MinMaxCurve(0f);
         vol.y = new ParticleSystem.MinMaxCurve(0.08f); // faint upward rise
+        vol.z = new ParticleSystem.MinMaxCurve(0f);
 
         // Twinkle: fade in then out so motes don't pop.
         var col = ps.colorOverLifetime; col.enabled = true;
@@ -67,7 +71,10 @@ public class Atmosphere : MonoBehaviour
         main.startLifetime = 9f;
         main.startSpeed = 0.25f;
         main.startSize = new ParticleSystem.MinMaxCurve(5f, 9f);
-        main.startColor = new Color(0.45f, 0.5f, 0.65f, 0.06f); // cool, very faint — hazes, doesn't bubble
+        // 0.30 alpha: the old 0.06 was authored against a broken runtime blend state
+        // that rendered far brighter than specified in the editor; with the correct
+        // serialized material it was near-invisible on every platform.
+        main.startColor = new Color(0.55f, 0.6f, 0.75f, 0.30f);
         main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
         main.maxParticles = 30;
         main.gravityModifier = 0f;
@@ -77,8 +84,12 @@ public class Atmosphere : MonoBehaviour
         sh.shapeType = ParticleSystemShapeType.Box;
         sh.scale = new Vector3(22f, 1f, 20f);
 
+        // All three axes in TwoConstants mode — mixing modes makes Unity reject the
+        // whole module (the per-frame warning spam in device logs) and the drift dies.
         var vol = ps.velocityOverLifetime; vol.enabled = true;
         vol.x = new ParticleSystem.MinMaxCurve(-0.3f, 0.3f);
+        vol.y = new ParticleSystem.MinMaxCurve(0f, 0f);
+        vol.z = new ParticleSystem.MinMaxCurve(0f, 0f);
 
         var rot = ps.rotationOverLifetime; rot.enabled = true;
         rot.z = new ParticleSystem.MinMaxCurve(-0.15f, 0.15f); // slow churn
@@ -92,6 +103,26 @@ public class Atmosphere : MonoBehaviour
 
         Apply(ps, ParticleMat(glow, additive: false), 100);
         ps.Play();
+        _fog = ps;
+    }
+
+    // One-time device diagnostic (Xcode console): proves whether the fog system is
+    // alive and what material state it renders with — the wisps have already been
+    // invisible-on-device twice for different reasons.
+    ParticleSystem _fog;
+    bool _loggedFog;
+
+    void Update()
+    {
+        if (_loggedFog || _fog == null || Time.timeSinceLevelLoad < 5f) return;
+        _loggedFog = true;
+        var r = _fog.GetComponent<ParticleSystemRenderer>();
+        Debug.Log("[Atmosphere] fog: alive=" + _fog.particleCount
+            + " playing=" + _fog.isPlaying
+            + " shader=" + (r != null && r.sharedMaterial != null && r.sharedMaterial.shader != null ? r.sharedMaterial.shader.name : "NULL")
+            + " srcBlend=" + (r != null && r.sharedMaterial != null ? r.sharedMaterial.GetInt("_SrcBlend") : -1)
+            + " dstBlend=" + (r != null && r.sharedMaterial != null ? r.sharedMaterial.GetInt("_DstBlend") : -1)
+            + " tex=" + (r != null && r.sharedMaterial != null && r.sharedMaterial.mainTexture != null ? r.sharedMaterial.mainTexture.name + "/" + r.sharedMaterial.mainTexture.width : "NULL"));
     }
 
     static void Apply(ParticleSystem ps, Material mat, int sortOffset)
@@ -104,16 +135,31 @@ public class Atmosphere : MonoBehaviour
         r.receiveShadows = false;
     }
 
-    // Unlit transparent particle material; explicit blend so it's reliable in URP.
+    // Unlit transparent particle material. Cloned from the serialized keeper material
+    // (Resources/ShaderKeep) — its URP transparent setup (keywords + blend state) is
+    // baked at import, so device builds render it exactly like the editor. Building
+    // the URP particle material entirely at runtime proved flaky on iOS (fog wisps
+    // rendered in the editor but not on device).
     static Material ParticleMat(Texture2D tex, bool additive)
     {
-        var sh = Shader.Find("Universal Render Pipeline/Particles/Unlit") ?? Shader.Find("Sprites/Default");
-        var m = new Material(sh);
+        var baseMat = Resources.Load<Material>("ShaderKeep/ParticlesUnlit_Transparent");
+        Material m;
+        if (baseMat != null)
+        {
+            m = new Material(baseMat);
+        }
+        else
+        {
+            // Fallback: legacy runtime construction (editor-only safety net).
+            var sh = Shader.Find("Universal Render Pipeline/Particles/Unlit") ?? Shader.Find("Sprites/Default");
+            m = new Material(sh);
+            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            m.SetFloat("_Surface", 1f);
+            m.SetFloat("_ZWrite", 0f);
+            m.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+        }
         m.SetTexture("_BaseMap", tex);
         m.mainTexture = tex;
-        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        m.SetFloat("_Surface", 1f);
-        m.SetFloat("_ZWrite", 0f);
         m.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
         m.SetInt("_DstBlend", additive ? (int)BlendMode.One : (int)BlendMode.OneMinusSrcAlpha);
         m.renderQueue = (int)RenderQueue.Transparent;

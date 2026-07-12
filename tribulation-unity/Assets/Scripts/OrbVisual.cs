@@ -89,13 +89,24 @@ public class OrbVisual : MonoBehaviour
         sr.color  = new Color(QI_COLOR.r, QI_COLOR.g, QI_COLOR.b, HALO_BASE_ALPHA);
 
         // Additive blending — glows through fog like a real light source.
-        var mat = new Material(Shader.Find("Sprites/Default"));
-        // Sprites/Default uses SrcAlpha OneMinusSrcAlpha by default.
-        // Switch blend to Additive so the halo adds to whatever's behind it.
-        mat.SetInt("_SrcBlend",  (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        mat.SetInt("_DstBlend",  (int)UnityEngine.Rendering.BlendMode.One);
-        mat.SetInt("_ZWrite",    0);
-        sr.material = mat;
+        // Shader.Find can return null in a player build if the shader was stripped;
+        // the halo is decoration and must never take the orb down with it (an
+        // exception here would abort the spawn loop before SetActive).
+        var haloShader = Shader.Find("Sprites/Default");
+        if (haloShader != null)
+        {
+            var mat = new Material(haloShader);
+            // Sprites/Default uses SrcAlpha OneMinusSrcAlpha by default.
+            // Switch blend to Additive so the halo adds to whatever's behind it.
+            mat.SetInt("_SrcBlend",  (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend",  (int)UnityEngine.Rendering.BlendMode.One);
+            mat.SetInt("_ZWrite",    0);
+            sr.material = mat;
+        }
+        else
+        {
+            Debug.LogWarning("[OrbVisual] Sprites/Default missing from build — halo uses default sprite material.");
+        }
 
         // Billboard: face the camera. We do this in LateUpdate via a simple
         // LookAt so it works on any camera (game cam, editor cam).

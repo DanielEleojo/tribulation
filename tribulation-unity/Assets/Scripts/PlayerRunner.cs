@@ -263,11 +263,13 @@ public class PlayerRunner : MonoBehaviour
 
     float EndlessCreep() => Mathf.Clamp((_runTime - _rampTime) * _creep, 0f, _creepCap);
 
-    public void MoveLeft() { if (!_dead) _lane = Mathf.Max(0, _lane - 1); }
-    public void MoveRight() { if (!_dead) _lane = Mathf.Min(LANE_COUNT - 1, _lane + 1); }
+    // All four gate on _running as well as _dead: SwipeDetector events fire even on
+    // the title screen, where they must not move the idle runner or play run SFX.
+    public void MoveLeft() { if (!_dead && _running) _lane = Mathf.Max(0, _lane - 1); }
+    public void MoveRight() { if (!_dead && _running) _lane = Mathf.Min(LANE_COUNT - 1, _lane + 1); }
     public void TryJump()
     {
-        if (!_dead)
+        if (!_dead && _running)
         {
             _jumpBuf = JUMP_BUFFER;
             if (SoundManager.I != null) SoundManager.I.Play("jump");
@@ -277,7 +279,7 @@ public class PlayerRunner : MonoBehaviour
 
     public void StartSlide()
     {
-        if (_dead) return;
+        if (_dead || !_running) return;
         if (_cc.isGrounded)
         {
             if (_sliding) return;
@@ -466,6 +468,14 @@ public class PlayerRunner : MonoBehaviour
         _cc.enabled = true;
         _startZ = transform.position.z;
         SetHeight(STAND_HEIGHT);
+    }
+
+    // Called by Game when quitting to the main menu: same revive/recenter as ResetRun,
+    // but leaves the runner idle — BeginRunning() (the next "Begin Cultivation") starts motion.
+    public void StopForMenu()
+    {
+        ResetRun();
+        _running = false;
     }
 
     public float GetSpeedFraction() => Mathf.Clamp01(_runTime / _rampTime);

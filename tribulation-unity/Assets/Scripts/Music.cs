@@ -27,6 +27,10 @@ public class Music : MonoBehaviour
     {
         if (_src == null) return;
 
+        // Self-heal: the loop only stops if the audio engine was reinitialized
+        // (AudioSettings.Reset after an iOS interruption) — start it again.
+        if (!_src.isPlaying) _src.Play();
+
         var core = (Game.I != null) ? Game.I.Core : null;
         float speedFrac = 0f;
         var player = FindObjectOfType<PlayerRunner>();

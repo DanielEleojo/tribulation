@@ -172,6 +172,19 @@ public class Game : MonoBehaviour
     /// <summary>Called by MenuScreens after a shop purchase or settings change to persist immediately.</summary>
     public void SaveProgress() => SaveGame();
 
+    /// <summary>
+    /// Called by PauseMenu "Quit to Menu" (and cultivation reset): ends the run and idles
+    /// the core, player, and spawner so nothing simulates behind the main menu. The next
+    /// BeginRun() starts fresh.
+    /// </summary>
+    public void EndRunToMenu()
+    {
+        Core?.EndRun();
+        _player?.StopForMenu();
+        _spawner?.ClearAll();
+        SaveGame();
+    }
+
     /// <summary>Called by MainMenu "Begin Cultivation" button. Starts the first run.</summary>
     public void BeginRun()
     {
