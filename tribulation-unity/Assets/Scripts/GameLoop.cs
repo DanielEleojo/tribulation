@@ -26,6 +26,11 @@ public class GameLoop : MonoBehaviour
         Debug.Log($"DIED — distance {_player.GetDistance()}m. Tap / Space to restart.");
     }
 
+    /// <summary>Called by Game.PerformRevive() after a successful ad-revive. Clears the
+    /// tap-to-restart gate — without this a stray tap right after reviving would restart
+    /// the freshly-revived run instead of doing nothing.</summary>
+    public void OnPlayerRevived() { _dead = false; }
+
     void OnTap() { if (_dead) Restart(); }
 
     void Update()
@@ -36,9 +41,7 @@ public class GameLoop : MonoBehaviour
     void Restart()
     {
         _dead = false;
-        HudOverlay.I?.HideDeathCard();
-        if (Game.I != null) Game.I.RestartRun(); // reset run-state core, else spawner stays dead
-        _player.ResetRun();
-        _spawner.ClearAll();
+        if (AdsManager.I != null) AdsManager.I.RestartWithInterstitial(() => Game.I?.PerformRestart());
+        else Game.I?.PerformRestart();
     }
 }

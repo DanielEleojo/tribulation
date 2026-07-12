@@ -49,8 +49,11 @@ public class Game : MonoBehaviour
             var cam = FindObjectOfType<CameraFollow>();
             if (cam != null) { cam.AddFovKick(8f); cam.AddTrauma(0.5f); }
             _player?.FeelPop(0.40f);
+            Haptics.Heavy();
         };
-        Core.Breakthrough     += () => { if (SoundManager.I != null) SoundManager.I.Play("breakthrough"); };
+        Core.TribulationStarted += () => Haptics.Heavy();
+        Core.NewBest          += OnNewBest;
+        Core.Breakthrough     += () => { if (SoundManager.I != null) SoundManager.I.Play("breakthrough"); Haptics.Success(); };
         Core.TrialFulfilled   += r => { if (SoundManager.I != null) SoundManager.I.Play("breakthrough"); };
         // ponytail: trial banner + HUD trial list — Batch 2 (HudOverlay)
         // ponytail: QiChanged / NetChanged / SoulsChanged / ComboChanged → HUD deferred (later issue)
@@ -62,6 +65,8 @@ public class Game : MonoBehaviour
         // Load saved state; run begins when the player taps "Begin Cultivation" (MainMenu).
         LoadSave();
 
+        Haptics.Prepare(); // warm the Taptic Engine once at startup
+
         // ponytail: apply audio settings to buses — deferred
     }
 
@@ -69,7 +74,11 @@ public class Game : MonoBehaviour
     {
         if (Core == null) return;
         Core.Tick(Time.deltaTime);
-        if (_player != null) Core.TrialMax("li", _player.GetDistance());
+        if (_player != null)
+        {
+            Core.TrialMax("li", _player.GetDistance());
+            Core.ReportDistance(_player.GetDistance()); // live BestLi + NewBest fire
+        }
 
         // ponytail: tier-up logic, powerup ticks, autosave timer — deferred
     }
@@ -85,10 +94,33 @@ public class Game : MonoBehaviour
         // The Net closing over you IS death now — give it the death sfx/shake here, since
         // it no longer routes through PlayerRunner.Die (contact is non-lethal).
         if (SoundManager.I != null) SoundManager.I.Play("death");
+        Haptics.Error();
         var cam = FindObjectOfType<CameraFollow>(); if (cam != null) cam.AddTrauma(0.8f);
         Debug.Log($"[Game] Died. Realm={Core.Realm}  Total={Core.TotalStones}  Best={Core.BestLi}");
         // Notify GameLoop so tap-to-restart still works (single death route through Game).
         if (GameLoop.I != null) GameLoop.I.OnPlayerDied();
+    }
+
+    // Fired by Core.ReportDistance the frame this run passes the old record —
+    // celebrate the moment it happens, not on the death screen.
+    void OnNewBest()
+    {
+        HudOverlay.I?.ShowNewBest();
+        var cam = FindObjectOfType<CameraFollow>();
+        if (cam != null) { cam.AddFovKick(5f); cam.AddTrauma(0.2f); }
+        Haptics.Success();
+        if (SoundManager.I != null) SoundManager.I.Play("new_best"); // clip registered in a later workstream; Play null-guards missing
+    }
+
+    // Called by Spawner's near-miss scan: an Enemy hazard slipped past by a whisker.
+    public void OnNearMiss()
+    {
+        Core?.OnNearMiss();
+        HudOverlay.I?.ShowNearMiss();
+        Haptics.Light();
+        if (SoundManager.I != null) SoundManager.I.Play("near_miss"); // registered later; Play null-guards
+        var cam = FindObjectOfType<CameraFollow>();
+        if (cam != null) cam.AddFovKick(2f);
     }
 
     // ── Public API (called by Hazard, Spawner, Gate, etc.) ──────────────────
@@ -99,6 +131,7 @@ public class Game : MonoBehaviour
     {
         Core?.OnOrbCollected();
         if (SoundManager.I != null) SoundManager.I.Play("orb");
+        Haptics.Light();
         _player?.FeelPop(0.16f); // feel: light scale-pop on pickup
         HudOverlay.I?.PunchStones(); // feel: punch-scale stones counter on every collect
     }
@@ -109,6 +142,33 @@ public class Game : MonoBehaviour
     }
     public bool IsPowerupActive(string id)   => Core != null && Core.IsPowerupActive(id);
     public void RestartRun()                 { Core?.RestartRun(); } // re-init run-state after death
+
+    /// <summary>Full restart sequence shared by GameLoop's tap-to-restart and PauseMenu's
+    /// Restart/Quit-to-Menu buttons: hide the death card, reset run-state core, player, and spawner.</summary>
+    public void PerformRestart()
+    {
+        HudOverlay.I?.HideDeathCard();
+        Core?.RestartRun();
+        _player?.ResetRun();
+        _spawner?.ClearAll();
+    }
+    /// <summary>Full revive sequence for HudOverlay's death-card "RISE AGAIN" button, called
+    /// only after the rewarded ad actually paid out: undoes death without resetting the run
+    /// (RunProgress restored, Net relieved — see GameCore.Revive), clears the field of live
+    /// hazards so revive doesn't drop you back into whatever killed you, and tells GameLoop
+    /// the death is over so a stray tap-to-restart can't fire on the freshly-revived run.</summary>
+    public void PerformRevive()
+    {
+        if (Core == null || !Core.IsDead) return;
+        Core.Revive();
+        _player?.ReviveInPlace();
+        _spawner?.ClearAll();
+        HudOverlay.I?.HideDeathCard();
+        GameLoop.I?.OnPlayerRevived();
+        Haptics.Success();
+        SoundManager.I?.Play("breakthrough"); // no dedicated revive sfx yet
+    }
+
     /// <summary>Called by MenuScreens after a shop purchase or settings change to persist immediately.</summary>
     public void SaveProgress() => SaveGame();
 
@@ -139,6 +199,7 @@ public class Game : MonoBehaviour
     {
         Core?.OnGate(safe);
         if (SoundManager.I != null) SoundManager.I.Play(safe ? "gate_good" : "gate_bad");
+        if (safe) Haptics.Light(); else Haptics.Warning();
     }
 
     // ── Save / Load via JsonUtility + persistentDataPath ─────────────────────

@@ -24,8 +24,17 @@ templates, and Xcode only run there.
   launch storyboard on, tracking disabled, and an `exclude_filter` that strips
   ~43 MB of dead weight (disabled `Models/`, the unused net image, docs, tools)
   from the build.
-- **No data collection / no ads / no tracking** — the only persistence is a local
-  save file (`user://tribulation.cfg`). This makes the privacy labels trivial.
+- **Ads now included (Unity LevelPlay/ironSource), configured non-personalized** —
+  an interstitial shows roughly every 3rd death/restart, plus a rewarded "watch ad
+  to revive" option on the death card. No IAP. No ATT prompt and no IDFA use:
+  `LevelPlayPrivacySettings.SetGDPRConsent(false)` + `SetCCPA(true)` are set before
+  SDK init, so ads are non-personalized only — that's the actual reason tracking
+  stays off, not the absence of ads. The only other persistence is a local save
+  file (`user://tribulation.cfg`).
+  **TODO:** re-verify the App Store Connect Data Collection questionnaire (see §7)
+  — Apple's privacy-label rules require disclosing data an ad SDK collects (e.g.
+  "Advertising Data") even when ads are non-personalized; don't assume the old
+  "No" answer still holds without checking LevelPlay's documented data collection.
 
 > Signing fields in the preset are intentionally **blank** — fill them on the Mac.
 
@@ -128,8 +137,13 @@ Fill in the app record before submitting for review:
 - **Description, keywords, promo text, support URL, marketing URL.**
 - **Age rating:** answer the questionnaire (likely 9+ for mild fantasy violence —
   glowing sword combat, no blood/gore).
-- **Privacy → Data Collection: "No, we do not collect data"** (true: local save only,
-  no analytics/ads/accounts). No tracking → no ATT prompt needed.
+- **Privacy → Data Collection:** ads (Unity LevelPlay/ironSource) are configured
+  non-personalized — no IDFA use (`SetGDPRConsent(false)` + `SetCCPA(true)` set
+  before init), which is why no ATT prompt is needed, independent of ads existing.
+  **TODO: verify the Data Collection answer directly in App Store Connect** — Apple
+  requires disclosing data an SDK collects (e.g. "Advertising Data" /
+  "Identifiers") even for non-personalized ads, so don't assume "No, we do not
+  collect data" still applies without checking LevelPlay's privacy documentation.
 - **Pricing:** Free (or set a tier).
 - **Export Compliance:** uses no non-exempt encryption → answer "No".
 - Select the uploaded build, then **Submit for Review**.

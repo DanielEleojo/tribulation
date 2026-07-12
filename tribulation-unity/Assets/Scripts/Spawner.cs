@@ -46,6 +46,15 @@ public class Spawner : MonoBehaviour
     // Enemy: tall (2.6), covers full height — can't jump or slide over, must lane-dodge.
     static readonly Vector3 ENEMY_SIZE = new Vector3(0.95f, 2.6f, 0.95f);
 
+    // Near-miss reward (positive-milestone juice): the lateral collision envelope is the
+    // enemy's real half-width (ENEMY_SIZE.x/2 = 0.475) + the player's CharacterController
+    // radius (0.4, set in Bootstrap) = 0.875. A pass with gap in (0.875 .. 0.875+band]
+    // is "cleared it, but barely" — band 1.0 lets a one-lane-late dodge (gap up to ~1.9,
+    // still mid-ease toward the next lane at LANE_WIDTH 2.5) count.
+    const float PLAYER_RADIUS       = 0.4f; // mirrors Bootstrap's cc.radius
+    static readonly float NEAR_MISS_HALF_SUM = ENEMY_SIZE.x * 0.5f + PLAYER_RADIUS; // 0.875
+    const float NEAR_MISS_BAND      = 1.0f;
+
     // Orb (Qi pickup): small sphere floating at chest height.
     const float ORB_RADIUS = 0.4f;
     const float ORB_Y      = 1.2f;  // center height
@@ -174,6 +183,7 @@ public class Spawner : MonoBehaviour
         }
 
         MagnetPull();
+        NearMissScan(); // before Cull so a just-passed hazard is still in _live
         CullOrbs();
         CullPills();
         CullGates();
@@ -362,6 +372,46 @@ public class Spawner : MonoBehaviour
     void Track(GameObject go, HazardKind kind)
     {
         _live.Add((go, kind));
+    }
+
+    // ── Near-miss scan ──────────────────────────────────────────────────────
+    // A lane Enemy that passes the player untouched by a whisker is a skillful dodge —
+    // reward it (Game.OnNearMiss) exactly once. Scoped to HazardKind.Enemy only:
+    // full-width bars/blocks are vertical-timing dodges (out of scope), and lightning/
+    // aerial hazards are tracked as Block so the kind filter excludes them for free.
+    // Allocation-free: index loop over _live, tuple deconstruction is a struct copy,
+    // GetComponent allocates nothing (a passed enemy costs one GetComponent+flag-read
+    // per frame until culled). NearChecked latches on the first evaluation after the
+    // pass, hit or miss, so the reward fires at most once per hazard life.
+    void NearMissScan()
+    {
+        float playerZ = _player.position.z;
+        float playerX = _player.position.x;
+        for (int i = 0; i < _live.Count; i++)
+        {
+            var (go, kind) = _live[i];
+            if (kind != HazardKind.Enemy) continue;
+            if (go == null || !go.activeSelf) continue;
+            if (go.transform.position.z <= playerZ) continue; // still ahead — hasn't passed yet
+
+            var hz = go.GetComponent<Hazard>();
+            if (hz == null || hz.NearChecked) continue;
+            hz.NearChecked = true; // verdict is final: at most one evaluation per life
+
+            // A slashed / spent enemy isn't a dodge (EnemyBehavior.Kill disables Foe).
+            var foe = go.GetComponent<Foe>();
+            if (foe == null || !foe.enabled) continue;
+
+            // No reward while invulnerable: reeling from a hit, or dashing through.
+            if (_playerRunner != null && _playerRunner.InIFrames) continue;
+            if (Game.I != null && Game.I.IsPowerupActive("dash")) continue;
+
+            float gap = Mathf.Abs(go.transform.position.x - playerX);
+            if (NearMiss.IsNearMiss(gap, NEAR_MISS_HALF_SUM, NEAR_MISS_BAND))
+            {
+                if (Game.I != null) Game.I.OnNearMiss();
+            }
+        }
     }
 
     // ── Cull ────────────────────────────────────────────────────────────────
@@ -1033,6 +1083,7 @@ public class Spawner : MonoBehaviour
         _liveGates.Clear();
 
         TelegraphSystem.I?.ClearAll();
+        Feel.ClearActive();
 
         _elapsed   = 0f;
         _timer     = Balance.D.spawn_start_interval;

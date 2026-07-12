@@ -118,7 +118,7 @@ public class PauseMenu : MonoBehaviour
         Time.timeScale = 0f;
 
         if (_triggerBtn != null) _triggerBtn.SetActive(false);
-        if (_pausePanel  != null) _pausePanel .SetActive(true);
+        UiAnim.Show(_pausePanel);
     }
 
     /// <summary>Resume the run after pause.</summary>
@@ -129,7 +129,7 @@ public class PauseMenu : MonoBehaviour
         _paused = false;
         Time.timeScale = 1f;
 
-        if (_pausePanel != null) _pausePanel.SetActive(false);
+        UiAnim.Hide(_pausePanel);
         // Trigger button visibility is handled each frame in Update().
     }
 
@@ -139,7 +139,7 @@ public class PauseMenu : MonoBehaviour
         _paused = false;
         Time.timeScale = 1f;
 
-        if (_pausePanel != null) _pausePanel.SetActive(false);
+        UiAnim.Hide(_pausePanel);
 
         DoRestartSequence();
     }
@@ -150,7 +150,7 @@ public class PauseMenu : MonoBehaviour
         _paused = false;
         Time.timeScale = 1f;
 
-        if (_pausePanel != null) _pausePanel.SetActive(false);
+        UiAnim.Hide(_pausePanel);
 
         // End the run (idle core/player/spawner) — DoRestartSequence would START a
         // fresh live run and leave it playing behind the menu.
@@ -174,13 +174,12 @@ public class PauseMenu : MonoBehaviour
         return core.IsStarted && !core.IsDead;
     }
 
-    // Shared restart sequence (used by Restart() and QuitToMenu()).
+    // Shared restart sequence (used by Restart() and QuitToMenu()). An interstitial on
+    // quit-to-menu is acceptable — it's still an end-of-run boundary, not special-cased.
     void DoRestartSequence()
     {
-        HudOverlay.I?.HideDeathCard();
-        Game.I?.RestartRun();
-        var pr = FindObjectOfType<PlayerRunner>();
-        if (pr != null) pr.ResetRun();
+        if (AdsManager.I != null) AdsManager.I.RestartWithInterstitial(() => Game.I?.PerformRestart());
+        else Game.I?.PerformRestart();
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -221,7 +220,7 @@ public class PauseMenu : MonoBehaviour
             cb.colorMultiplier  = 1f;
             btn.colors = cb;
         }
-        btn.onClick.AddListener(() => Pause());
+        btn.onClick.AddListener(() => { Haptics.Light(); SoundManager.I?.Play("ui_tap"); Pause(); });
 
         // Label — "II" (two ascii pipe characters) reads as a pause icon.
         var labelGO = new GameObject("Label", typeof(RectTransform));
@@ -397,6 +396,7 @@ public class PauseMenu : MonoBehaviour
             cb.colorMultiplier  = 1f;
             btn.colors = cb;
         }
+        btn.onClick.AddListener(() => { Haptics.Light(); SoundManager.I?.Play("ui_tap"); }); // every pause-menu button ticks
         btn.onClick.AddListener(onClick);
 
         var labelGO = new GameObject("Label", typeof(RectTransform));

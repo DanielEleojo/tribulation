@@ -33,6 +33,7 @@ namespace Tribulation.Core
         // than a dumb obstacle. Placeholders — tune in playtest.
         public float  net_hit_enemy     = 0.25f;
         public float  net_hit_obstacle  = 0.12f;
+        public float  revive_net_reset  = 0.35f;
 
         public int    daily_base  = 80;
         public int    ach_reward  = 150;
