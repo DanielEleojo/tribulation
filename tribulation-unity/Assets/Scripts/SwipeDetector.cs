@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 // Port of swipe_detector.gd. Touch gestures -> high-level events.
 // Dominant axis decides the gesture; negligible travel = tap.
@@ -36,10 +37,15 @@ public class SwipeDetector : MonoBehaviour
         else if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)
         {
             // A tap = short travel + release with no directional swipe fired.
+            // UI guard on Tapped ONLY — a tap landing on an interactive button (e.g. the
+            // death card's revive button) must not ALSO fire the raw gameplay tap event.
+            // Swipes are deliberately not guarded: gameplay swipes must keep working even
+            // if a finger crosses HUD text (labels are raycastTarget=false anyway).
             if (_touching && !_swiped)
             {
                 Vector2 d = t.position - _start;
-                if (Mathf.Abs(d.x) < swipeThreshold && Mathf.Abs(d.y) < swipeThreshold) Tapped?.Invoke();
+                bool overUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(t.fingerId);
+                if (!overUI && Mathf.Abs(d.x) < swipeThreshold && Mathf.Abs(d.y) < swipeThreshold) Tapped?.Invoke();
             }
             _touching = false;
         }

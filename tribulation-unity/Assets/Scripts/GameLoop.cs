@@ -26,6 +26,11 @@ public class GameLoop : MonoBehaviour
         Debug.Log($"DIED — distance {_player.GetDistance()}m. Tap / Space to restart.");
     }
 
+    /// <summary>Called by Game.PerformRevive() after a successful ad-revive. Clears the
+    /// tap-to-restart gate — without this a stray tap right after reviving would restart
+    /// the freshly-revived run instead of doing nothing.</summary>
+    public void OnPlayerRevived() { _dead = false; }
+
     void OnTap() { if (_dead) Restart(); }
 
     void Update()

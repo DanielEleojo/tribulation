@@ -72,6 +72,7 @@ public class HudOverlay : MonoBehaviour
     // Death card root + stats text
     GameObject _deathRoot;
     Text       _deathStats;
+    GameObject _reviveBtn; // "RISE AGAIN" rewarded-ad revive button; hidden when no fill
 
     // Run-summary ceremony: count-up + NEW BEST stamp (all unscaled-time tweens)
     GameObject _newBestStamp;      // glow halo + "NEW BEST" text — active only on record runs
@@ -481,11 +482,16 @@ public class HudOverlay : MonoBehaviour
 
         // ── Parchment card — RoundedPanel with ink border ──────────────────
         // White color so the sprite's parchment texture shows through untinted.
+        // Height grown 480->560 to fit the revive button below DeathTip; card is
+        // center-pivoted so growth pushes top AND bottom out by half the delta (40px) —
+        // every existing child below is re-offset by -40 so it lands on its old screen
+        // position, and the freed 80px all ends up below DeathTip for the new button.
+        const float CARD_H = 560f;
         var card = MakeImage(canvasGO, "DeathCard", Color.white,
             new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(560f, 480f),
+            Vector2.zero, new Vector2(560f, CARD_H),
             new Vector2(0.5f, 0.5f));
-        card.sprite = InkArt.RoundedPanel(560, 480, 20, 3);
+        card.sprite = InkArt.RoundedPanel(560, (int)CARD_H, 20, 3);
         card.type   = Image.Type.Simple;
 
         var cardGO = card.gameObject;
@@ -494,7 +500,7 @@ public class HudOverlay : MonoBehaviour
         var deathTitle = MakeText(cardGO, "DeathTitle", font, 46, C_CINNABAR,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -28f), new Vector2(520f, 60f));
+            new Vector2(0f, -68f), new Vector2(520f, 60f));
         deathTitle.text      = "QI DEVIATION"; // was never assigned — title rendered empty
         deathTitle.fontStyle = FontStyle.Bold;
         InkArt.AddOutline(deathTitle, 0.8f);
@@ -505,21 +511,21 @@ public class HudOverlay : MonoBehaviour
         var deathSeal = MakeText(cardGO, "DeathSeal", sealFont, 38, C_CINNABAR,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -88f), new Vector2(520f, 52f));
+            new Vector2(0f, -128f), new Vector2(520f, 52f));
         deathSeal.text = "走火入魔";
 
         // ── Stats block — updated each death; keep _deathStats ref untouched ─
         _deathStats = MakeText(cardGO, "DeathStats", font, 26, C_INK,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -152f), new Vector2(520f, 160f));
+            new Vector2(0f, -192f), new Vector2(520f, 160f));
         _deathStats.lineSpacing = 1.3f;
 
         // ── Restart prompt — Gold, outlined for legibility on parchment ────
         var deathPrompt = MakeText(cardGO, "DeathPrompt", font, 24, C_GOLD,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -338f), new Vector2(500f, 40f));
+            new Vector2(0f, -378f), new Vector2(500f, 40f));
         deathPrompt.text = "Tap or press Space to walk the road again";
         InkArt.AddOutline(deathPrompt, 0.6f);
 
@@ -527,8 +533,75 @@ public class HudOverlay : MonoBehaviour
         MakeText(cardGO, "DeathTip", font, 20, C_TEXT_DIM,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -396f), new Vector2(500f, 56f))
+            new Vector2(0f, -436f), new Vector2(500f, 56f))
             .text = "Your realm endures — only this layer's progress is lost.";
+
+        // ── Revive button — "RISE AGAIN" (rewarded-ad continue) ─────────────
+        // Sits below DeathTip (bottom edge -436-56=-492) with room to spare before the
+        // card's new bottom edge at -560. Hidden by default; OnDied() shows it only when
+        // AdsManager reports a rewarded ad ready — absent, the tap-to-restart flow below
+        // is identical to today. Built by hand (not MakeImage/MakeText) because it needs
+        // raycastTarget=true to actually receive clicks — same pattern as PauseMenu's
+        // AddPauseButton (Image + rounded sprite + Button + centered label).
+        var reviveBtnGO = new GameObject("ReviveBtn", typeof(RectTransform));
+        reviveBtnGO.transform.SetParent(cardGO.transform, false);
+        var reviveBtnRt = reviveBtnGO.GetComponent<RectTransform>();
+        reviveBtnRt.anchorMin        = new Vector2(0.5f, 1f);
+        reviveBtnRt.anchorMax        = new Vector2(0.5f, 1f);
+        reviveBtnRt.pivot            = new Vector2(0.5f, 1f);
+        reviveBtnRt.anchoredPosition = new Vector2(0f, -502f);
+        reviveBtnRt.sizeDelta        = new Vector2(460f, 56f);
+
+        var reviveBtnImg = reviveBtnGO.AddComponent<Image>();
+        reviveBtnImg.sprite        = InkArt.RoundedPanel(460, 56, 12, 2);
+        reviveBtnImg.type          = Image.Type.Simple;
+        reviveBtnImg.color         = Color.white;
+        reviveBtnImg.raycastTarget = true; // MUST be true — MakeImage's default (false) doesn't apply, this Image is built by hand
+
+        var reviveBtn = reviveBtnGO.AddComponent<Button>();
+        reviveBtn.interactable  = true;
+        reviveBtn.targetGraphic = reviveBtnImg;
+        {
+            var cb = reviveBtn.colors;
+            cb.normalColor      = Color.white;
+            cb.highlightedColor = new Color(0.95f, 0.95f, 0.95f, 1f);
+            cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
+            cb.disabledColor    = new Color(1f, 1f, 1f, 0.45f);
+            cb.colorMultiplier  = 1f;
+            reviveBtn.colors = cb;
+        }
+        reviveBtn.onClick.AddListener(() =>
+        {
+            Haptics.Light();
+            SoundManager.I?.Play("ui_tap");
+            reviveBtn.interactable = false; // prevent double-tap while the ad plays; OnDied() re-enables it next death
+            AdsManager.I?.ShowRewardedRevive(success =>
+            {
+                if (success) Game.I?.PerformRevive();
+                else if (_reviveBtn != null) _reviveBtn.SetActive(false); // no fill / failed — tap-anywhere-to-restart still works
+            });
+        });
+
+        var reviveLabelGO = new GameObject("Label", typeof(RectTransform));
+        reviveLabelGO.transform.SetParent(reviveBtnGO.transform, false);
+        var reviveLabelRt = reviveLabelGO.GetComponent<RectTransform>();
+        reviveLabelRt.anchorMin = Vector2.zero;
+        reviveLabelRt.anchorMax = Vector2.one;
+        reviveLabelRt.offsetMin = Vector2.zero;
+        reviveLabelRt.offsetMax = Vector2.zero;
+
+        var reviveLbl = reviveLabelGO.AddComponent<Text>();
+        reviveLbl.font            = font;
+        reviveLbl.fontSize        = 26;
+        reviveLbl.color           = C_JADE;
+        reviveLbl.alignment       = TextAnchor.MiddleCenter;
+        reviveLbl.fontStyle       = FontStyle.Bold;
+        reviveLbl.supportRichText = false;
+        reviveLbl.raycastTarget   = false;
+        reviveLbl.text = "RISE AGAIN";
+
+        _reviveBtn = reviveBtnGO;
+        _reviveBtn.SetActive(false); // contextual — OnDied() decides visibility per death (ad fill)
 
         // ── NEW BEST stamp — chop-mark over the stats block, record runs only ─
         // Latin text on purpose: the seal font is a 23-glyph subset, kanji here
@@ -536,10 +609,10 @@ public class HudOverlay : MonoBehaviour
         // count-up when Core.WasNewBestThisRun is set.
         _newBestStamp = MakeAnchoredRect(cardGO, "NewBestStamp",
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(140f, -290f), new Vector2(240f, 54f));
+            new Vector2(140f, -330f), new Vector2(240f, 54f));
         var stampRt = _newBestStamp.GetComponent<RectTransform>();
         stampRt.pivot = new Vector2(0.5f, 0.5f);           // pop scales from center
-        stampRt.anchoredPosition = new Vector2(140f, -290f); // re-apply after pivot change
+        stampRt.anchoredPosition = new Vector2(140f, -330f); // re-apply after pivot change
         _newBestStamp.transform.localRotation = Quaternion.Euler(0f, 0f, 7f); // stamped tilt
 
         // SoftGlow halo behind the stamp (gold, mirrors the qi-flare halo).
@@ -776,6 +849,15 @@ public class HudOverlay : MonoBehaviour
         // Reset from any prior ceremony, then reveal the card at zeroed counters.
         if (_deathSeq.isAlive) _deathSeq.Stop();
         if (_newBestStamp != null) _newBestStamp.SetActive(false);
+        if (_reviveBtn != null)
+        {
+            // Re-enable in case a PREVIOUS death's onClick disabled it mid-ad and the ad
+            // never resolved to a fresh OnDied (e.g. quit-to-menu mid-show) — every new
+            // death re-decides visibility from scratch, ready to be tapped again.
+            var btn = _reviveBtn.GetComponent<Button>();
+            if (btn != null) btn.interactable = true;
+            _reviveBtn.SetActive(AdsManager.I != null && AdsManager.I.IsRewardedReady());
+        }
         _deathStats.text = ComposeDeathStats(realmLine, 0, best, 0);
         UiAnim.Show(_deathRoot);
 

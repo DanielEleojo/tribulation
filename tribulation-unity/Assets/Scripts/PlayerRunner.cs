@@ -424,6 +424,30 @@ public class PlayerRunner : MonoBehaviour
     // Called by MainMenu when the player taps "Begin Cultivation".
     public void BeginRunning(float headStart = 0f) { _running = true; _runTime = headStart; }
 
+    // Revive-in-place iframes: longer than HIT_IFRAMES — a soft re-entry window after
+    // watching a rewarded ad, since the Net closing back in fast would feel unfair.
+    const float REVIVE_IFRAMES = 1.5f;
+
+    // Called by Game.PerformRevive() after a successful rewarded-ad revive. Undoes
+    // HaltForDeath()'s _dead/_running flip WITHOUT touching position/_lane/_startZ —
+    // distance must keep counting from where the run actually started, and revive is
+    // "keep going from here," not a teleport-reset like ResetRun().
+    // Visual recovery note: neither death-visual driver needs an explicit reset call here.
+    // RiggedCharacter and InkCultivator both poll _runner.IsDead every frame and derive
+    // their pose/animator state from it (RiggedCharacter.Update: "_frozen && !_runner.IsDead"
+    // un-freezes the animator and CrossFades back to STATE_RUN; InkCultivator.Update smoothly
+    // re-targets its topple pose back to the run pose once IsDead reads false). Flipping
+    // _dead here is therefore sufficient — same as how Die()/HaltForDeath() need no explicit
+    // "play death pose" call, they just flip the flag the visual layer already watches.
+    public void ReviveInPlace()
+    {
+        if (!_dead) return;
+        _dead = false; _running = true;
+        _iframes = REVIVE_IFRAMES;
+        _stumbleT = 0f;
+        if (_sliding) EndSlide();
+    }
+
     // Called by GameLoop on tap-to-restart.
     public void ResetRun()
     {

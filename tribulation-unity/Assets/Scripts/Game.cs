@@ -152,6 +152,23 @@ public class Game : MonoBehaviour
         _player?.ResetRun();
         _spawner?.ClearAll();
     }
+    /// <summary>Full revive sequence for HudOverlay's death-card "RISE AGAIN" button, called
+    /// only after the rewarded ad actually paid out: undoes death without resetting the run
+    /// (RunProgress restored, Net relieved — see GameCore.Revive), clears the field of live
+    /// hazards so revive doesn't drop you back into whatever killed you, and tells GameLoop
+    /// the death is over so a stray tap-to-restart can't fire on the freshly-revived run.</summary>
+    public void PerformRevive()
+    {
+        if (Core == null || !Core.IsDead) return;
+        Core.Revive();
+        _player?.ReviveInPlace();
+        _spawner?.ClearAll();
+        HudOverlay.I?.HideDeathCard();
+        GameLoop.I?.OnPlayerRevived();
+        Haptics.Success();
+        SoundManager.I?.Play("breakthrough"); // no dedicated revive sfx yet
+    }
+
     /// <summary>Called by MenuScreens after a shop purchase or settings change to persist immediately.</summary>
     public void SaveProgress() => SaveGame();
 
