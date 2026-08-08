@@ -12,9 +12,10 @@ public class AdsManager : MonoBehaviour
 {
     public static AdsManager I { get; private set; }
 
-    const string APP_KEY = "272304f9d";
-    const string INTERSTITIAL_AD_UNIT = "2mq1hpkx1t9rkfhm";
-    const string REWARDED_AD_UNIT = "exw6u2gd18gicljj";
+    // Vallicade Games account (Tribulation Runner, LevelPlay app 2786c2105).
+    const string APP_KEY = "2786c2105";
+    const string INTERSTITIAL_AD_UNIT = "pf2ysm15akmib3xg";
+    const string REWARDED_AD_UNIT = "qzcjr7s3id1hxqv";
     const int INTERSTITIAL_EVERY_N_DEATHS = 3;
 
     // LevelPlay documents OnAdRewarded can arrive slightly AFTER OnAdClosed. If close
