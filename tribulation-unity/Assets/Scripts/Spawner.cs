@@ -621,6 +621,25 @@ public class Spawner : MonoBehaviour
     // (cam faces -Z, Unity left-handed, +X = screen-left → negate so lanes align)
     static float LaneX(int lane) => -(lane - 1) * LANE_WIDTH;
 
+    /// <summary>Retint the shared hazard materials for a realm theme (WorldMood calls
+    /// this on breakthrough — port of game.gd hazard_style). low = jump-hazard (block),
+    /// high = slide-hazard (bar), foe = enemy robe / fallback cube. Materials are
+    /// shared across every pooled hazard, so one call recolors them all.</summary>
+    public void SetHazardTheme(Color low, Color high, Color foe)
+    {
+        Retint(_matBlock, low,  1.8f);
+        Retint(_matBar,   high, 1.8f);
+        Retint(_matEnemy, foe,  0.4f);
+    }
+
+    static void Retint(Material m, Color c, float emission)
+    {
+        if (m == null) return;
+        m.SetColor("_BaseColor", c);
+        m.color = c;
+        m.SetColor("_EmissionColor", c * emission);
+    }
+
     Material MakeMat(Color c)
     {
         var sh  = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");

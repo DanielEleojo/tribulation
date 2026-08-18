@@ -15,9 +15,24 @@ public class Ground : MonoBehaviour
 
     Transform _player;
     readonly List<Transform> _tiles = new List<Transform>();
-    Material _pathMat, _lineMat;
+    Material _pathMat, _lineMat, _bedMat;
 
     Transform _bed;
+
+    /// <summary>Recolor the shared road materials for a realm theme (WorldMood calls
+    /// this on breakthrough — port of ground.gd set_theme). All tiles share these
+    /// three materials, so one call recolors the whole runway.</summary>
+    public void SetTheme(Color bed, Color pathTint, Color accent)
+    {
+        if (_bedMat  != null) _bedMat.SetColor("_BaseColor", bed);
+        if (_pathMat != null) _pathMat.SetColor("_BaseColor", pathTint);
+        if (_lineMat != null)
+        {
+            _lineMat.SetColor("_BaseColor", accent);
+            _lineMat.color = accent;
+            _lineMat.SetColor("_EmissionColor", accent * 0.45f);
+        }
+    }
 
     void Start()
     {
@@ -42,10 +57,10 @@ public class Ground : MonoBehaviour
         bed.transform.localScale = new Vector3(40f, 1f, 80f); // Plane is 10u → 400×800
         bed.transform.localPosition = new Vector3(0f, -0.06f, 0f);
         // Warm mauve-brown earth (the original build's pink-tan shoulders); dusk fog
-        // still darkens it with distance.
-        var bedMat = SolidMat(new Color(0.30f, 0.22f, 0.21f), false);
-        bedMat.SetFloat("_Smoothness", 0.05f); // matte earth, no sun streak
-        bed.GetComponent<Renderer>().sharedMaterial = bedMat;
+        // still darkens it with distance. Kept as a field so SetTheme can recolor it.
+        _bedMat = SolidMat(new Color(0.30f, 0.22f, 0.21f), false);
+        _bedMat.SetFloat("_Smoothness", 0.05f); // matte earth, no sun streak
+        bed.GetComponent<Renderer>().sharedMaterial = _bedMat;
         _bed = bed.transform;
     }
 
@@ -112,12 +127,15 @@ public class Ground : MonoBehaviour
             m.EnableKeyword("_NORMALMAP");
             m.SetTexture("_BumpMap", nrm);
             m.SetTextureScale("_BumpMap", new Vector2(2f, 6f));
+            // Exaggerated normal strength — at default 1 the paving read flat under
+            // the high sun; 2.2 lets the grazing dusk light catch every slab edge.
+            m.SetFloat("_BumpScale", 2.2f);
             nrm.wrapMode = TextureWrapMode.Repeat;
         }
         // Restored pale crazy-paving look (pre-juice-pass d2e87d1): the original
         // texture with a bright warm tint so the runway reads pale stone, not ink.
         m.SetColor("_BaseColor", new Color(0.78f, 0.75f, 0.72f));
-        m.SetFloat("_Smoothness", 0.30f);
+        m.SetFloat("_Smoothness", 0.38f); // enough sheen for sun + qi-glow to streak the slabs
         m.SetFloat("_Metallic", 0f);
         return m;
     }

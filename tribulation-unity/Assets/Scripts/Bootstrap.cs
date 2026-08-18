@@ -54,6 +54,7 @@ public class Bootstrap : MonoBehaviour
         gameObject.AddComponent<SoundManager>(); // audio SFX hub (#18)
         gameObject.AddComponent<Music>();        // music shaping (#18)
         gameObject.AddComponent<AdsManager>();   // LevelPlay init + interstitial/rewarded ad lifecycle
+        gameObject.AddComponent<WorldMood>();    // per-realm world theming + reactive fog/sky/aura (port of game.gd _stages)
         new GameObject("Ground").AddComponent<Ground>();
         new GameObject("Scenery").AddComponent<Scenery>();
         new GameObject("GateLandmark").AddComponent<GateLandmark>();

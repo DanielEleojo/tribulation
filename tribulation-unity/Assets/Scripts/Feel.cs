@@ -32,7 +32,11 @@ public static class Feel
         _ringMat   = MakeAdditive(addSh, _glowTex, new Color(0.5f, 1f, 0.8f, 1f));
         _arcMat    = MakeAdditive(addSh, _glowTex, new Color(0.85f, 1f, 1f, 1f));
 
-        var opSh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color") ?? Shader.Find("Standard");
+        // Device builds strip unreferenced shaders: URP/Unlit ships via the
+        // ShaderKeep material (Resources/ShaderKeep/UnlitOpaque.mat); the final
+        // ?? addSh fallback means a null shader can never reach new Material()
+        // (the first on-device slash used to throw ArgumentNullException here).
+        var opSh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color") ?? Shader.Find("Standard") ?? addSh;
         _poofMat = new Material(opSh) { color = new Color(0.72f, 0.70f, 0.64f) };
 
         _fadeGrad = new Gradient();
