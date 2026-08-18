@@ -22,7 +22,11 @@ public class Ground : MonoBehaviour
     void Start()
     {
         _pathMat = StoneMat();
-        _lineMat = SolidMat(new Color(0.35f, 0.32f, 0.22f), false);
+        // Warm-white lane dividers with a faint glow — the original build's hard
+        // bright stripes. SolidMat's default 1.6x emission blows out under bloom;
+        // soften it after creation.
+        _lineMat = SolidMat(new Color(0.88f, 0.85f, 0.74f), true);
+        _lineMat.SetColor("_EmissionColor", new Color(0.88f, 0.85f, 0.74f) * 0.45f);
         for (int i = 0; i < TILE_COUNT; i++)
         {
             Transform t = MakeTile();
@@ -37,8 +41,10 @@ public class Ground : MonoBehaviour
         bed.transform.SetParent(transform, false);
         bed.transform.localScale = new Vector3(40f, 1f, 80f); // Plane is 10u → 400×800
         bed.transform.localPosition = new Vector3(0f, -0.06f, 0f);
-        var bedMat = SolidMat(new Color(0.03f, 0.03f, 0.045f), false);
-        bedMat.SetFloat("_Smoothness", 0.05f); // matte dark earth, no sun streak
+        // Warm mauve-brown earth (the original build's pink-tan shoulders); dusk fog
+        // still darkens it with distance.
+        var bedMat = SolidMat(new Color(0.30f, 0.22f, 0.21f), false);
+        bedMat.SetFloat("_Smoothness", 0.05f); // matte earth, no sun streak
         bed.GetComponent<Renderer>().sharedMaterial = bedMat;
         _bed = bed.transform;
     }
@@ -108,8 +114,10 @@ public class Ground : MonoBehaviour
             m.SetTextureScale("_BumpMap", new Vector2(2f, 6f));
             nrm.wrapMode = TextureWrapMode.Repeat;
         }
-        m.SetColor("_BaseColor", new Color(0.22f, 0.22f, 0.28f)); // dark ink-stone tint, recedes into fog
-        m.SetFloat("_Smoothness", 0.42f);                          // wet sheen
+        // Restored pale crazy-paving look (pre-juice-pass d2e87d1): the original
+        // texture with a bright warm tint so the runway reads pale stone, not ink.
+        m.SetColor("_BaseColor", new Color(0.78f, 0.75f, 0.72f));
+        m.SetFloat("_Smoothness", 0.30f);
         m.SetFloat("_Metallic", 0f);
         return m;
     }

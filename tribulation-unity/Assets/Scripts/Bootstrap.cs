@@ -126,7 +126,7 @@ public class Bootstrap : MonoBehaviour
         qi.intensity = 1.4f;  // dimmer: jade glow still reads, contact shadow survives
         qi.shadows = LightShadows.None;
 
-        player.AddComponent<RiggedCharacter>(); // rigged martial-artist (falls back to InkCultivator if prefab missing)
+        player.AddComponent<RiggedCharacter>(); // rigged martial-artist (falls back to WarriorCharacter glb, then InkCultivator)
     }
 
     void BuildCamera()

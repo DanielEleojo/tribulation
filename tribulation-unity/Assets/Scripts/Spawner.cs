@@ -683,9 +683,12 @@ public class Spawner : MonoBehaviour
             if (soldierPrefab != null && !_warnedBrokenSoldier)
             {
                 _warnedBrokenSoldier = true;
-                Debug.LogWarning("[Spawner] Char/Solider_Ssanggeom prefab has no usable meshes (source model files missing from project) — using cube enemy visuals.");
+                Debug.LogWarning("[Spawner] Char/Solider_Ssanggeom prefab has no usable meshes (source model files missing from project) — falling back to ninja_zombie glb.");
             }
-            // Fallback: keep the cube's MeshRenderer visible with _matEnemy.
+            // Second link: the Godot-era animated ninja-zombie glb (tracked in git,
+            // always present, unlike the Asset Store soldier).
+            if (TryAttachZombieVisual(go)) return;
+            // Last resort: keep the cube's MeshRenderer visible with _matEnemy.
             Apply(go, _matEnemy);
             return;
         }
@@ -760,6 +763,69 @@ public class Spawner : MonoBehaviour
 
         // Face the soldier toward the oncoming player (+Z = toward camera).
         soldier.transform.localRotation = Quaternion.identity;
+    }
+
+    // Godot-era animated ninja-zombie glb (Resources/Models/ninja_zombie, legacy
+    // Animation with Run/Attack/Death/Idle clips) as the enemy visual when the Asset
+    // Store soldier isn't in the project. Same holder/scale/grounding contract as the
+    // soldier path; loops the Run clip (the soldier's controller idles in Run too).
+    bool TryAttachZombieVisual(GameObject go)
+    {
+        var zombiePrefab = Resources.Load<GameObject>("Models/ninja_zombie");
+        if (zombiePrefab == null || !HasUsableSkinnedMesh(zombiePrefab)) return false;
+
+        // Hide the cube's own mesh — collider stays active for gameplay.
+        var cubeMR = go.GetComponent<MeshRenderer>();
+        if (cubeMR != null) cubeMR.enabled = false;
+
+        // Scale-cancel holder so the zombie is NOT stretched by ENEMY_SIZE.
+        var holder = new GameObject("EnemyVisualHolder");
+        holder.transform.SetParent(go.transform, false);
+        holder.transform.localPosition = Vector3.zero;
+        holder.transform.localRotation = Quaternion.identity;
+        holder.transform.localScale = new Vector3(
+            1f / ENEMY_SIZE.x,
+            1f / ENEMY_SIZE.y,
+            1f / ENEMY_SIZE.z);
+
+        var zombie = Instantiate(zombiePrefab, holder.transform);
+        zombie.transform.localPosition = Vector3.zero;
+        zombie.transform.localRotation = Quaternion.identity; // native +Z forward faces the oncoming player
+        zombie.transform.localScale    = Vector3.one;
+
+        foreach (var col in zombie.GetComponentsInChildren<Collider>())
+            Object.Destroy(col);
+
+        var smrs = zombie.GetComponentsInChildren<SkinnedMeshRenderer>();
+        foreach (var smr in smrs) smr.updateWhenOffscreen = true;
+
+        var anim = zombie.GetComponentInChildren<Animation>();
+        if (anim != null)
+        {
+            var run = anim["Run"];
+            if (run != null) run.wrapMode = WrapMode.Loop;
+            anim.Play("Run");
+            anim.Sample(); // bake the run pose so the bounds below are accurate
+        }
+
+        if (smrs != null && smrs.Length > 0)
+        {
+            Bounds b = smrs[0].bounds;
+            for (int i = 1; i < smrs.Length; i++) b.Encapsulate(smrs[i].bounds);
+
+            float currentH = b.size.y;
+            float uniformScale = currentH > 0.001f ? 2.2f / currentH : 1f;
+            zombie.transform.localScale = Vector3.one * uniformScale;
+
+            b = smrs[0].bounds;
+            for (int i = 1; i < smrs.Length; i++) b.Encapsulate(smrs[i].bounds);
+
+            float targetFeetWorldY = go.transform.position.y - go.transform.lossyScale.y * 0.5f;
+            float footDeltaY = targetFeetWorldY - b.min.y;
+            zombie.transform.localPosition = new Vector3(0f, footDeltaY, 0f);
+        }
+
+        return true;
     }
 
     static bool _warnedBrokenSoldier;

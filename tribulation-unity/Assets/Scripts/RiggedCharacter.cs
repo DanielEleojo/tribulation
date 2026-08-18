@@ -1,7 +1,9 @@
 // RiggedCharacter.cs — drives the rigged "Solider_Fist" humanoid prefab for Tribulation.
 // Attach to the player root (Bootstrap does this). Loads the prefab from Resources,
 // normalises its scale/grounding to fit the CharacterController, and drives Animator
-// state via CrossFade. Falls back to InkCultivator if the prefab is missing.
+// state via CrossFade. Fallback chain when the prefab is missing/unusable (the source
+// Asset Store pack is not in git): WarriorCharacter (animated Godot-era warrior glb),
+// which itself falls back to InkCultivator.
 //
 // CONTRACT:
 //   • Prefab path : Resources/Char/Solider_Fist  (Humanoid, already has Animator + AC_Fist)
@@ -127,19 +129,19 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
             var prefab = Resources.Load<GameObject>("Char/Solider_Fist");
             if (prefab == null)
             {
-                Debug.LogWarning("[RiggedCharacter] Resources/Char/Solider_Fist not found — falling back to InkCultivator.");
-                gameObject.AddComponent<InkCultivator>();
+                Debug.LogWarning("[RiggedCharacter] Resources/Char/Solider_Fist not found — falling back to WarriorCharacter.");
+                gameObject.AddComponent<WarriorCharacter>();
                 enabled = false;
                 return;
             }
 
             // A prefab whose source model files (FBX/materials) aren't in the project
             // still loads, but every SkinnedMeshRenderer has a null sharedMesh — it
-            // would render nothing. Detect that and fall back to the procedural figure.
+            // would render nothing. Detect that and fall back to the warrior glb.
             if (!HasUsableSkinnedMesh(prefab))
             {
-                Debug.LogWarning("[RiggedCharacter] Char/Solider_Fist prefab has no usable meshes (source model files missing from project) — falling back to InkCultivator.");
-                gameObject.AddComponent<InkCultivator>();
+                Debug.LogWarning("[RiggedCharacter] Char/Solider_Fist prefab has no usable meshes (source model files missing from project) — falling back to WarriorCharacter.");
+                gameObject.AddComponent<WarriorCharacter>();
                 enabled = false;
                 return;
             }
@@ -160,9 +162,9 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
             _animator = instance.GetComponentInChildren<Animator>();
             if (_animator == null)
             {
-                Debug.LogError("[RiggedCharacter] No Animator found on instantiated model. Aborting setup.");
+                Debug.LogError("[RiggedCharacter] No Animator found on instantiated model — falling back to WarriorCharacter.");
                 Destroy(instance);
-                gameObject.AddComponent<InkCultivator>();
+                gameObject.AddComponent<WarriorCharacter>();
                 enabled = false;
                 return;
             }
@@ -234,14 +236,14 @@ public class RiggedCharacter : MonoBehaviour, IFeelPose
         }
         catch (System.Exception ex)
         {
-            Debug.LogError("[RiggedCharacter] Setup failed — falling back to InkCultivator. " + ex);
+            Debug.LogError("[RiggedCharacter] Setup failed — falling back to WarriorCharacter. " + ex);
             try
             {
-                gameObject.AddComponent<InkCultivator>();
+                gameObject.AddComponent<WarriorCharacter>();
             }
             catch (System.Exception ex2)
             {
-                Debug.LogError("[RiggedCharacter] InkCultivator fallback also failed. " + ex2);
+                Debug.LogError("[RiggedCharacter] WarriorCharacter fallback also failed. " + ex2);
             }
             enabled = false;
         }
