@@ -74,6 +74,7 @@ public class HudOverlay : MonoBehaviour
     GameObject _deathRoot;
     Text       _deathStats;
     GameObject _reviveBtn; // "RISE AGAIN" rewarded-ad revive button; hidden when no fill
+    bool _reviveOfferClosed; // set when this death's offer is spent (declined / failed show) so a late ad load can't resurrect the button; reset each OnDied
 
     // Run-summary ceremony: count-up + NEW BEST stamp (all unscaled-time tweens)
     GameObject _newBestStamp;      // glow halo + "NEW BEST" text — active only on record runs
@@ -83,6 +84,17 @@ public class HudOverlay : MonoBehaviour
     // Trials panel
     GameObject _trialRoot;
     Text[]     _trialRows = new Text[3];
+
+    // Per-row snapshot of what's currently rendered so vow rows only rebuild their
+    // strings on an actual change — building three formatted strings every frame was
+    // steady GC churn (periodic hitches on device). TrialState instances are replaced
+    // wholesale on re-roll, so reference identity + progress + done is a complete key.
+    readonly Tribulation.Core.TrialState[] _trialRowSrc = new Tribulation.Core.TrialState[3];
+    readonly int[]  _trialRowProg = { -1, -1, -1 };
+    readonly bool[] _trialRowDone = new bool[3];
+
+    int _lastLi = -1;       // last rendered li distance — skip the text alloc on equal frames
+    int _lastTribSecs = -1; // last rendered tribulation countdown second — ditto
 
     // Breakthrough fade coroutine handle
     Coroutine _btCo;
@@ -160,24 +172,35 @@ public class HudOverlay : MonoBehaviour
         realmPanelImg.sprite = InkArt.RoundedPanel(280, 96, 12, 2);
         realmPanelImg.type   = Image.Type.Simple;
 
-        // Kanji accent (seal font, gold) — 2 chars wide, top-left inside the panel.
-        _realmKanji = MakeText(realmBlock, "RealmKanji", sealFont, 36, C_GOLD,
-            TextAnchor.UpperLeft,
+        // Kanji accent (seal font, gold) — two glyphs stacked vertically in a column
+        // left of the name. 28pt keeps both INSIDE the 96-tall panel: MakeText uses
+        // verticalOverflow=Overflow, so an oversized font (the old 36pt) doesn't clip,
+        // it bleeds out the panel bottom. MiddleCenter centers the column vertically.
+        _realmKanji = MakeText(realmBlock, "RealmKanji", sealFont, 28, C_GOLD,
+            TextAnchor.MiddleCenter,
             new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(8f, -6f), new Vector2(52f, 52f));
+            new Vector2(8f, -8f), new Vector2(52f, 80f));
 
         // Romanized realm name (serif bold, gold) — offset right of the kanji.
-        _realmName = MakeText(realmBlock, "RealmName", font, 24, C_GOLD,
+        // 18pt in a 52px-tall box: "Foundation Establishment" wraps to two lines
+        // (~48px) with real margin before LayerText below — at 20pt the two lines
+        // measured 53.9px, a 0.1px squeak past the layer line that device scale
+        // rounding could flip back into overlap. Best-fit stays on as a backstop
+        // for any longer future name.
+        _realmName = MakeText(realmBlock, "RealmName", font, 18, C_GOLD,
             TextAnchor.UpperLeft,
             new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(66f, -8f), new Vector2(206f, 40f));
+            new Vector2(66f, -8f), new Vector2(206f, 52f));
         _realmName.fontStyle = FontStyle.Bold;
+        _realmName.resizeTextForBestFit = true;
+        _realmName.resizeTextMinSize    = 12;
+        _realmName.resizeTextMaxSize    = 18;
         InkArt.AddOutline(_realmName, 0.7f);
 
-        _layerText = MakeText(realmBlock, "LayerText", font, 20, C_TEXT_DIM,
+        _layerText = MakeText(realmBlock, "LayerText", font, 18, C_TEXT_DIM,
             TextAnchor.UpperLeft,
             new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(66f, -52f), new Vector2(206f, 32f));
+            new Vector2(66f, -62f), new Vector2(206f, 28f));
 
         // ── Li distance (top-right, below the seal ring) ────────────────────
         // At the 720-wide reference a centered tab would collide with the realm
@@ -493,11 +516,9 @@ public class HudOverlay : MonoBehaviour
 
         // ── Parchment card — RoundedPanel with ink border ──────────────────
         // White color so the sprite's parchment texture shows through untinted.
-        // Height grown 480->560 to fit the revive button below DeathTip; card is
-        // center-pivoted so growth pushes top AND bottom out by half the delta (40px) —
-        // every existing child below is re-offset by -40 so it lands on its old screen
-        // position, and the freed 80px all ends up below DeathTip for the new button.
-        const float CARD_H = 560f;
+        // Height 750 fits the three stacked 80-tall action buttons (ad-revive,
+        // restart, main menu) below DeathTip with a ~50px bottom margin.
+        const float CARD_H = 750f;
         var card = MakeImage(canvasGO, "DeathCard", Color.white,
             new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
             Vector2.zero, new Vector2(560f, CARD_H),
@@ -532,87 +553,62 @@ public class HudOverlay : MonoBehaviour
             new Vector2(0f, -192f), new Vector2(520f, 160f));
         _deathStats.lineSpacing = 1.3f;
 
-        // ── Restart prompt — Gold, outlined for legibility on parchment ────
-        var deathPrompt = MakeText(cardGO, "DeathPrompt", font, 24, C_GOLD,
-            TextAnchor.UpperCenter,
-            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -378f), new Vector2(500f, 40f));
-        deathPrompt.text = "Tap to walk the road again";
-        InkArt.AddOutline(deathPrompt, 0.6f);
-
         // ── Dim tip — serif TextDim ─────────────────────────────────────────
         MakeText(cardGO, "DeathTip", font, 20, C_TEXT_DIM,
             TextAnchor.UpperCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -436f), new Vector2(500f, 56f))
+            new Vector2(0f, -366f), new Vector2(500f, 56f))
             .text = "Your realm endures — only this layer's progress is lost.";
 
-        // ── Revive button — "RISE AGAIN" (rewarded-ad continue) ─────────────
-        // Sits below DeathTip (bottom edge -436-56=-492) with room to spare before the
-        // card's new bottom edge at -560. Hidden by default; OnDied() shows it only when
-        // AdsManager reports a rewarded ad ready — absent, the tap-to-restart flow below
-        // is identical to today. Built by hand (not MakeImage/MakeText) because it needs
-        // raycastTarget=true to actually receive clicks — same pattern as PauseMenu's
-        // AddPauseButton (Image + rounded sprite + Button + centered label).
-        var reviveBtnGO = new GameObject("ReviveBtn", typeof(RectTransform));
-        reviveBtnGO.transform.SetParent(cardGO.transform, false);
-        var reviveBtnRt = reviveBtnGO.GetComponent<RectTransform>();
-        reviveBtnRt.anchorMin        = new Vector2(0.5f, 1f);
-        reviveBtnRt.anchorMax        = new Vector2(0.5f, 1f);
-        reviveBtnRt.pivot            = new Vector2(0.5f, 1f);
-        reviveBtnRt.anchoredPosition = new Vector2(0f, -502f);
-        reviveBtnRt.sizeDelta        = new Vector2(460f, 56f);
-
-        var reviveBtnImg = reviveBtnGO.AddComponent<Image>();
-        reviveBtnImg.sprite        = InkArt.RoundedPanel(460, 56, 12, 2);
-        reviveBtnImg.type          = Image.Type.Simple;
-        reviveBtnImg.color         = Color.white;
-        reviveBtnImg.raycastTarget = true; // MUST be true — MakeImage's default (false) doesn't apply, this Image is built by hand
-
-        var reviveBtn = reviveBtnGO.AddComponent<Button>();
-        reviveBtn.interactable  = true;
-        reviveBtn.targetGraphic = reviveBtnImg;
-        {
-            var cb = reviveBtn.colors;
-            cb.normalColor      = Color.white;
-            cb.highlightedColor = new Color(0.95f, 0.95f, 0.95f, 1f);
-            cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
-            cb.disabledColor    = new Color(1f, 1f, 1f, 0.45f);
-            cb.colorMultiplier  = 1f;
-            reviveBtn.colors = cb;
-        }
+        // ── Action buttons — ad-revive, restart, main menu (top to bottom) ──
+        // Three matching parchment buttons; every death-card action is an explicit
+        // press (no tap-anywhere; Space/Return still work in editor). Revive stays a
+        // permanent part of the card — ad readiness is resolved at TAP time
+        // (AdsManager preloads, retries, and load-on-demand as a last resort) — and
+        // only a spent offer hides it for the rest of that death.
+        var reviveBtn = MakeCardButton(cardGO, "ReviveBtn", -436f,
+            "WATCH AD TO KEEP RUNNING", C_JADE, font);
         reviveBtn.onClick.AddListener(() =>
         {
             Haptics.Light();
             SoundManager.I?.Play("ui_tap");
-            reviveBtn.interactable = false; // prevent double-tap while the ad plays; OnDied() re-enables it next death
+            reviveBtn.interactable = false; // prevent double-tap while the ad loads/plays; OnDied() re-enables it next death
             AdsManager.I?.ShowRewardedRevive(success =>
             {
                 if (success) Game.I?.PerformRevive();
-                else if (_reviveBtn != null) _reviveBtn.SetActive(false); // no fill / failed — tap-anywhere-to-restart still works
+                else if (_reviveBtn != null)
+                {
+                    // Declined / no fill / failed — the restart button still works.
+                    _reviveOfferClosed = true;
+                    _reviveBtn.SetActive(false);
+                }
             });
         });
+        _reviveBtn = reviveBtn.gameObject;
+        _reviveBtn.SetActive(false); // OnDied() re-decides per death
 
-        var reviveLabelGO = new GameObject("Label", typeof(RectTransform));
-        reviveLabelGO.transform.SetParent(reviveBtnGO.transform, false);
-        var reviveLabelRt = reviveLabelGO.GetComponent<RectTransform>();
-        reviveLabelRt.anchorMin = Vector2.zero;
-        reviveLabelRt.anchorMax = Vector2.one;
-        reviveLabelRt.offsetMin = Vector2.zero;
-        reviveLabelRt.offsetMax = Vector2.zero;
+        var restartBtn = MakeCardButton(cardGO, "RestartBtn", -528f,
+            "WALK THE ROAD AGAIN", C_GOLD, font);
+        restartBtn.onClick.AddListener(() =>
+        {
+            Haptics.Light();
+            SoundManager.I?.Play("ui_tap");
+            GameLoop.I?.RestartFromDeathCard();
+        });
 
-        var reviveLbl = reviveLabelGO.AddComponent<Text>();
-        reviveLbl.font            = font;
-        reviveLbl.fontSize        = 26;
-        reviveLbl.color           = C_JADE;
-        reviveLbl.alignment       = TextAnchor.MiddleCenter;
-        reviveLbl.fontStyle       = FontStyle.Bold;
-        reviveLbl.supportRichText = false;
-        reviveLbl.raycastTarget   = false;
-        reviveLbl.text = "RISE AGAIN";
-
-        _reviveBtn = reviveBtnGO;
-        _reviveBtn.SetActive(false); // contextual — OnDied() decides visibility per death (ad fill)
+        // Same end-of-run exit as PauseMenu.QuitToMenu, minus the pause plumbing.
+        // Deliberately ad-free — leaving for the menu should never cost an ad.
+        var menuBtn = MakeCardButton(cardGO, "MenuBtn", -620f,
+            "RETURN TO MAIN MENU", C_TEXT_DIM, font);
+        menuBtn.onClick.AddListener(() =>
+        {
+            Haptics.Light();
+            SoundManager.I?.Play("ui_tap");
+            GameLoop.I?.OnRunExited();
+            HideDeathCard();
+            Game.I?.EndRunToMenu();
+            MainMenu.I?.Show();
+        });
 
         // ── NEW BEST stamp — chop-mark over the stats block, record runs only ─
         // Latin text on purpose: the seal font is a 23-glyph subset, kanji here
@@ -843,6 +839,24 @@ public class HudOverlay : MonoBehaviour
         RefreshRealmBlock();
     }
 
+    // Re-decides "RISE AGAIN" visibility on each death. The button is a permanent part
+    // of the death card — AdsManager keeps a rewarded ad preloaded (with load retries),
+    // and readiness is only checked at tap time. It hides for the rest of a death only
+    // after the offer is spent (declined / no fill / failed show).
+    void RefreshReviveButton()
+    {
+        if (_reviveBtn == null) return;
+        bool show = !_reviveOfferClosed && AdsManager.I != null;
+        if (show)
+        {
+            // Re-enable in case a PREVIOUS death's onClick disabled it mid-ad and the ad
+            // never resolved to a fresh OnDied (e.g. quit-to-menu mid-show).
+            var btn = _reviveBtn.GetComponent<Button>();
+            if (btn != null) btn.interactable = true;
+        }
+        _reviveBtn.SetActive(show);
+    }
+
     void OnDied()
     {
         if (_deathStats == null || _deathRoot == null) return;
@@ -860,17 +874,10 @@ public class HudOverlay : MonoBehaviour
         // Reset from any prior ceremony, then reveal the card at zeroed counters.
         if (_deathSeq.isAlive) _deathSeq.Stop();
         if (_newBestStamp != null) _newBestStamp.SetActive(false);
-        if (_reviveBtn != null)
-        {
-            // Re-enable in case a PREVIOUS death's onClick disabled it mid-ad and the ad
-            // never resolved to a fresh OnDied (e.g. quit-to-menu mid-show) — every new
-            // death re-decides visibility from scratch, ready to be tapped again.
-            var btn = _reviveBtn.GetComponent<Button>();
-            if (btn != null) btn.interactable = true;
-            _reviveBtn.SetActive(AdsManager.I != null && AdsManager.I.IsRewardedReady());
-        }
+        _reviveOfferClosed = false; // fresh death, fresh offer
         _deathStats.text = ComposeDeathStats(realmLine, 0, best, 0);
         UiAnim.Show(_deathRoot);
+        RefreshReviveButton();
 
         // Ceremony: count li + Qi up (unscaled — the card can outlive a timescale dip),
         // then stamp NEW BEST on a record run.
@@ -984,11 +991,15 @@ public class HudOverlay : MonoBehaviour
     // ════════════════════════════════════════════════════════════════════════
     void Update()
     {
-        // Li distance (one string alloc per frame — spec-allowed)
+        // Li distance — string only rebuilt when the displayed integer changes
         if (_liText != null && _player != null)
         {
-            float dist = _player.GetDistance();
-            _liText.text = "li " + ((int)dist).ToString("N0");
+            int li = (int)_player.GetDistance();
+            if (li != _lastLi)
+            {
+                _lastLi = li;
+                _liText.text = "li " + li.ToString("N0");
+            }
         }
 
         // Slow ring rotation
@@ -1047,9 +1058,15 @@ public class HudOverlay : MonoBehaviour
             var t = trials[i];
             _trialRows[i].gameObject.SetActive(true);
 
+            int prog = (int)t.Progress;
+            if (_trialRowSrc[i] == t && _trialRowProg[i] == prog && _trialRowDone[i] == t.Done)
+                continue; // rendered text is already current — skip the string rebuild
+            _trialRowSrc[i]  = t;
+            _trialRowProg[i] = prog;
+            _trialRowDone[i] = t.Done;
+
             // Expand %d manually — C# does not parse printf format strings
             string desc = t.Fmt.Replace("%d", t.Goal.ToString());
-            int prog = (int)t.Progress;
             // Format: "Slay 8 foes   6/8   +40"
             _trialRows[i].text = desc + "   " + prog + "/" + t.Goal + "   +" + t.Reward;
 
@@ -1086,7 +1103,14 @@ public class HudOverlay : MonoBehaviour
         bool active = core.InTribulation;
         _tribText.gameObject.SetActive(active);
         if (active)
-            _tribText.text = "⚡ HEAVENLY TRIBULATION ⚡\nEndure  " + Mathf.CeilToInt(core.TribTimeLeft) + "s";
+        {
+            int secs = Mathf.CeilToInt(core.TribTimeLeft);
+            if (secs != _lastTribSecs)
+            {
+                _lastTribSecs = secs;
+                _tribText.text = "⚡ HEAVENLY TRIBULATION ⚡\nEndure  " + secs + "s";
+            }
+        }
     }
 
     // ── Powerup timers update (Issue #9) ─────────────────────────────────────
@@ -1164,6 +1188,59 @@ public class HudOverlay : MonoBehaviour
     // ════════════════════════════════════════════════════════════════════════
     // uGUI Helpers (no heap alloc beyond initial build)
     // ════════════════════════════════════════════════════════════════════════
+
+    // Parchment death-card action button: RoundedPanel + Button + centered bold label.
+    // Built by hand (not MakeImage/MakeText) because raycastTarget must be TRUE to
+    // receive clicks — same pattern as PauseMenu's AddPauseButton. Top-anchored at
+    // yOffset inside the card. 480x80 at the 720-wide reference ≈ a 43pt-tall target
+    // on iPhone — Apple's 44pt tap-target guideline.
+    static Button MakeCardButton(GameObject parent, string name, float yOffset,
+        string label, Color labelColor, Font font)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent.transform, false);
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin        = new Vector2(0.5f, 1f);
+        rt.anchorMax        = new Vector2(0.5f, 1f);
+        rt.pivot            = new Vector2(0.5f, 1f);
+        rt.anchoredPosition = new Vector2(0f, yOffset);
+        rt.sizeDelta        = new Vector2(480f, 80f);
+
+        var img = go.AddComponent<Image>();
+        img.sprite        = InkArt.RoundedPanel(480, 80, 14, 2);
+        img.type          = Image.Type.Simple;
+        img.color         = Color.white;
+        img.raycastTarget = true;
+
+        var btn = go.AddComponent<Button>();
+        btn.targetGraphic = img;
+        var cb = btn.colors;
+        cb.normalColor      = Color.white;
+        cb.highlightedColor = new Color(0.95f, 0.95f, 0.95f, 1f);
+        cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
+        cb.disabledColor    = new Color(1f, 1f, 1f, 0.45f);
+        cb.colorMultiplier  = 1f;
+        btn.colors = cb;
+
+        var labelGO = new GameObject("Label", typeof(RectTransform));
+        labelGO.transform.SetParent(go.transform, false);
+        var lrt = labelGO.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero;
+        lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero;
+        lrt.offsetMax = Vector2.zero;
+
+        var lbl = labelGO.AddComponent<Text>();
+        lbl.font            = font;
+        lbl.fontSize        = 26;
+        lbl.color           = labelColor;
+        lbl.alignment       = TextAnchor.MiddleCenter;
+        lbl.fontStyle       = FontStyle.Bold;
+        lbl.supportRichText = false;
+        lbl.raycastTarget   = false;
+        lbl.text            = label;
+        return btn;
+    }
 
     static GameObject MakeAnchoredRect(GameObject parent, string name,
         Vector2 anchorMin, Vector2 anchorMax,

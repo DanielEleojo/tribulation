@@ -28,9 +28,14 @@ public class Bootstrap : MonoBehaviour
 
     void Awake()
     {
-        // Mobile defaults to 30 FPS — force 60 so on-device input/motion feels responsive.
-        // (Editor/Device Simulator ignore this; it matters in the real iOS build.)
-        Application.targetFrameRate = 60;
+        // Mobile defaults to 30 FPS — match the display's native refresh instead so
+        // ProMotion iPhones run at 120Hz and everything else lands on its panel rate.
+        // Floor of 60 guards platforms that report 0 for refresh rate.
+        // (Editor/Device Simulator ignore this; it matters in the real iOS build.
+        // Going past 60 on iPhone also needs CADisableMinimumFrameDurationOnPhone in
+        // Info.plist — stamped by IOSProMotionPostProcessor at build time.)
+        Application.targetFrameRate = Mathf.Max(60,
+            Mathf.RoundToInt((float)Screen.currentResolution.refreshRateRatio.value));
         QualitySettings.vSyncCount = 0;
 
         // Game audio must play even with the iPhone's silent switch on.

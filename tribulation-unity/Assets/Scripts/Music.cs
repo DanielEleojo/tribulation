@@ -8,6 +8,7 @@ using Tribulation.Core;
 public class Music : MonoBehaviour
 {
     AudioSource _src;
+    PlayerRunner _player; // cached — a FindObjectOfType here every frame scanned the whole scene
 
     void Start()
     {
@@ -32,9 +33,10 @@ public class Music : MonoBehaviour
         if (!_src.isPlaying) _src.Play();
 
         var core = (Game.I != null) ? Game.I.Core : null;
-        float speedFrac = 0f;
-        var player = FindObjectOfType<PlayerRunner>();
-        if (player != null) speedFrac = player.GetSpeedFraction();
+        // Lazy re-find only while the ref is missing (destroyed on respawn) — mirrors
+        // the Ground.cs / Scenery.cs pattern.
+        if (_player == null) _player = FindObjectOfType<PlayerRunner>();
+        float speedFrac = (_player != null) ? _player.GetSpeedFraction() : 0f;
 
         bool isDead = core != null && core.IsDead;
         bool inTrib = core != null && core.InTribulation;

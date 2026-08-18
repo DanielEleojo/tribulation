@@ -60,8 +60,6 @@ public class MenuScreens : MonoBehaviour
     Slider _sfxSlider;
     Toggle _muteToggle;
     // Reset-cultivation confirm gate: the two rows swap visibility on tap.
-    GameObject _resetNormalRow;
-    GameObject _resetConfirmRow;
 
     // ════════════════════════════════════════════════════════════════════════
     // Lifecycle
@@ -644,224 +642,77 @@ public class MenuScreens : MonoBehaviour
             });
         }
 
-        // ── Reset Cultivation (danger, confirm-gated) ────────────────────────
-        // Normal row: single "Reset Cultivation" button (cinnabar danger style).
-        // Clicking it hides the normal row and shows the confirm row.
-        // A stray single tap on the normal button CANNOT wipe data — it only opens the gate.
+        // ── Reset Volume ─────────────────────────────────────────────────────
+        // Restores the Music/SFX sliders and the mute toggle to their defaults.
+        // Harmless (unlike the Reset Cultivation it replaced) — no confirm gate.
         {
-            var normalRowGO = new GameObject("ResetNormalRow", typeof(RectTransform));
-            normalRowGO.transform.SetParent(content.transform, false);
-            var nrLE = normalRowGO.AddComponent<LayoutElement>();
-            nrLE.preferredHeight = 92f; // 44pt iOS minimum touch target
-            nrLE.minHeight       = 92f;
+            var rowGO = new GameObject("ResetVolumeRow", typeof(RectTransform));
+            rowGO.transform.SetParent(content.transform, false);
+            var le = rowGO.AddComponent<LayoutElement>();
+            le.preferredHeight = 92f; // 44pt iOS minimum touch target
+            le.minHeight       = 92f;
 
-            var nrHLG = normalRowGO.AddComponent<HorizontalLayoutGroup>();
-            nrHLG.padding               = new RectOffset(0, 0, 0, 0);
-            nrHLG.spacing               = 0f;
-            nrHLG.childAlignment        = TextAnchor.MiddleCenter;
-            nrHLG.childControlWidth     = true;
-            nrHLG.childControlHeight    = true;
-            nrHLG.childForceExpandWidth  = true;
-            nrHLG.childForceExpandHeight = true;
+            var hlg = rowGO.AddComponent<HorizontalLayoutGroup>();
+            hlg.padding                = new RectOffset(0, 0, 0, 0);
+            hlg.spacing                = 0f;
+            hlg.childAlignment         = TextAnchor.MiddleCenter;
+            hlg.childControlWidth      = true;
+            hlg.childControlHeight     = true;
+            hlg.childForceExpandWidth  = true;
+            hlg.childForceExpandHeight = true;
 
-            // The danger button
-            var resetBtnGO = new GameObject("ResetBtn", typeof(RectTransform));
-            resetBtnGO.transform.SetParent(normalRowGO.transform, false);
+            var btnGO = new GameObject("ResetVolumeBtn", typeof(RectTransform));
+            btnGO.transform.SetParent(rowGO.transform, false);
 
-            var resetImg = resetBtnGO.AddComponent<Image>();
-            resetImg.sprite        = InkArt.RoundedPanel(400, 60, 12, 2);
-            resetImg.type          = Image.Type.Simple;
-            resetImg.color         = new Color(C_CINNABAR.r, C_CINNABAR.g, C_CINNABAR.b, 0.18f);
-            resetImg.raycastTarget = true;
+            var img = btnGO.AddComponent<Image>();
+            img.sprite        = InkArt.RoundedPanel(400, 60, 12, 2);
+            img.type          = Image.Type.Simple;
+            img.color         = new Color(C_JADE.r, C_JADE.g, C_JADE.b, 0.18f);
+            img.raycastTarget = true;
 
-            var resetBtn = resetBtnGO.AddComponent<Button>();
-            resetBtn.interactable  = true;
-            resetBtn.targetGraphic = resetImg;
+            var btn = btnGO.AddComponent<Button>();
+            btn.interactable  = true;
+            btn.targetGraphic = img;
             {
-                var cb = resetBtn.colors;
-                cb.normalColor      = new Color(C_CINNABAR.r, C_CINNABAR.g, C_CINNABAR.b, 0.18f);
-                cb.highlightedColor = new Color(C_CINNABAR.r, C_CINNABAR.g, C_CINNABAR.b, 0.30f);
-                cb.pressedColor     = new Color(C_CINNABAR.r, C_CINNABAR.g, C_CINNABAR.b, 0.45f);
+                var cb = btn.colors;
+                cb.normalColor      = new Color(C_JADE.r, C_JADE.g, C_JADE.b, 0.18f);
+                cb.highlightedColor = new Color(C_JADE.r, C_JADE.g, C_JADE.b, 0.30f);
+                cb.pressedColor     = new Color(C_JADE.r, C_JADE.g, C_JADE.b, 0.45f);
                 cb.disabledColor    = new Color(1f, 1f, 1f, 0.25f);
                 cb.colorMultiplier  = 1f;
-                resetBtn.colors = cb;
+                btn.colors = cb;
             }
 
-            var resetLabelGO = new GameObject("Label", typeof(RectTransform));
-            resetLabelGO.transform.SetParent(resetBtnGO.transform, false);
-            var rlrt = resetLabelGO.GetComponent<RectTransform>();
-            rlrt.anchorMin = Vector2.zero;
-            rlrt.anchorMax = Vector2.one;
-            rlrt.offsetMin = Vector2.zero;
-            rlrt.offsetMax = Vector2.zero;
-            var resetLabel = resetLabelGO.AddComponent<Text>();
-            resetLabel.font            = font;
-            resetLabel.fontSize        = 28;
-            resetLabel.color           = C_CINNABAR;
-            resetLabel.alignment       = TextAnchor.MiddleCenter;
-            resetLabel.fontStyle       = FontStyle.Bold;
-            resetLabel.supportRichText = false;
-            resetLabel.raycastTarget   = false;
-            resetLabel.text            = "Reset Cultivation";
+            var labelGO = new GameObject("Label", typeof(RectTransform));
+            labelGO.transform.SetParent(btnGO.transform, false);
+            var lrt = labelGO.GetComponent<RectTransform>();
+            lrt.anchorMin = Vector2.zero;
+            lrt.anchorMax = Vector2.one;
+            lrt.offsetMin = Vector2.zero;
+            lrt.offsetMax = Vector2.zero;
+            var label = labelGO.AddComponent<Text>();
+            label.font            = font;
+            label.fontSize        = 28;
+            label.color           = C_JADE;
+            label.alignment       = TextAnchor.MiddleCenter;
+            label.fontStyle       = FontStyle.Bold;
+            label.supportRichText = false;
+            label.raycastTarget   = false;
+            label.text            = "Reset Volume";
 
-            _resetNormalRow  = normalRowGO;
-
-            // Confirm row: "Erase all progress?  [Confirm]  [Cancel]"
-            // Starts hidden; shown when the normal button is tapped.
-            var confirmRowGO = new GameObject("ResetConfirmRow", typeof(RectTransform));
-            confirmRowGO.transform.SetParent(content.transform, false);
-            var crLE = confirmRowGO.AddComponent<LayoutElement>();
-            crLE.preferredHeight = 92f; // 44pt iOS minimum touch target
-            crLE.minHeight       = 92f;
-
-            var crHLG = confirmRowGO.AddComponent<HorizontalLayoutGroup>();
-            crHLG.padding               = new RectOffset(0, 0, 0, 0);
-            crHLG.spacing               = 12f;
-            crHLG.childAlignment        = TextAnchor.MiddleCenter;
-            crHLG.childControlWidth     = true;
-            crHLG.childControlHeight    = true;
-            crHLG.childForceExpandWidth  = false;
-            crHLG.childForceExpandHeight = true;
-
-            // Prompt label
-            var promptGO = new GameObject("ConfirmPrompt", typeof(RectTransform));
-            promptGO.transform.SetParent(confirmRowGO.transform, false);
-            var promptLE = promptGO.AddComponent<LayoutElement>();
-            promptLE.flexibleWidth = 1f;
-            var promptText = promptGO.AddComponent<Text>();
-            promptText.font            = font;
-            promptText.fontSize        = 24;
-            promptText.color           = C_CINNABAR;
-            promptText.alignment       = TextAnchor.MiddleLeft;
-            promptText.fontStyle       = FontStyle.Bold;
-            promptText.supportRichText = false;
-            promptText.raycastTarget   = false;
-            promptText.text            = "Erase all progress?";
-
-            // [Confirm] button
-            var confirmBtnGO = new GameObject("ConfirmYesBtn", typeof(RectTransform));
-            confirmBtnGO.transform.SetParent(confirmRowGO.transform, false);
-            var cbLE = confirmBtnGO.AddComponent<LayoutElement>();
-            cbLE.preferredWidth = 160f;
-            cbLE.minWidth       = 160f;
-
-            var confirmBtnImg = confirmBtnGO.AddComponent<Image>();
-            confirmBtnImg.sprite        = InkArt.RoundedPanel(140, 56, 12, 2);
-            confirmBtnImg.type          = Image.Type.Simple;
-            confirmBtnImg.color         = C_CINNABAR;
-            confirmBtnImg.raycastTarget = true;
-
-            var confirmBtnBtn = confirmBtnGO.AddComponent<Button>();
-            confirmBtnBtn.interactable  = true;
-            confirmBtnBtn.targetGraphic = confirmBtnImg;
-            {
-                var cb = confirmBtnBtn.colors;
-                cb.normalColor      = C_CINNABAR;
-                cb.highlightedColor = Color.Lerp(C_CINNABAR, Color.white, 0.15f);
-                cb.pressedColor     = Color.Lerp(C_CINNABAR, Color.black, 0.15f);
-                cb.disabledColor    = new Color(1f, 1f, 1f, 0.25f);
-                cb.colorMultiplier  = 1f;
-                confirmBtnBtn.colors = cb;
-            }
-
-            var confirmYesLabelGO = new GameObject("Label", typeof(RectTransform));
-            confirmYesLabelGO.transform.SetParent(confirmBtnGO.transform, false);
-            var cylrt = confirmYesLabelGO.GetComponent<RectTransform>();
-            cylrt.anchorMin = Vector2.zero;
-            cylrt.anchorMax = Vector2.one;
-            cylrt.offsetMin = Vector2.zero;
-            cylrt.offsetMax = Vector2.zero;
-            var confirmYesLabel = confirmYesLabelGO.AddComponent<Text>();
-            confirmYesLabel.font            = font;
-            confirmYesLabel.fontSize        = 26;
-            confirmYesLabel.color           = C_PARCHMENT;
-            confirmYesLabel.alignment       = TextAnchor.MiddleCenter;
-            confirmYesLabel.fontStyle       = FontStyle.Bold;
-            confirmYesLabel.supportRichText = false;
-            confirmYesLabel.raycastTarget   = false;
-            confirmYesLabel.text            = "Confirm";
-
-            // [Cancel] button
-            var cancelBtnGO = new GameObject("ConfirmNoBtn", typeof(RectTransform));
-            cancelBtnGO.transform.SetParent(confirmRowGO.transform, false);
-            var cancLE = cancelBtnGO.AddComponent<LayoutElement>();
-            cancLE.preferredWidth = 150f;
-            cancLE.minWidth       = 150f;
-
-            var cancelBtnImg = cancelBtnGO.AddComponent<Image>();
-            cancelBtnImg.sprite        = InkArt.RoundedPanel(120, 56, 12, 2);
-            cancelBtnImg.type          = Image.Type.Simple;
-            cancelBtnImg.color         = Color.white;
-            cancelBtnImg.raycastTarget = true;
-
-            var cancelBtnBtn = cancelBtnGO.AddComponent<Button>();
-            cancelBtnBtn.interactable  = true;
-            cancelBtnBtn.targetGraphic = cancelBtnImg;
-            {
-                var cb = cancelBtnBtn.colors;
-                cb.normalColor      = Color.white;
-                cb.highlightedColor = new Color(0.94f, 0.94f, 0.94f, 1f);
-                cb.pressedColor     = new Color(0.85f, 0.85f, 0.85f, 1f);
-                cb.disabledColor    = new Color(1f, 1f, 1f, 0.45f);
-                cb.colorMultiplier  = 1f;
-                cancelBtnBtn.colors = cb;
-            }
-
-            var cancelLabelGO = new GameObject("Label", typeof(RectTransform));
-            cancelLabelGO.transform.SetParent(cancelBtnGO.transform, false);
-            var clrt = cancelLabelGO.GetComponent<RectTransform>();
-            clrt.anchorMin = Vector2.zero;
-            clrt.anchorMax = Vector2.one;
-            clrt.offsetMin = Vector2.zero;
-            clrt.offsetMax = Vector2.zero;
-            var cancelLabel = cancelLabelGO.AddComponent<Text>();
-            cancelLabel.font            = font;
-            cancelLabel.fontSize        = 26;
-            cancelLabel.color           = C_INK;
-            cancelLabel.alignment       = TextAnchor.MiddleCenter;
-            cancelLabel.fontStyle       = FontStyle.Bold;
-            cancelLabel.supportRichText = false;
-            cancelLabel.raycastTarget   = false;
-            cancelLabel.text            = "Cancel";
-
-            _resetConfirmRow = confirmRowGO;
-            confirmRowGO.SetActive(false); // hidden until user taps "Reset Cultivation"
-
-            // Wire the three callbacks now that both rows are fully built.
-            // Normal → show confirm row, hide normal row (single tap can't wipe).
-            resetBtn.onClick.AddListener(() =>
+            btn.onClick.AddListener(() =>
             {
                 Haptics.Light();
                 SoundManager.I?.Play("ui_tap");
-                _resetNormalRow .SetActive(false);
-                _resetConfirmRow.SetActive(true);
-            });
-
-            // Confirm → execute reset, save, refresh UI, dismiss confirm.
-            confirmBtnBtn.onClick.AddListener(() =>
-            {
-                Haptics.Light();
-                SoundManager.I?.Play("ui_tap");
-                Game.I?.Core?.ResetCultivation();
-                Game.I?.SaveProgress();
-                // Refresh any open panels and the main menu realm/best readout.
-                RefreshShop();
-                RefreshSettings();
-                // End any live run so nothing keeps simulating behind the menu.
-                Game.I?.EndRunToMenu();
-                MainMenu.I?.Show();
-                // Dismiss confirm: swap back to normal row.
-                _resetConfirmRow.SetActive(false);
-                _resetNormalRow .SetActive(true);
-            });
-
-            // Cancel → dismiss confirm, no change.
-            cancelBtnBtn.onClick.AddListener(() =>
-            {
-                Haptics.Light();
-                SoundManager.I?.Play("ui_tap");
-                _resetConfirmRow.SetActive(false);
-                _resetNormalRow .SetActive(true);
+                var core = Game.I?.Core;
+                if (core != null)
+                {
+                    core.SetMusicVol(Tribulation.Core.GameCore.DefaultMusicVol);
+                    core.SetSfxVol(Tribulation.Core.GameCore.DefaultSfxVol);
+                    core.SetMuted(false);
+                    Game.I.SaveProgress();
+                }
+                RefreshSettings(); // snaps sliders + mute toggle to the restored values
             });
         }
 
@@ -1044,10 +895,6 @@ public class MenuScreens : MonoBehaviour
         if (_musicSlider != null) _musicSlider.SetValueWithoutNotify(core.MusicVol);
         if (_sfxSlider   != null) _sfxSlider  .SetValueWithoutNotify(core.SfxVol);
         if (_muteToggle  != null) _muteToggle .SetIsOnWithoutNotify(core.Muted);
-
-        // Always dismiss any half-open confirm gate when re-entering Settings.
-        if (_resetNormalRow  != null) _resetNormalRow .SetActive(true);
-        if (_resetConfirmRow != null) _resetConfirmRow.SetActive(false);
     }
 
     // ════════════════════════════════════════════════════════════════════════

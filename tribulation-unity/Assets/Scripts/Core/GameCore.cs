@@ -119,8 +119,12 @@ namespace Tribulation.Core
         public float TribTimeLeft => InTribulation ? Math.Max(0f, _tribT) : 0f;
 
         // Audio settings (persisted)
-        public float MusicVol  { get; private set; } = 0.8f;
-        public float SfxVol    { get; private set; } = 0.9f;
+        // Defaults shared with the Settings screen's "Reset Volume" button.
+        public const float DefaultMusicVol = 0.8f;
+        public const float DefaultSfxVol   = 0.9f;
+
+        public float MusicVol  { get; private set; } = DefaultMusicVol;
+        public float SfxVol    { get; private set; } = DefaultSfxVol;
         public bool  Muted     { get; private set; }
 
         // Spent (for spendable balance = total - spent)

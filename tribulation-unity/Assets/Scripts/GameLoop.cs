@@ -17,21 +17,27 @@ public class GameLoop : MonoBehaviour
     {
         _player = FindObjectOfType<PlayerRunner>();
         _spawner = FindObjectOfType<Spawner>();
-        if (SwipeDetector.I != null) SwipeDetector.I.Tapped += OnTap;
     }
 
     public void OnPlayerDied()
     {
         _dead = true;
-        Debug.Log($"DIED — distance {_player.GetDistance()}m. Tap / Space to restart.");
+        Debug.Log($"DIED — distance {_player.GetDistance()}m. Death-card button / Space to restart.");
     }
 
     /// <summary>Called by Game.PerformRevive() after a successful ad-revive. Clears the
-    /// tap-to-restart gate — without this a stray tap right after reviving would restart
-    /// the freshly-revived run instead of doing nothing.</summary>
+    /// restart gate — without this a stray restart press right after reviving would
+    /// restart the freshly-revived run instead of doing nothing.</summary>
     public void OnPlayerRevived() { _dead = false; }
 
-    void OnTap() { if (_dead) Restart(); }
+    /// <summary>Death card's "WALK THE ROAD AGAIN" button. Restarting is button-only on
+    /// device (the old tap-anywhere handler is gone so card buttons can't double-fire);
+    /// the _dead gate makes a stale press after a revive a no-op.</summary>
+    public void RestartFromDeathCard() { if (_dead) Restart(); }
+
+    /// <summary>Leaving the run for the main menu (death card's "RETURN TO MAIN MENU").
+    /// Clears the restart gate so a stale Space press can't restart under the menu.</summary>
+    public void OnRunExited() { _dead = false; }
 
     void Update()
     {

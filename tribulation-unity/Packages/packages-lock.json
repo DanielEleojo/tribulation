@@ -1,12 +1,5 @@
 {
   "dependencies": {
-    "com.anklebreaker.unity-mcp": {
-      "version": "https://github.com/AnkleBreaker-Studio/unity-mcp-plugin.git",
-      "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "55cd393fe53c4ed7ee9a38124b4d8e5f05f5a323"
-    },
     "com.coplaydev.unity-mcp": {
       "version": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main",
       "depth": 0,
@@ -22,7 +15,7 @@
         "com.unity.nuget.newtonsoft-json": "3.0.2",
         "com.unity.test-framework": "1.1.31"
       },
-      "hash": "11836003a5e2ffcb7715ecec7e1fbb9d9cdb5bb8"
+      "hash": "4ce7dd3cc54e37e2ed6dc59cb5a047f3dccb3f50"
     },
     "com.cqf.urpvolumetricfog": {
       "version": "https://github.com/CristianQiu/Unity-URP-Volumetric-Light.git",
